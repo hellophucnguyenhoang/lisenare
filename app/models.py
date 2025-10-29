@@ -41,10 +41,10 @@ class Reading(SQLModel, table=True):
 
     id: int | None = Field(default=None, primary_key=True)
     topic_id: int = Field(foreign_key="topics.id")
-    difficulty: int | None = Field(default=None)
-    estimated_time: int | None = Field(default=None, description="Minutes")
     title: str
     content_text: str | None = Field(default=None, description="Full reading passage")
+    difficulty: int
+    estimated_time: int | None = Field(default=None, description="Minutes")
     num_questions: int | None = Field(default=4)
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 

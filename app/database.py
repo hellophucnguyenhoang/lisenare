@@ -1,5 +1,5 @@
 from sqlmodel import create_engine, SQLModel, Session, select
-from .models import User, Reading, ObjectiveQuestion, Topic, UserTopicLink, StudySession
+# from .models import User, Reading, ObjectiveQuestion, Topic, UserTopicLink, StudySession
 from typing import Iterator
 
 
