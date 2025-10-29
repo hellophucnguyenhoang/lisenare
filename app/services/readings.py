@@ -20,3 +20,6 @@ def add_objective_question(session: Session, question_create: ObjectiveQuestionC
 def get_all_readings(session: Session) -> List[Reading]:
     topics = session.exec(select(Reading)).all()
     return topics
+
+def get_full_reading_by_id(session: Session, id: int):
+    return session.exec(select(Reading).where(Reading.id == id)).one()

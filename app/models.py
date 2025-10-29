@@ -1,5 +1,6 @@
 from datetime import datetime, timezone
 from sqlmodel import SQLModel, Field, Relationship, create_engine
+from typing import Optional
 
 class UserTopicLink(SQLModel, table=True):
     __tablename__ = "user_topic_link"
@@ -82,6 +83,7 @@ class StudySession(SQLModel, table=True):
     rating: int = Field(default=3, ge=1, le=5) # 1 to 5
     time_spent: float | None = Field(default=None, ge=0, le=100)
     give_up: bool = Field(default=False)
+    user_answers: Optional[str] = None  # store like "0,1,2,0"
     completed_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
     # Relationships

@@ -1,4 +1,4 @@
-from sqlmodel import SQLModel
+from sqlmodel import SQLModel, Field
 from typing import List, Optional
 from datetime import datetime
 
@@ -31,10 +31,11 @@ class TopicRead(SQLModel):
 class ReadingBase(SQLModel):
     topic_id: int
     title: str
-    content_text: Optional[str] = None
-    difficulty: Optional[int] = None
-    estimated_time: Optional[int] = None
-    num_questions: Optional[int] = 4
+    content_text: str
+    difficulty: int
+    estimated_time: int
+    num_questions: int = 4
+    questions: List["ObjectiveQuestionRead"] = []
 
 class ReadingCreate(ReadingBase):
     pass
@@ -70,6 +71,7 @@ class StudySessionBase(SQLModel):
     rating: int = 3
     time_spent: Optional[float] = None
     give_up: bool = False
+    user_answers: Optional[str] = None
 
 class StudySessionCreate(StudySessionBase):
     pass
@@ -77,3 +79,31 @@ class StudySessionCreate(StudySessionBase):
 class StudySessionRead(StudySessionBase):
     id: int
     completed_at: datetime
+
+
+class QuestionResult(SQLModel):
+    id: int
+    question_text: str
+    option_a: str
+    option_b: str
+    option_c: str
+    option_d: str
+    correct_option: int
+    explanation: Optional[str]
+    user_selected: Optional[int]  # user's chosen option index or None
+    is_correct: bool
+
+class StudySessionResult(SQLModel):
+    id: int
+    user_id: int
+    reading_id: int
+    score: float
+    rating: int
+    time_spent: Optional[float]
+    give_up: bool
+    user_answers: Optional[str]
+    completed_at: datetime
+    reading_title: str
+    reading_content: Optional[str]
+    questions: List[QuestionResult]
+
