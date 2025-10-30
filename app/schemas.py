@@ -107,3 +107,5 @@ class StudySessionResult(SQLModel):
     reading_content: Optional[str]
     questions: List[QuestionResult]
 
+class RatingUpdate(SQLModel):
+    rating: int
