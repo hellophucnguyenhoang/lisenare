@@ -80,7 +80,7 @@ class StudySession(SQLModel, table=True):
     user_id: int = Field(foreign_key="users.id")
     reading_id: int = Field(foreign_key="readings.id")
     score: float = Field(default=0.0, ge=0.0, le=1.0)  # 0 to 1
-    rating: int = Field(default=3, ge=1, le=5) # 1 to 5
+    rating: int = Field(default=0, ge=-1, le=1)
     time_spent: float | None = Field(default=None, ge=0, le=100)
     give_up: bool = Field(default=False)
     user_answers: Optional[str] = None  # store like "0,1,2,0"

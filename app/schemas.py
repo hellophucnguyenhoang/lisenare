@@ -68,7 +68,7 @@ class StudySessionBase(SQLModel):
     user_id: int
     reading_id: int
     score: float = 0.0
-    rating: int = 3
+    rating: int = Field(default=0, ge=-1, le=1)
     time_spent: Optional[float] = None
     give_up: bool = False
     user_answers: Optional[str] = None
@@ -108,4 +108,4 @@ class StudySessionResult(SQLModel):
     questions: List[QuestionResult]
 
 class RatingUpdate(SQLModel):
-    rating: int
+    rating: int = Field(default=0, ge=-1, le=1)
