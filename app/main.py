@@ -2,7 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.database import create_db_and_tables, get_session
 from seed_data import seed_topics, seed_readings, seed_users
-from app.api import users, topics, readings, study_sessions
+from app.api import users, topics, readings, study_sessions, interactions
 import os 
 from app.config import settings
 
@@ -44,3 +44,4 @@ app.include_router(users.router)
 app.include_router(topics.router)
 app.include_router(readings.router)
 app.include_router(study_sessions.router)
+app.include_router(interactions.router)

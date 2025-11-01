@@ -1,5 +1,5 @@
 from sqlmodel import SQLModel, Field
-from typing import List, Optional
+from typing import List, Optional, Literal
 from datetime import datetime
 
 
@@ -109,3 +109,13 @@ class StudySessionResult(SQLModel):
 
 class RatingUpdate(SQLModel):
     rating: int = Field(default=0, ge=-1, le=1)
+
+
+class InteractionCreate(SQLModel):
+    user_id: Optional[int]
+    item_id: int
+    event_type: str
+    event_time: Optional[datetime] = None
+
+class InteractionRead(InteractionCreate):
+    id: int

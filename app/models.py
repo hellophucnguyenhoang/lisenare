@@ -1,6 +1,6 @@
 from datetime import datetime, timezone
 from sqlmodel import SQLModel, Field, Relationship, create_engine
-from typing import Optional
+from typing import Optional, Literal
 
 class UserTopicLink(SQLModel, table=True):
     __tablename__ = "user_topic_link"
@@ -90,3 +90,12 @@ class StudySession(SQLModel, table=True):
     user: User | None = Relationship(back_populates="study_sessions")
     reading: Reading | None = Relationship(back_populates="study_sessions")
 
+
+class Interaction(SQLModel, table=True):
+    __tablename__ = "interactions"
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    user_id: Optional[int] = Field(default=None, index=True)
+    item_id: int = Field(index=True)
+    event_type: str
+    event_time: datetime = Field(default_factory=lambda: datetime.now(timezone.utc), index=True)
