@@ -1,22 +1,20 @@
+# app/services/users.py
 from sqlmodel import Session, select
-from app.models import User, UserTopicLink
+from app.models import User
 from app.schemas import UserCreate
-from typing import Optional, List
-from datetime import datetime, timezone
+from app.core.security import get_password_hash
 
 def create_user(session: Session, user_create: UserCreate) -> User:
-    password_hash = user_create.password + "hashed"
-    user = User.model_validate(user_create, update={"password_hash": password_hash})
-    user.password_hash = password_hash
+    hashed_password = get_password_hash(user_create.password)
+    user = User(
+        username=user_create.username,
+        email=user_create.email,
+        hashed_password=hashed_password,
+    )
     session.add(user)
     session.commit()
     session.refresh(user)
     return user
 
-def get_user_by_username(session: Session, username: str) -> Optional[User]:
+def get_user_by_username(session: Session, username: str):
     return session.exec(select(User).where(User.username == username)).first()
-
-def link_user_to_topics(session: Session, user_id: int, topic_ids: List[int]):
-    for topic_id in topic_ids:
-        session.add(UserTopicLink(user_id=user_id, topic_id=topic_id))
-    session.commit()

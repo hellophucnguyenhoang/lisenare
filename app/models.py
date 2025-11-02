@@ -24,8 +24,8 @@ class User(SQLModel, table=True):
 
     id: int | None = Field(default=None, primary_key=True)
     username: str
-    password_hash: str
-    email: str
+    hashed_password: str
+    email: str | None = None
     user_level: int | None = Field(default=0, description="0-5 (A1-C2)")
     goal_type: int | None = Field(default=0, description="0-3 (Exam prep, Casual, Career, Other)")
     age_group: int | None = Field(default=0, description="0: Teenagers, 1: Adult")
@@ -64,7 +64,7 @@ class ObjectiveQuestion(SQLModel, table=True):
     option_a: str
     option_b: str
     option_c: str
-    option_d: str
+    option_d: str | None = None
     correct_option: int = Field(ge=0, le=3) # 0, 1, 2, 3
     explanation: str | None = None
     order_index: int | None = None

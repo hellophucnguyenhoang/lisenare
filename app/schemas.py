@@ -6,7 +6,7 @@ from datetime import datetime
 # ---- User ----
 class UserBase(SQLModel):
     username: str
-    email: str
+    email: Optional[str] = None
     user_level: Optional[int] = 0
     goal_type: Optional[int] = 0
     age_group: Optional[int] = 0
@@ -16,6 +16,14 @@ class UserCreate(UserBase):
 
 class UserRead(UserBase):
     id: int
+
+class Token(SQLModel):
+    access_token: str
+    token_type: str = "bearer"
+
+class UserWithToken(SQLModel):
+    user: UserRead
+    token: Token
 
 
 # ---- Topic ----
@@ -87,7 +95,7 @@ class QuestionResult(SQLModel):
     option_a: str
     option_b: str
     option_c: str
-    option_d: str
+    option_d: str | None = None
     correct_option: int
     explanation: Optional[str]
     user_selected: Optional[int]  # user's chosen option index or None
@@ -117,5 +125,9 @@ class InteractionCreate(SQLModel):
     event_type: str
     event_time: Optional[datetime] = None
 
-class InteractionRead(InteractionCreate):
-    id: int
+
+class RecommendItemRequest(SQLModel):
+    username: str = "anonymous"
+
+class RecommendItemResponse(SQLModel):
+    item_id: int
