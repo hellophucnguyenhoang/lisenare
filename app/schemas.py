@@ -130,4 +130,4 @@ class RecommendItemRequest(SQLModel):
     username: str = "anonymous"
 
 class RecommendItemResponse(SQLModel):
-    item: List[ReadingRead]
+    item: ReadingRead
