@@ -41,9 +41,9 @@ def on_startup():
 
 # Include routers
 app.include_router(auth.router)
-app.include_router(recommendations.router)
 app.include_router(users.router)
+app.include_router(recommendations.router)
+app.include_router(interactions.router)
 app.include_router(topics.router)
 app.include_router(readings.router)
 app.include_router(study_sessions.router)
-app.include_router(interactions.router)

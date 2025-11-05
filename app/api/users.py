@@ -19,7 +19,7 @@ def register_user(user: UserCreate, session: Session = Depends(get_session)):
         raise HTTPException(status_code=400, detail="Username already taken")
     new_user = user_service.create_user(session, user)
     access_token = create_access_token({"sub": new_user.username})
-    return {"user": new_user, "token": Token(access_token)}
+    return {"user": new_user, "token": Token(access_token=access_token)}
 
 @router.get("/me", response_model=UserRead)
 def read_users_me(token: str = Depends(oauth2_scheme), session: Session = Depends(get_session)):

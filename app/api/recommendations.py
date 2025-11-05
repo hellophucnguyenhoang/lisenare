@@ -1,6 +1,8 @@
 # app/api/users.py
 from fastapi import APIRouter, Depends, HTTPException
 from sqlmodel import Session
+from app.database import get_session
+from app.services import readings as reading_service
 from app.schemas import RecommendItemRequest, RecommendItemResponse
 import numpy as np
 from stable_baselines3 import PPO
@@ -18,10 +20,8 @@ USER_EMBEDDINGS = {
     "nguye": np.random.randn(OBS_DIM).astype(np.float32),
 }
 
-USER_EMBEDDINGS["phuc2"] = USER_EMBEDDINGS["phuc"]
-
 @router.post("/recommend", response_model=RecommendItemResponse)
-def recommend_api(req: RecommendItemRequest):
+def recommend_api(req: RecommendItemRequest, session: Session = Depends(get_session)):
 
     # Get user's observation vector
     obs = USER_EMBEDDINGS.get(req.username)
@@ -31,9 +31,10 @@ def recommend_api(req: RecommendItemRequest):
     # Predict the best item for this user
     action, _ = model.predict(obs, deterministic=True)
     item_id = int(action)
+    recommended_reading = reading_service.get_full_reading_by_id(session, item_id)
 
     # update user history
     USER_EMBEDDINGS[req.username] = 0.5 * USER_EMBEDDINGS[req.username] + np.random.randn(OBS_DIM).astype(np.float32)
 
-    return RecommendItemResponse(item_id=item_id)
+    return RecommendItemResponse(item=recommended_reading)
 
