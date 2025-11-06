@@ -1,7 +1,7 @@
 # app/routers/interactions.py
 from fastapi import APIRouter, Depends, status, HTTPException
 from sqlmodel import Session
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import List
 import logging
 
@@ -26,11 +26,10 @@ def create_interactions(
         for ev in events:
             session.add(
                 Interaction(
-                    user_id=ev.user_id,
-                    item_id=ev.item_id,
                     event_type=ev.event_type,
-                    event_time=ev.event_time or datetime.utcnow(),
-                    metadata=ev.metadata,
+                    event_time=ev.event_time or datetime.now(timezone.utc),
+                    user_state_id=ev.user_state_id,
+                    item_id=ev.item_id,
                 )
             )
 
