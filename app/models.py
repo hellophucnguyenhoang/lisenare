@@ -35,7 +35,7 @@ class User(SQLModel, table=True):
 
     topic_preferences: list["Topic"] = Relationship(back_populates="users", link_model=UserTopicLink)
     study_sessions: list["StudySession"] = Relationship(back_populates="user")
-    user_state: "UserState" = Relationship(back_populates="user")
+    # user_state: "UserState" = Relationship(back_populates="user") is not up-to-date, so we do not use here
 
 
 class UserState(SQLModel, table=True):
@@ -45,7 +45,7 @@ class UserState(SQLModel, table=True):
     item_ids: str = Field(default="", description="Comma-separated item IDs, e.g. '1,2,8,3,2'")
 
     user_id: int = Field(foreign_key="users.id")
-    user: User = Relationship(back_populates="user_state")
+    user: User = Relationship()
     interactions: list["Interaction"] = Relationship(back_populates="user_state")
 
 
@@ -116,3 +116,12 @@ class Interaction(SQLModel, table=True):
 
     user_state: UserState = Relationship(back_populates="interactions")
     item: Reading = Relationship(back_populates="interactions")
+
+
+# Item embedding
+class ReadingEmbedding(SQLModel, table=True):
+    __tablename__ = "reading_embeddings"
+
+    id: int | None = Field(default=None, primary_key=True)
+    reading_id: int = Field(foreign_key="readings.id", unique=True)
+    vector_blob: bytes
