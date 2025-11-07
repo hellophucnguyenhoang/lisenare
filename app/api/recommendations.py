@@ -15,15 +15,11 @@ model = PPO.load(MODEL_PATH)
 
 OBS_DIM = 384
 USER_EMBEDDINGS = {
-    "phuc": np.random.randn(OBS_DIM).astype(np.float32),
-    "sammy": np.random.randn(OBS_DIM).astype(np.float32),
-    "nguye": np.random.randn(OBS_DIM).astype(np.float32),
+    "phuc": np.random.randn(OBS_DIM).astype(np.float32)
 }
 
 USER_STATE = {
-    "phuc": UserStateRead(user_id=1, id=1),
-    "sammy": UserStateRead(user_id=2, id=2),
-    "nguye": UserStateRead(user_id=3, id=3),
+    "phuc": UserStateRead(user_id=1, item_ids="this is assumed to change", id=1)
 }
 
 @router.post("/recommend", response_model=RecommendItemResponse)
@@ -43,10 +39,12 @@ def recommend_api(req: RecommendItemRequest, session: Session = Depends(get_sess
     USER_EMBEDDINGS[req.username] = 0.5 * USER_EMBEDDINGS[req.username] + np.random.randn(OBS_DIM).astype(np.float32)
 
     user_state = USER_STATE[req.username]
-    if user_state.item_ids:
-        user_state.item_ids += f",{item_id}"
-    else:
-        user_state.item_ids = str(item_id)
+    # if user_state.item_ids:
+    #     user_state.item_ids += f",{item_id}"
+    # else:
+    #     user_state.item_ids = str(item_id)
+    user_state.id += 1
+    USER_STATE[req.username] = user_state
 
     return RecommendItemResponse(user_state=user_state, item=recommended_reading)
 
