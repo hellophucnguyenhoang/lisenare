@@ -7,16 +7,16 @@ from copy import deepcopy
 import random
 
 # Hyperparameters
-EMBED_DIM = 32  # d = n
+EMBED_DIM = 390  # d = n
 N = 5   # Number of items in state
 K = 3    # Number of items to recommend
-NUM_ITEMS = 100
+NUM_ITEMS = 200
 ALPHA = 0.5     # for cosine
 GAMMA_REWARD = 0.9  # position discount Γ
 GAMMA = 0.99    # discount factor
 TAU = 0.001     # soft update
 BATCH_SIZE = 32
-REPLAY_SIZE = 10000
+REPLAY_SIZE = 1000
 LR_ACTOR = 1e-4
 LR_CRITIC = 1e-3
 NUM_EPISODES = 10  # small for demo

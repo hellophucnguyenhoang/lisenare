@@ -3,6 +3,7 @@ from app.services.item_embeddings import create_item_embeddings, get_item_embedd
 
 
 engine = create_engine("sqlite:///database.db")
+
 with Session(engine) as session:
     # Create (or update) embeddings for all readings
     create_item_embeddings(session)

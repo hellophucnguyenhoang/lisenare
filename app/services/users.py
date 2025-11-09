@@ -39,7 +39,7 @@ def get_current_state(session: Session, username: str, include_future: bool = Fa
     item_ids = get_interacted_items(session, username, include_future)
     
     if not item_ids:
-        return np.zeros((384,))  # Assuming embedding size is 384
+        return np.zeros((390,))
 
     discount_factor = 0.5
     current_state = None
