@@ -20,18 +20,24 @@ def recommend_api(req: RecommendItemRequest, session: Session = Depends(get_sess
     batch_size = 3
     recommendations = []
 
+    # IDs the user has already interacted with
+    user_interacted_items = user_service.get_interacted_items(session, req.username, include_future=True)
+
     for i in range(batch_size):
+        # pick a random reading (will always return a reading, logs a warning if all are read)
+        random_reading = reading_service.get_random_unseen_reading(session, user_interacted_items)
+        item_id = random_reading.id
+        print(f'Recommended item ID {i}:', item_id)
 
-        obs = user_service.get_current_state(session, req.username, include_future=True)
-        action, _ = model.predict(obs, deterministic=True)
-        item_id = int(action)
-        print(f'Recommended item ID{i}:', item_id)
-
-        # update user history
+        # update user state
         user_state = user_state_service.create_user_state(session, req.username, item_id)
-        recommended_reading = reading_service.get_full_reading_by_id(session, item_id)
 
-        recommendations.append(RecommendItemResponse(user_state=user_state, item=recommended_reading))
+        # append to response
+        recommendations.append(RecommendItemResponse(user_state=user_state, item=random_reading))
+
+        # add to interacted list to avoid duplicates in this batch
+        user_interacted_items.append(item_id)
 
     return recommendations
+
 

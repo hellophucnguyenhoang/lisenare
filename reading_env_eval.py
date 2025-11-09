@@ -92,5 +92,9 @@ print("\n=== Summary ===")
 print(f"Random   : {mean_random:.3f} ± {std_random:.3f}")
 print(f"Cosine   : {mean_cosine:.3f} ± {std_cosine:.3f}")
 print(f"PPO      : {mean_reward_ppo:.3f} ± {std_reward_ppo:.3f}")
+
+improve_random = (mean_reward_ppo - mean_random) / (abs(mean_random) + 1e-8) * 100
+print(f"✅ PPO improves over random baseline by {improve_random:.2f}%")
+
 improve_cosine = (mean_reward_ppo - mean_cosine) / (abs(mean_cosine) + 1e-8) * 100
 print(f"✅ PPO improves over cosine-sim baseline by {improve_cosine:.2f}%")
