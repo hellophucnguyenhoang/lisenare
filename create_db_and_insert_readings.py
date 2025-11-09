@@ -42,7 +42,6 @@ def create_data():
                 title=str(title),
                 content_text=str(article),
                 difficulty=classify_reading(str(article) + " " + str(title), power=1.3),
-                estimated_time=None,
                 num_questions=len(group),
                 topic=topic_map.get(topic_name),
             )

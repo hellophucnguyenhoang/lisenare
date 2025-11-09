@@ -1,6 +1,6 @@
 from sqlmodel import SQLModel, Field
 from datetime import datetime, timezone
-
+import re
 
 # ---- Topic ----
 class TopicCreate(SQLModel):
@@ -49,9 +49,18 @@ class ReadingBase(SQLModel):
     title: str
     content_text: str
     difficulty: int
-    estimated_time: int | None = None
+    num_words: int = Field(ge=3)
     num_questions: int = 1
     questions: list["ObjectiveQuestionRead"] = []
+
+    @property
+    def num_words(self) -> int:
+        """
+        Automatically calculate number of words in title + content_text
+        """
+        text = f"{self.title} {self.content_text}"
+        words = re.findall(r"\b\w+\b", text)
+        return len(words)
 
 class ReadingCreate(ReadingBase):
     pass

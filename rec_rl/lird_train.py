@@ -32,8 +32,9 @@ historical_data = []
 for _ in range(NUM_HIST):
     s = item_embeddings[torch.randint(0, NUM_ITEMS, (N,))]
     a = item_embeddings[torch.randint(0, NUM_ITEMS, (K,))]
-    r_vec = torch.tensor(random.choices([0, 1, 5], k=K))  # skip/click/order
+    r_vec = torch.tensor(random.choices([0, 0.1, 0.5, 0.8, 1.0], k=K))  # skip/view/click/submit/like
     historical_data.append(((s, a), r_vec))
+
 
 class Simulator:
     def __init__(self, historical_data, alpha=ALPHA):

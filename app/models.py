@@ -1,6 +1,6 @@
 from datetime import datetime, timezone
 from sqlmodel import SQLModel, Field, Relationship, create_engine
-
+import re
 
 class UserTopicLink(SQLModel, table=True):
     __tablename__ = "user_topic_link"
@@ -56,7 +56,7 @@ class Reading(SQLModel, table=True):
     title: str
     content_text: str
     difficulty: int
-    estimated_time: int | None = Field(default=None, description="Minutes")
+    num_words: int = Field(ge=3)
     num_questions: int = 1
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
@@ -66,6 +66,16 @@ class Reading(SQLModel, table=True):
     questions: list["ObjectiveQuestion"] = Relationship(back_populates="reading")
     study_sessions: list["StudySession"] = Relationship(back_populates="reading")
     interactions: list["Interaction"] = Relationship(back_populates="item")
+    reading_embedding: "ReadingEmbedding" = Relationship(back_populates="reading")
+
+    @property
+    def num_words(self) -> int:
+        """
+        Automatically calculate number of words in title + content_text
+        """
+        text = f"{self.title} {self.content_text}"
+        words = re.findall(r"\b\w+\b", text)
+        return len(words)
 
 
 class ObjectiveQuestion(SQLModel, table=True):
@@ -127,21 +137,4 @@ class ReadingEmbedding(SQLModel, table=True):
     vector_blob: bytes
 
 
-
-# TEMP
-class Team(SQLModel, table=True):
-    id: int | None = Field(default=None, primary_key=True)
-    name: str = Field(index=True)
-    headquarters: str
-
-    heroes: list["Hero"] = Relationship(back_populates="team")
-
-
-class Hero(SQLModel, table=True):
-    id: int | None = Field(default=None, primary_key=True)
-    name: str = Field(index=True)
-    secret_name: str
-    age: int | None = Field(default=None, index=True)
-
-    team_id: int | None = Field(default=None, foreign_key="team.id")
-    team: Team | None = Relationship(back_populates="heroes")
+    reading: Reading = Relationship(back_populates="reading_embedding")
