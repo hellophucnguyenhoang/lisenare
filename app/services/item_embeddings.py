@@ -2,7 +2,7 @@ from typing import List, Optional
 import numpy as np
 from sqlmodel import Session, select
 from sentence_transformers import SentenceTransformer
-
+import torch
 from app.models import Reading, ReadingEmbedding
 
 
@@ -110,3 +110,42 @@ def get_item_embedding_by_reading_id(session: Session, reading_id: int) -> Optio
 
     arr = np.frombuffer(emb_row.vector_blob, dtype=np.float32).copy()
     return arr
+
+def load_random_item_embeddings(session: Session, num_items: int, embed_dim: int) -> torch.Tensor:
+    """
+    Load up to num_items unique item embeddings randomly from the database.
+
+    Args:
+        session: SQLAlchemy/SQLModel session
+        num_items: number of embeddings to sample
+        embed_dim: embedding dimension
+
+    Returns:
+        item_embeddings: torch.Tensor of shape (num_items_loaded, embed_dim)
+    """
+    # Lấy tất cả embeddings có trong DB
+    all_emb_rows = session.exec(select(ReadingEmbedding)).all()
+    total_items = len(all_emb_rows)
+
+    if total_items == 0:
+        raise ValueError("No embeddings found in the database.")
+
+    if num_items > total_items:
+        print(f"Warning: Requested NUM_ITEMS={num_items} exceeds available={total_items}. Using {total_items} instead.")
+        num_items = total_items
+
+    # Lấy sample ngẫu nhiên, không trùng
+    sampled_rows = np.random.choice(all_emb_rows, size=num_items, replace=False)
+
+    item_embeddings = torch.zeros((num_items, embed_dim), dtype=torch.float32)
+
+    for i, row in enumerate(sampled_rows):
+        emb_arr = np.frombuffer(row.vector_blob, dtype=np.float32)
+        # đảm bảo đúng shape
+        if emb_arr.shape[0] != embed_dim:
+            print("Warning: Embedding dimension mismatch for reading_id "
+                  f"{row.reading_id}: expected {embed_dim}, got {emb_arr.shape[0]}. Skipping.")
+            continue
+        item_embeddings[i] = torch.from_numpy(emb_arr).float()
+
+    return item_embeddings

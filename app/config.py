@@ -15,6 +15,7 @@ class Settings(BaseSettings):
     seed_on_startup: bool = True
     algorithm: str = "HS256"
     access_token_expire_minutes: int = 30
+    item_embedding_dim: int = 392
 
     class Config:
         env_file = ".env"  # load values from .env file

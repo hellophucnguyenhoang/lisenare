@@ -1,122 +1,120 @@
-import pickle
-from sqlmodel import Session, select
+from sqlmodel import select
 from app.database import get_session
-from app.models import Interaction, UserState, Reading, ReadingEmbedding
+from app.models import Interaction, ReadingEmbedding
 import torch
 from collections import defaultdict
-from datetime import datetime
-import numpy as np  # in case embeddings are np arrays
+import numpy as np
+import pickle
+from app.config import settings
 
 def preprocess_data():
     with next(get_session()) as session:
+        # Lấy tất cả interaction theo thời gian
         statement = select(Interaction).order_by(Interaction.event_time)
         results = session.exec(statement).all()
 
-        # Reward map (adjust if needed)
-        reward_map = {'skip': 0, 'view': 1, 'click': 1, 'submit': 5}
+        reward_map = {
+            "skip": -0.25,
+            "view": 0.1,
+            "click": 0.5,
+            "submit": 0.8,
+            "like": 1.0,
+            "dislike": -1.0,
+            "retry": 0.5
+        }
 
-        # Group by user_state_id to handle duplicates on same item
-        groups = defaultdict(list)
+        # Gom interactions theo user
+        user_groups = defaultdict(list)
         for inter in results:
-            groups[inter.user_state_id].append(inter)
+            user_id = inter.user_state.user_id
+            user_groups[user_id].append(inter)
 
-        seq = []
-        for us_id in sorted(groups, key=lambda uid: min([i.event_time for i in groups[uid]])):
-            group = groups[us_id]
-            item = group[0].item_id  # assume same for group
-            events = set([i.event_type for i in group])  # unique events
-            max_event = max(events, key=lambda e: reward_map.get(e, 0))
-            reward = reward_map.get(max_event, 0)
-            time = min([i.event_time for i in group])
-            user_state = group[0].user_state  # the state before interaction
-            seq.append({'item_id': item, 'reward': reward, 'time': time, 'us_id': us_id, 'user_state': user_state})
+        EMBED_DIM = settings.item_embedding_dim
+        STATE_LEN = 4  # N
+        LIST_LEN = 3   # K
 
-        # Get EMBED_DIM from first embedding if available
-        EMBED_DIM = 392  # default fallback
-        if results:
-            first_reading = results[0].item
-            if first_reading.reading_embedding:
-                emb = pickle.loads(first_reading.reading_embedding.vector_blob)
-                EMBED_DIM = emb.shape[0] if hasattr(emb, 'shape') else len(emb)
-
-        STATE_LEN = 5  # N, adjust as needed
-        LIST_LEN = 3   # K, adjust as needed
-
-        # Cache for embeddings
+        # Cache embedding để không query DB nhiều lần
         item_to_emb = {}
 
-        def get_emb(reading_id, session):
+        def get_emb(reading_id):
             if reading_id not in item_to_emb:
                 stmt = select(ReadingEmbedding).where(ReadingEmbedding.reading_id == reading_id)
                 emb_obj = session.exec(stmt).first()
-                if emb_obj:
-                    emb = pickle.loads(emb_obj.vector_blob)
-                    # Convert to torch.tensor
-                    if isinstance(emb, np.ndarray):
-                        item_to_emb[reading_id] = torch.from_numpy(emb).float()
-                    elif isinstance(emb, list):
-                        item_to_emb[reading_id] = torch.tensor(emb).float()
-                    else:
-                        item_to_emb[reading_id] = emb.float()  # assume torch
+                if emb_obj and emb_obj.vector_blob:
+                    emb = np.frombuffer(emb_obj.vector_blob, dtype=np.float32)
+                    emb = torch.from_numpy(emb).float()
+                    item_to_emb[reading_id] = emb
                 else:
                     item_to_emb[reading_id] = torch.zeros(EMBED_DIM)
             return item_to_emb[reading_id]
 
         historical_data = []
 
-        # For simplicity, assume one big session; if multiple users, group by user_id
-        current_state_items = []  # running positive item_ids (but DB has states, we use running for Alg.1)
+        for user_id, inters in user_groups.items():
+            # sort interaction theo thời gian
+            inters.sort(key=lambda i: i.event_time)
 
-        items_seq = [d['item_id'] for d in seq]
-        rewards_seq = [d['reward'] for d in seq]
+            # gom theo item, chỉ lấy max reward
+            item_seq = []
+            item_rewards = {}
+            for inter in inters:
+                iid = inter.item_id
+                r = reward_map.get(inter.event_type, 0)
+                if iid not in item_rewards or r > item_rewards[iid]:
+                    item_rewards[iid] = r
+            # tạo danh sách item theo thứ tự interaction
+            seen_items = []
+            for inter in inters:
+                iid = inter.item_id
+                if iid not in seen_items:
+                    item_seq.append((iid, item_rewards[iid]))
+                    seen_items.append(iid)
 
-        L = len(items_seq)
-        for l in range(0, L, LIST_LEN):
-            start = l
-            end = min(l + LIST_LEN, L)
-            a_ids = items_seq[start:end]
-            r_list = rewards_seq[start:end]
+            # trạng thái chạy (last N positive items)
+            positive_items = []
 
-            # Pad if less than K
-            while len(a_ids) < LIST_LEN:
-                a_ids.append(0)  # dummy id 0
-                r_list.append(0)
+            L = len(item_seq)
+            for l in range(0, L, LIST_LEN):
+                a_ids = [item_seq[i][0] for i in range(l, min(l + LIST_LEN, L))]
+                r_list = [item_seq[i][1] for i in range(l, min(l + LIST_LEN, L))]
 
-            # State s: use running, but you can override with DB user_state if needed
-            s_embs = [get_emb(iid, session) for iid in current_state_items[-STATE_LEN:] if iid != 0]
-            pad_len = STATE_LEN - len(s_embs)
-            if pad_len > 0:
-                pad = torch.zeros(pad_len, EMBED_DIM)
-                s = torch.cat([pad, torch.stack(s_embs)]) if s_embs else torch.zeros(STATE_LEN, EMBED_DIM)
-            else:
-                s = torch.stack(s_embs)
+                # padding nếu thiếu K
+                while len(a_ids) < LIST_LEN:
+                    a_ids.append(0)
+                    r_list.append(0)
 
-            # Alternative: use DB user_state for s (more accurate if DB stores the state)
-            # For the first in chunk, get user_state.item_ids
-            # us = seq[start]['user_state']
-            # if us.item_ids:
-            #     past_ids = [int(i) for i in us.item_ids.split(',') if i]
-            #     s_embs = [get_emb(iid, session) for iid in past_ids[-STATE_LEN:]]
-            #     # pad as above
-            # But since paper uses running update, stick with running
+                # build state s_t
+                s_ids = positive_items[-STATE_LEN:]
+                s_embs = [get_emb(iid) for iid in s_ids if iid != 0]
+                pad_len = STATE_LEN - len(s_embs)
+                if pad_len > 0:
+                    pad = torch.zeros(pad_len, EMBED_DIM)
+                    s = torch.cat([pad, torch.stack(s_embs)]) if s_embs else torch.zeros(STATE_LEN, EMBED_DIM)
+                else:
+                    s = torch.stack(s_embs)
 
-            a = torch.stack([get_emb(iid, session) for iid in a_ids])
+                # build action a_t
+                a_embs = [get_emb(iid) for iid in a_ids]
+                a = torch.stack(a_embs)
+                r_vec = torch.tensor(r_list, dtype=torch.float)
 
-            r_vec = torch.tensor(r_list, dtype=torch.float)  # float for RL
+                historical_data.append(((s, a), r_vec))
 
-            historical_data.append(((s, a), r_vec))
+                # update positive_items
+                for k, iid in enumerate(a_ids):
+                    if r_list[k] > 0 and iid != 0:
+                        positive_items.append(iid)
 
-            # Update running state
-            for k in range(LIST_LEN):
-                if r_list[k] > 0 and a_ids[k] != 0:
-                    current_state_items.append(a_ids[k])
-
-        # Save
+        # save historical data
         with open('historical_data.pkl', 'wb') as f:
             pickle.dump(historical_data, f)
 
         print(f"Built and saved historical_data.pkl with {len(historical_data)} entries")
-        print(f"Example entry: s shape {historical_data[0][0][0].shape}, a shape {historical_data[0][0][1].shape}, r {historical_data[0][1]}")
+        if historical_data:
+            print("Example shapes:")
+            print("s:", historical_data[0][0][0].shape)
+            print("a:", historical_data[0][0][1].shape)
+            print("r:", historical_data[0][1])
 
 def main():
     preprocess_data()

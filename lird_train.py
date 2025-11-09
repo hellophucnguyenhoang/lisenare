@@ -5,9 +5,14 @@ import numpy as np
 from collections import deque
 from copy import deepcopy
 import random
+from app.config import settings
+import pickle
+from app.database import get_session
+from app.services.item_embeddings import load_random_item_embeddings
+from app.config import settings
 
 # Hyperparameters
-EMBED_DIM = 390  # d = n
+EMBED_DIM = settings.item_embedding_dim  # d = n
 N = 5   # Number of items in state
 K = 3    # Number of items to recommend
 NUM_ITEMS = 200
@@ -22,19 +27,34 @@ LR_CRITIC = 1e-3
 NUM_EPISODES = 10  # small for demo
 EPISODE_LEN = 20   # T
 
-# Dummy item embeddings: (NUM_ITEMS, EMBED_DIM)
-item_embeddings = torch.randn(NUM_ITEMS, EMBED_DIM)
+# # Dummy item embeddings: (NUM_ITEMS, EMBED_DIM)
+# item_embeddings = torch.randn(NUM_ITEMS, EMBED_DIM)
 
-# Dummy historical data for simulator: list of triples ((s, a), r_vec)
-# s: (N, EMBED_DIM), a: (K, EMBED_DIM), r_vec: (K,)
-NUM_HIST = 1000
-historical_data = []
-for _ in range(NUM_HIST):
-    s = item_embeddings[torch.randint(0, NUM_ITEMS, (N,))]
-    a = item_embeddings[torch.randint(0, NUM_ITEMS, (K,))]
-    r_vec = torch.tensor(random.choices([0, 0.1, 0.5, 0.8, 1.0], k=K))  # skip/view/click/submit/like
-    historical_data.append(((s, a), r_vec))
+# # Dummy historical data for simulator: list of triples ((s, a), r_vec)
+# # s: (N, EMBED_DIM), a: (K, EMBED_DIM), r_vec: (K,)
+# NUM_HIST = 1000
+# historical_data = []
+# for _ in range(NUM_HIST):
+#     s = item_embeddings[torch.randint(0, NUM_ITEMS, (N,))]
+#     a = item_embeddings[torch.randint(0, NUM_ITEMS, (K,))]
+#     r_vec = torch.tensor(random.choices([0, 0.1, 0.5, 0.8, 1.0], k=K))  # skip/view/click/submit/like
+#     historical_data.append(((s, a), r_vec))
 
+with next(get_session()) as session:
+    item_embeddings = load_random_item_embeddings(session, NUM_ITEMS, EMBED_DIM)
+
+print(f"Loaded item embeddings with shape: {item_embeddings.shape}")  # (num_items_loaded, EMBED_DIM)
+
+# Load historical_data từ file
+with open("historical_data.pkl", "rb") as f:
+    historical_data = pickle.load(f)
+
+print(f"Loaded {len(historical_data)} historical entries")
+if historical_data:
+    print("Example shapes:")
+    print("s:", historical_data[0][0][0].shape)   # (N, EMBED_DIM)
+    print("a:", historical_data[0][0][1].shape)   # (K, EMBED_DIM)
+    print("r_vec:", historical_data[0][1])       # (K,)
 
 class Simulator:
     def __init__(self, historical_data, alpha=ALPHA):
@@ -90,7 +110,7 @@ class Simulator:
         return r, r_vec
 
 class Actor(nn.Module):
-    def __init__(self, state_dim, action_dim, hidden_dim=128):
+    def __init__(self, state_dim, action_dim, hidden_dim=settings.item_embedding_dim):
         super(Actor, self).__init__()
         self.fc1 = nn.Linear(state_dim, hidden_dim)
         self.fc2 = nn.Linear(hidden_dim, hidden_dim)
@@ -128,7 +148,7 @@ def select_action(actor, state, item_embeddings):
     return action
 
 class Critic(nn.Module):
-    def __init__(self, state_dim, action_dim, hidden_dim=128):
+    def __init__(self, state_dim, action_dim, hidden_dim=settings.item_embedding_dim):
         super(Critic, self).__init__()
         total_dim = state_dim + action_dim
         self.fc1 = nn.Linear(total_dim, hidden_dim)
@@ -171,72 +191,85 @@ class ReplayBuffer:
     def __len__(self):
         return len(self.buffer)
 
-# Initialize
-state_dim = EMBED_DIM
-action_dim = EMBED_DIM
-actor = Actor(state_dim, action_dim)
-critic = Critic(state_dim, action_dim)
-target_actor = deepcopy(actor)
-target_critic = deepcopy(critic)
-optimizer_actor = optim.Adam(actor.parameters(), lr=LR_ACTOR)
-optimizer_critic = optim.Adam(critic.parameters(), lr=LR_CRITIC)
-replay_buffer = ReplayBuffer(REPLAY_SIZE)
-simulator = Simulator(historical_data)
 
-# Training loop
-for episode in range(NUM_EPISODES):
-    state_idx = torch.randint(0, NUM_ITEMS, (N,))
-    state = item_embeddings[state_idx]  # (N, d)
-    episode_reward = 0.0
-    
-    for t in range(EPISODE_LEN):
-        action = select_action(actor, state, item_embeddings)
-        reward, r_vec = simulator.simulate_reward(state, action)
-        next_state = state.clone()
-        added_items = []
-        for k in range(K):
-            if r_vec[k] > 0:
-                added_items.append(action[k])
-        added = len(added_items)
-        if added > 0:
-            if added == 1:
-                added_tensor = added_items[0].unsqueeze(0)
-            else:
-                added_tensor = torch.stack(added_items)
-            next_state = torch.cat([next_state[added:], added_tensor], dim=0)
-        replay_buffer.push(state, action, reward, next_state)
-        state = next_state
-        episode_reward += reward
+def main():
+    # Initialize
+    state_dim = EMBED_DIM
+    action_dim = EMBED_DIM
+    actor = Actor(state_dim, action_dim)
+    critic = Critic(state_dim, action_dim)
+    target_actor = deepcopy(actor)
+    target_critic = deepcopy(critic)
+    optimizer_actor = optim.Adam(actor.parameters(), lr=LR_ACTOR)
+    optimizer_critic = optim.Adam(critic.parameters(), lr=LR_CRITIC)
+    replay_buffer = ReplayBuffer(REPLAY_SIZE)
+    simulator = Simulator(historical_data)
 
-        if len(replay_buffer) >= BATCH_SIZE:
-            states, actions, rewards, next_states = replay_buffer.sample(BATCH_SIZE)
-            
-            # Critic update
-            with torch.no_grad():
-                next_actions = torch.stack([select_action(target_actor, ns, item_embeddings) for ns in next_states])
-                target_q = rewards + GAMMA * target_critic(next_states, next_actions)
-            
-            current_q = critic(states, actions)
-            critic_loss = nn.MSELoss()(current_q, target_q)
-            optimizer_critic.zero_grad()
-            critic_loss.backward()
-            torch.nn.utils.clip_grad_norm_(critic.parameters(), 1.0)
-            optimizer_critic.step()
-            
-            # Actor update
-            pred_actions = torch.stack([select_action(actor, s, item_embeddings) for s in states])
-            actor_loss = -critic(states, pred_actions).mean()
-            optimizer_actor.zero_grad()
-            actor_loss.backward()
-            torch.nn.utils.clip_grad_norm_(actor.parameters(), 1.0)
-            optimizer_actor.step()
-            
-            # Soft updates
-            for param, t_param in zip(actor.parameters(), target_actor.parameters()):
-                t_param.data.copy_(TAU * param.data + (1 - TAU) * t_param.data)
-            for param, t_param in zip(critic.parameters(), target_critic.parameters()):
-                t_param.data.copy_(TAU * param.data + (1 - TAU) * t_param.data)
-    
-    print(f"Episode {episode + 1}, Total Reward: {episode_reward}")
+    # Training loop
+    for episode in range(NUM_EPISODES):
+        state_idx = torch.randint(0, NUM_ITEMS, (N,))
+        state = item_embeddings[state_idx]  # (N, d)
+        episode_reward = 0.0
+        
+        for t in range(EPISODE_LEN):
+            action = select_action(actor, state, item_embeddings)
+            reward, r_vec = simulator.simulate_reward(state, action)
+            next_state = state.clone()
+            added_items = []
+            for k in range(K):
+                if r_vec[k] > 0:
+                    added_items.append(action[k])
+            added = len(added_items)
+            if added > 0:
+                if added == 1:
+                    added_tensor = added_items[0].unsqueeze(0)
+                else:
+                    added_tensor = torch.stack(added_items)
+                next_state = torch.cat([next_state[added:], added_tensor], dim=0)
+            replay_buffer.push(state, action, reward, next_state)
+            state = next_state
+            episode_reward += reward
 
-print("Training complete.")
+            if len(replay_buffer) >= BATCH_SIZE:
+                states, actions, rewards, next_states = replay_buffer.sample(BATCH_SIZE)
+                
+                # Critic update
+                with torch.no_grad():
+                    next_actions = torch.stack([select_action(target_actor, ns, item_embeddings) for ns in next_states])
+                    target_q = rewards + GAMMA * target_critic(next_states, next_actions)
+                
+                current_q = critic(states, actions)
+                critic_loss = nn.MSELoss()(current_q, target_q)
+                optimizer_critic.zero_grad()
+                critic_loss.backward()
+                torch.nn.utils.clip_grad_norm_(critic.parameters(), 1.0)
+                optimizer_critic.step()
+                
+                # Actor update
+                pred_actions = torch.stack([select_action(actor, s, item_embeddings) for s in states])
+                actor_loss = -critic(states, pred_actions).mean()
+                optimizer_actor.zero_grad()
+                actor_loss.backward()
+                torch.nn.utils.clip_grad_norm_(actor.parameters(), 1.0)
+                optimizer_actor.step()
+                
+                # Soft updates
+                for param, t_param in zip(actor.parameters(), target_actor.parameters()):
+                    t_param.data.copy_(TAU * param.data + (1 - TAU) * t_param.data)
+                for param, t_param in zip(critic.parameters(), target_critic.parameters()):
+                    t_param.data.copy_(TAU * param.data + (1 - TAU) * t_param.data)
+        
+        print(f"Episode {episode + 1}, Total Reward: {episode_reward}")
+
+    print("Training complete.")
+
+    # Save actor and critic only (state_dict)
+    torch.save({
+        "actor": actor.state_dict(),
+        "critic": critic.state_dict()
+    }, "actor_critic.pth")
+    print("Models saved to actor_critic.pth")
+
+
+if __name__ == "__main__":
+    main()
