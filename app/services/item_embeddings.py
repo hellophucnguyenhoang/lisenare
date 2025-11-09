@@ -47,42 +47,53 @@ def create_item_embeddings(
     - batch_size: encode batch size
     - include_questions: include the reading.questions text in embedding text
     """
-    # 1) Load readings (eager-load questions to avoid N+1 if your relation is lazy)
-    # If you want to load questions in the same query, you can use selectinload as discussed earlier.
+    # 1) Load readings
     readings: List[Reading] = session.exec(select(Reading)).all()
     if not readings:
         return
 
-    # 2) Prepare texts in same order as readings
-    texts = [ _reading_to_text(r, include_questions=include_questions) for r in readings ]
+    # 2) Prepare texts
+    texts = [_reading_to_text(r, include_questions=include_questions) for r in readings]
 
-    # 3) Load model and compute embeddings (returns numpy array)
+    # 3) Load model and compute text embeddings
     model = SentenceTransformer(model_name)
-    embeddings = model.encode(texts, convert_to_numpy=True, batch_size=batch_size, show_progress_bar=True)
+    text_embeddings = model.encode(
+        texts, convert_to_numpy=True, batch_size=batch_size, show_progress_bar=True
+    )
 
-    # Ensure dtype float32 for compact storage and consistent reconstruction
-    if embeddings.dtype != np.float32:
-        embeddings = embeddings.astype(np.float32)
+    # Ensure dtype float32
+    if text_embeddings.dtype != np.float32:
+        text_embeddings = text_embeddings.astype(np.float32)
 
-    # 4) Upsert embeddings into the DB
-    for reading, emb in zip(readings, embeddings):
-        # Try to find an existing embedding row for this reading
+    # 4) Add one-hot difficulty embedding
+    final_embeddings = []
+    for reading, text_emb in zip(readings, text_embeddings):
+        # One-hot encode difficulty (0–5)
+        one_hot = np.zeros(6, dtype=np.float32)
+        if 0 <= reading.difficulty <= 5:
+            one_hot[reading.difficulty] = 1.0
+
+        # Concatenate text embedding with one-hot difficulty
+        combined_emb = np.concatenate([text_emb, one_hot], axis=0)
+        final_embeddings.append(combined_emb)
+
+    # 5) Upsert embeddings into DB
+    for reading, emb in zip(readings, final_embeddings):
         existing = session.exec(
             select(ReadingEmbedding).where(ReadingEmbedding.reading_id == reading.id)
         ).first()
 
         if existing:
-            # update the blob
             existing.vector_blob = emb.tobytes()
-            # SQLModel will detect attribute change; no need to session.add(existing)
         else:
             new_row = ReadingEmbedding(
                 reading_id=reading.id,
-                vector_blob=emb.tobytes()
+                vector_blob=emb.tobytes(),
             )
             session.add(new_row)
 
     session.commit()
+    print(f"✅ Created {len(readings)} embeddings with difficulty one-hot (dim={text_embeddings.shape[1] + 6})")
 
 
 def get_item_embedding_by_reading_id(session: Session, reading_id: int) -> Optional[np.ndarray]:

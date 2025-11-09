@@ -75,8 +75,8 @@ class ObjectiveQuestion(SQLModel, table=True):
     reading_id: int = Field(foreign_key="readings.id")
     question_text: str
     option_a: str
-    option_b: str
-    option_c: str
+    option_b: str | None = None
+    option_c: str | None = None
     option_d: str | None = None
     correct_option: int = Field(ge=0, le=3) # 0, 1, 2, 3
     explanation: str | None = None
@@ -125,3 +125,23 @@ class ReadingEmbedding(SQLModel, table=True):
     id: int | None = Field(default=None, primary_key=True)
     reading_id: int = Field(foreign_key="readings.id", unique=True)
     vector_blob: bytes
+
+
+
+# TEMP
+class Team(SQLModel, table=True):
+    id: int | None = Field(default=None, primary_key=True)
+    name: str = Field(index=True)
+    headquarters: str
+
+    heroes: list["Hero"] = Relationship(back_populates="team")
+
+
+class Hero(SQLModel, table=True):
+    id: int | None = Field(default=None, primary_key=True)
+    name: str = Field(index=True)
+    secret_name: str
+    age: int | None = Field(default=None, index=True)
+
+    team_id: int | None = Field(default=None, foreign_key="team.id")
+    team: Team | None = Relationship(back_populates="heroes")

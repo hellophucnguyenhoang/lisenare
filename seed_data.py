@@ -13,9 +13,7 @@ TOPIC_LIST = [
 ]
 
 USER_LIST = [
-    {"username": "phuc", "password": "1234", "email": "phucnguyeho@gmail.com"},
-    {"username": "bob", "password": "bob123", "email": "bob@example.com"},
-    {"username": "charlie", "password": "charlie123", "email": "charlie@example.com"},
+    {"username": "phuc", "password": "1234", "email": "phucnguyeho@gmail.com"}
 ]
 
 READING_LIST = [

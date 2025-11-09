@@ -6,7 +6,9 @@ readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
     "fastapi[standard]>=0.120.1",
+    "jupyter>=1.1.1",
     "numpy>=2.3.4",
+    "openpyxl>=3.1.5",
     "pwdlib[argon2]>=0.3.0",
     "pydantic-settings>=2.11.0",
     "pyjwt>=2.10.1",
