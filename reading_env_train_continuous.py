@@ -1,17 +1,16 @@
-# train_ppo_user_sim_db_continuous.py
+# train_ppo_user_sim_continuous_simple.py
 import os
 import numpy as np
-from sqlmodel import Session, create_engine, select
-from stable_baselines3 import PPO
-from stable_baselines3.common.vec_env import DummyVecEnv, VecMonitor
-from stable_baselines3.common.monitor import Monitor
 import matplotlib.pyplot as plt
+from sqlmodel import Session, create_engine
+from stable_baselines3 import PPO
+from stable_baselines3.common.vec_env import DummyVecEnv
+from stable_baselines3.common.monitor import Monitor
+from app.services.item_embeddings import load_all_item_embeddings
 from reading_rec_env import ReadingRecEnvContinuous
-from app.services.item_embeddings import create_item_embeddings, get_item_embedding_by_reading_id
-from app.models import Reading
 
 # ---------------------------
-# Parameters
+# Configuration
 # ---------------------------
 OUTPUT_DIR = "./training_output_continuous"
 os.makedirs(OUTPUT_DIR, exist_ok=True)
@@ -20,97 +19,85 @@ PLOT_PATH = os.path.join(OUTPUT_DIR, "ppo_eval_rewards_continuous.png")
 REWARDS_NPY = os.path.join(OUTPUT_DIR, "ppo_eval_rewards_continuous.npy")
 
 TOTAL_TIMESTEPS = 20000
-N_ENVS = 4
 EVAL_EPISODES = 100
+MAX_STEPS_PER_EPISODE = 50
 
 # ---------------------------
-# Load embeddings from database
+# Load item embeddings
 # ---------------------------
 engine = create_engine("sqlite:///database.db")
-
 with Session(engine) as session:
-    # Make sure embeddings exist
-    create_item_embeddings(session)
-
-    # Query all reading IDs
-    reading_ids = session.exec(select(Reading.id)).all()
-    reading_embeddings = []
-
-    for rid in reading_ids:
-        vec = get_item_embedding_by_reading_id(session, rid)
-        if vec is not None:
-            reading_embeddings.append(vec)
-        else:
-            print(f"Warning: No embedding for reading id {rid}")
-
-    reading_embeddings = np.array(reading_embeddings, dtype=np.float32)
-    print("Loaded embeddings from DB:", reading_embeddings.shape)
+    reading_embeddings = load_all_item_embeddings(session)
 
 # ---------------------------
-# Make vectorized environment
+# Environment creation
 # ---------------------------
 def make_env():
     def _init():
         env = ReadingRecEnvContinuous(
             reading_embeddings,
-            max_steps=50,
-            noise_scale=0.05,
-            discount_factor=0.5
+            max_steps=MAX_STEPS_PER_EPISODE,
+            noise_scale=0.05
         )
         return Monitor(env)
     return _init
 
-vec_env = DummyVecEnv([make_env() for _ in range(N_ENVS)])
-vec_env = VecMonitor(vec_env)
+env = DummyVecEnv([make_env()])
 
 # ---------------------------
 # Train PPO
 # ---------------------------
-model = PPO("MlpPolicy", vec_env, verbose=1)  # action space continuous nên vẫn dùng MlpPolicy
-print("Start learning...")
+print("🚀 Starting PPO training...")
+model = PPO(
+    "MlpPolicy",
+    env,
+    verbose=1,
+    learning_rate=3e-4,
+    n_steps=512,
+    batch_size=64,
+    gamma=0.95,
+)
+
 model.learn(total_timesteps=TOTAL_TIMESTEPS)
 model.save(MODEL_PATH)
-print("Saved model to", MODEL_PATH)
+print(f"✅ Model saved to {MODEL_PATH}")
 
 # ---------------------------
-# Evaluate
+# Evaluate model
 # ---------------------------
-eval_env = ReadingRecEnvContinuous(
-    reading_embeddings,
-    max_steps=50,
-    noise_scale=0.05,
-    discount_factor=0.5
-)
+print("🎯 Evaluating model...")
+eval_env = ReadingRecEnvContinuous(reading_embeddings, max_steps=MAX_STEPS_PER_EPISODE)
 episode_rewards = []
 
-for _ in range(EVAL_EPISODES):
+for ep in range(EVAL_EPISODES):
     obs, _ = eval_env.reset()
-    total = 0.0
-    for _ in range(500):
-        # model.predict trả về vector embedding trực tiếp
+    total_reward = 0.0
+    for _ in range(MAX_STEPS_PER_EPISODE):
         action, _ = model.predict(obs, deterministic=True)
-        # obs mới = user_state, action trực tiếp là vector embedding
-        obs, r, terminated, truncated, _ = eval_env.step(action)
-        total += r
-        if terminated or truncated:
+        obs, reward, done, truncated, _ = eval_env.step(action)
+        total_reward += reward
+        if done or truncated:
             break
-    episode_rewards.append(total)
+    episode_rewards.append(total_reward)
 
-np.save(REWARDS_NPY, np.array(episode_rewards))
-print("Saved eval rewards to", REWARDS_NPY)
+episode_rewards = np.array(episode_rewards)
+np.save(REWARDS_NPY, episode_rewards)
+print(f"💾 Saved evaluation rewards to {REWARDS_NPY}")
 
 # ---------------------------
-# Plot rewards
+# Plot results
 # ---------------------------
-plt.figure(figsize=(9, 4))
-plt.plot(episode_rewards)
+plt.figure(figsize=(10, 5))
+plt.plot(episode_rewards, label="Episode total reward", alpha=0.6)
 if len(episode_rewards) >= 5:
-    ma = np.convolve(episode_rewards, np.ones(5)/5, mode='valid')
-    plt.plot(range(4, 4 + len(ma)), ma)
-plt.title("PPO evaluation rewards per episode (continuous action)")
+    ma = np.convolve(episode_rewards, np.ones(5)/5, mode="valid")
+    plt.plot(range(4, 4 + len(ma)), ma, label="5-episode moving average", linewidth=2)
+plt.title("PPO Evaluation Rewards (Continuous Action)")
 plt.xlabel("Episode")
-plt.ylabel("Total reward")
+plt.ylabel("Total Reward")
+plt.legend()
+plt.grid(True, linestyle="--", alpha=0.4)
 plt.tight_layout()
 plt.savefig(PLOT_PATH)
-print("Saved reward plot to", PLOT_PATH)
-print("Done.")
+print(f"📊 Saved reward plot to {PLOT_PATH}")
+print("✅ Done!")

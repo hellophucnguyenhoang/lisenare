@@ -3,8 +3,8 @@ from stable_baselines3 import PPO
 from stable_baselines3.common.evaluation import evaluate_policy
 from reading_rec_env import ReadingRecEnvContinuous  # <- đổi import
 from sqlmodel import Session, create_engine, select
-from app.services.item_embeddings import get_item_embedding_by_reading_id
 from app.models import Reading
+from app.services.item_embeddings import load_all_item_embeddings
 
 # ---------------------------
 # Parameters
@@ -18,16 +18,7 @@ RANDOM_EVAL_EPISODES = 1000  # giảm để đánh giá nhanh
 # ---------------------------
 engine = create_engine("sqlite:///database.db")
 with Session(engine) as session:
-    reading_ids = session.exec(select(Reading.id)).all()
-    reading_embeddings = []
-    for rid in reading_ids:
-        vec = get_item_embedding_by_reading_id(session, rid)
-        if vec is not None:
-            reading_embeddings.append(vec)
-        else:
-            print(f"Warning: No embedding for reading id {rid}")
-
-reading_embeddings = np.array(reading_embeddings, dtype=np.float32)
+    reading_embeddings = load_all_item_embeddings(session)
 print("Loaded reading embeddings from DB:", reading_embeddings.shape)
 
 # ---------------------------
@@ -71,10 +62,8 @@ for ep in range(RANDOM_EVAL_EPISODES):
     total_reward = 0
     while not done:
         # pick the embedding most similar to current user_state
-        sims = [
-            np.dot(obs, emb) / (np.linalg.norm(obs) * np.linalg.norm(emb) + 1e-12)
-            for emb in env.reading_embeddings
-        ]
+        obs_norm = obs / (np.linalg.norm(obs) + 1e-12)
+        sims = [np.dot(obs_norm, emb / (np.linalg.norm(emb) + 1e-12)) for emb in env.reading_embeddings]
         # now action = chosen embedding vector
         action = env.reading_embeddings[np.argmax(sims)]
         obs, reward, terminated, truncated, _ = env.step(action)

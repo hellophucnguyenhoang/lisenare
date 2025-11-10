@@ -149,3 +149,26 @@ def load_random_item_embeddings(session: Session, num_items: int, embed_dim: int
         item_embeddings[i] = torch.from_numpy(emb_arr).float()
 
     return item_embeddings
+
+def load_all_item_embeddings(session: Session) -> torch.Tensor:
+    """
+    Load all item embeddings from the database.
+
+    Args:
+        session: SQLAlchemy/SQLModel session
+    Returns:
+        item_embeddings: torch.Tensor of shape (num_items, embed_dim)
+    """
+    all_emb_rows = session.exec(select(ReadingEmbedding)).all()
+    total_items = len(all_emb_rows)
+
+    if total_items == 0:
+        raise ValueError("No embeddings found in the database.")
+
+    item_embeddings = []
+    for i, row in enumerate(all_emb_rows):
+        emb_arr = np.frombuffer(row.vector_blob, dtype=np.float32).copy()
+        item_embeddings.append(emb_arr)
+    item_embeddings = np.array(item_embeddings, dtype=np.float32)
+    print("Loaded embeddings from DB:", item_embeddings.shape)
+    return item_embeddings
