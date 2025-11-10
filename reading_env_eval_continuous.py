@@ -11,7 +11,7 @@ from app.services.item_embeddings import load_all_item_embeddings
 # ---------------------------
 MODEL_PATH = "./training_output_continuous/ppo_user_sim_continuous.zip"
 EVAL_EPISODES = 100
-RANDOM_EVAL_EPISODES = 1000  # giảm để đánh giá nhanh
+RANDOM_EVAL_EPISODES = 10000  # giảm để đánh giá nhanh
 
 # ---------------------------
 # Load embeddings from DB

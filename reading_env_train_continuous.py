@@ -18,7 +18,7 @@ MODEL_PATH = os.path.join(OUTPUT_DIR, "ppo_user_sim_continuous.zip")
 PLOT_PATH = os.path.join(OUTPUT_DIR, "ppo_eval_rewards_continuous.png")
 REWARDS_NPY = os.path.join(OUTPUT_DIR, "ppo_eval_rewards_continuous.npy")
 
-TOTAL_TIMESTEPS = 20000
+TOTAL_TIMESTEPS = 500000
 EVAL_EPISODES = 100
 MAX_STEPS_PER_EPISODE = 50
 
