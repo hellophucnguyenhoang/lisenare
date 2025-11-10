@@ -30,8 +30,8 @@ EPISODE_LEN = 20   # T
 # # Dummy item embeddings: (NUM_ITEMS, EMBED_DIM)
 # item_embeddings = torch.randn(NUM_ITEMS, EMBED_DIM)
 
-# # Dummy historical data for simulator: list of triples ((s, a), r_vec)
-# # s: (N, EMBED_DIM), a: (K, EMBED_DIM), r_vec: (K,)
+# Dummy historical data for simulator: list of triples ((s, a), r_vec)
+# s: (N, EMBED_DIM), a: (K, EMBED_DIM), r_vec: (K,)
 # NUM_HIST = 1000
 # historical_data = []
 # for _ in range(NUM_HIST):
@@ -45,16 +45,95 @@ with next(get_session()) as session:
 
 print(f"Loaded item embeddings with shape: {item_embeddings.shape}")  # (num_items_loaded, EMBED_DIM)
 
-# Load historical_data từ file
-with open("historical_data.pkl", "rb") as f:
-    historical_data = pickle.load(f)
+# ---------------------------------------
+# # Load historical_data từ file
+# ---------------------------------------
+# with open("historical_data.pkl", "rb") as f:
+#     historical_data = pickle.load(f)
 
-print(f"Loaded {len(historical_data)} historical entries")
-if historical_data:
-    print("Example shapes:")
-    print("s:", historical_data[0][0][0].shape)   # (N, EMBED_DIM)
-    print("a:", historical_data[0][0][1].shape)   # (K, EMBED_DIM)
-    print("r_vec:", historical_data[0][1])       # (K,)
+def generate_synthetic_history(item_embeddings, num_hist=10000, n=5, k=3):
+    """
+    Generate synthetic historical interaction data based on item difficulty similarity.
+
+    Args:
+        item_embeddings (torch.Tensor): [num_items, embed_dim] full embedding matrix.
+        num_hist (int): number of historical entries to generate.
+        n (int): number of items in each state.
+        k (int): number of items in each action list.
+
+    Returns:
+        list[ ((state, action), r_vec) ]: synthetic historical data.
+    """
+
+    num_items, embed_dim = item_embeddings.shape
+    DIFF_START = 384
+    DIFF_END = 390  # one-hot difficulty (6 dims)
+
+    INTERACTION_SCALE = {
+        -1.0: 0.05,  # dislike
+        -0.25: 0.05, # skip
+        0.1: 0.1,    # view
+        0.5: 0.3,    # click
+        0.8: 0.3,    # submit
+        1.0: 0.2     # like
+    }
+
+    def compute_reaction_prob(state_diffs, action_diff):
+        """Compute probability of each reaction based on difficulty similarity."""
+        state_mean = state_diffs.mean(0)  # (6,)
+        action_vec = action_diff
+        sim = float((state_mean * action_vec).sum())  # similarity ∈ [0,1]
+        probs = []
+        for r, base in INTERACTION_SCALE.items():
+            if r >= 0:
+                probs.append(base * (0.5 + sim))  # favor positive if similar
+            else:
+                probs.append(base * (1.0 - sim))  # favor negative if dissimilar
+        total = sum(probs)
+        return [p / total for p in probs]
+
+    historical_data = []
+
+    for _ in range(num_hist):
+        # initial state
+        state_idx = torch.randint(0, num_items, (n,))
+        state = item_embeddings[state_idx]
+        state_diffs = state[:, DIFF_START:DIFF_END]
+
+        # action
+        action_idx = torch.randint(0, num_items, (k,))
+        action = item_embeddings[action_idx]
+
+        # generate rewards
+        r_vec_list = []
+        for i in range(k):
+            action_diff = action[i, DIFF_START:DIFF_END]
+            probs = compute_reaction_prob(state_diffs, action_diff)
+            r_val = random.choices(list(INTERACTION_SCALE.keys()), weights=probs)[0]
+            r_vec_list.append(r_val)
+        r_vec = torch.tensor(r_vec_list, dtype=torch.float)
+
+        # store
+        historical_data.append(((state, action), r_vec))
+
+        # update state (push positive interactions)
+        interacted = [action[i] for i in range(k) if r_vec[i] > 0]
+        if interacted:
+            interacted_tensor = torch.stack(interacted)
+            if len(interacted) >= n:
+                state = interacted_tensor[-n:]
+            else:
+                keep_num = n - len(interacted)
+                state = torch.cat([state[-keep_num:], interacted_tensor], dim=0)
+
+    print(f"✅ Generated {len(historical_data)} synthetic entries.")
+    print(f"Example state shape: {historical_data[0][0][0].shape}")
+    print(f"Example action shape: {historical_data[0][0][1].shape}")
+    print(f"Example reward vector: {historical_data[0][1]}")
+    return historical_data
+
+historical_data = generate_synthetic_history(item_embeddings, num_hist=10000, n=N, k=K)
+
 
 class Simulator:
     def __init__(self, historical_data, alpha=ALPHA):

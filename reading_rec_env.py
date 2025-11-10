@@ -156,3 +156,111 @@ class ReadingRecEnv(gym.Env):
     # helper to inspect history
     def get_history(self) -> List[Dict[str, Any]]:
         return self.history
+
+
+class ReadingRecEnvContinuous(gym.Env):
+    """
+    Phiên bản continuous action:
+    - action: vector embedding liên tục
+    - map tới item gần nhất
+    """
+    metadata = {"render_modes": ["human"]}
+
+    def __init__(
+        self,
+        reading_embeddings: np.ndarray,
+        max_steps: int = 50,
+        noise_scale: float = 0.05,
+        discount_factor: float = 0.5
+    ):
+        assert isinstance(reading_embeddings, np.ndarray) and reading_embeddings.ndim == 2
+        self.reading_embeddings = reading_embeddings.astype(np.float32)
+        self.num_items, self.emb_dim = self.reading_embeddings.shape
+
+        # Observation: user_state
+        self.observation_space = spaces.Box(low=-np.inf, high=np.inf, shape=(self.emb_dim,), dtype=np.float32)
+        # Action: continuous embedding in same space
+        self.action_space = spaces.Box(low=-1.0, high=1.0, shape=(self.emb_dim,), dtype=np.float32)
+
+        self.max_steps = max_steps
+        self.noise_scale = noise_scale
+        self.discount_factor = discount_factor
+
+        self.rng = np.random.default_rng()
+        self.user_state = np.zeros(self.emb_dim, dtype=np.float32)
+        self.step_count = 0
+        self.history: List[Dict[str, Any]] = []
+
+        norms = np.linalg.norm(self.reading_embeddings, axis=1, keepdims=True) + 1e-12
+        self.emb_normed = self.reading_embeddings / norms
+
+    def reset(self, *, seed: Optional[int] = None, options: Optional[dict] = None):
+        if seed is not None:
+            self.rng = np.random.default_rng(seed)
+        self.step_count = 0
+        self.history = []
+
+        idx = int(self.rng.integers(0, self.num_items))
+        base = self.reading_embeddings[idx]
+        noise = self.rng.normal(0, self.noise_scale, size=self.emb_dim).astype(np.float32)
+        self.user_state = (base + noise).astype(np.float32)
+        if np.linalg.norm(self.user_state) == 0:
+            self.user_state += 1e-6
+        return self.user_state.copy(), {}
+
+    def step(self, action: np.ndarray):
+        self.step_count += 1
+
+        # normalize action vector
+        a_norm = action / (np.linalg.norm(action) + 1e-12)
+        # find nearest item by cosine similarity
+        sims = self.emb_normed @ a_norm
+        idx = int(np.argmax(sims))
+        item_emb = self.reading_embeddings[idx]
+        item_emb_norm = self.emb_normed[idx]
+        sim = float(np.dot(a_norm, item_emb_norm))
+        sim01 = (sim + 1.0) / 2.0
+
+        # map similarity -> sequence
+        complexities = np.arange(len(SEQUENCES), dtype=float)
+        scale = 6.0
+        logits = complexities * (sim01 - 0.85) * scale
+        probs = _softmax(logits)
+
+        seq_idx = int(self.rng.choice(len(SEQUENCES), p=probs))
+        seq = SEQUENCES[seq_idx]
+        total_reward = float(sum(REWARD_MAP.get(ev, 0.0) for ev in seq))
+
+        # update user_state
+        self.user_state = (1 - self.discount_factor) * self.user_state + self.discount_factor * item_emb
+
+        self.history.append({
+            "action_vector": action.copy(),
+            "chosen_index": idx,
+            "chosen_embedding": item_emb.copy(),
+            "sim": sim,
+            "sim01": sim01,
+            "sequence": seq,
+            "reward": total_reward,
+            "probs": probs.tolist(),
+            "seq_idx": seq_idx
+        })
+
+        terminated = ("like" in seq)
+        truncated = self.step_count >= self.max_steps
+
+        obs = self.user_state.copy()
+        info = {"sequence": seq, "probs": probs.tolist(), "sim": sim, "chosen_index": idx}
+
+        return obs, total_reward, bool(terminated), bool(truncated), info
+
+    def render(self):
+        if not self.history:
+            print("No interactions yet.")
+            return
+        last = self.history[-1]
+        print(f"Step {self.step_count} | chosen={last['chosen_index']} | sim={last['sim']:.3f} | seq={last['sequence']} | r={last['reward']:.3f}")
+
+    def get_history(self):
+        return self.history
+

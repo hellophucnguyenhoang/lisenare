@@ -1,14 +1,8 @@
 import torch
-from lird_train import Actor, Critic, Simulator, evaluate, item_embeddings, historical_data
+from lird_train import Actor, Critic, Simulator, evaluate, item_embeddings, historical_data, N, K, EMBED_DIM
 from app.database import get_session
 from app.services.item_embeddings import load_random_item_embeddings
 from app.config import settings
-
-# Hyperparameters must match training
-EMBED_DIM = settings.item_embedding_dim  # d = n
-N = 4
-K = 3
-NUM_ITEMS = 200
 
 # Instantiate models
 actor = Actor(state_dim=EMBED_DIM, action_dim=EMBED_DIM, hidden_dim=EMBED_DIM)
@@ -25,7 +19,7 @@ critic.eval()
 
 
 # Create random test states (each state = N item embeddings)
-NUM_STATES = 50
+NUM_STATES = 500
 states = []
 for _ in range(NUM_STATES):
     idx = torch.randint(0, item_embeddings.size(0), (N,))
