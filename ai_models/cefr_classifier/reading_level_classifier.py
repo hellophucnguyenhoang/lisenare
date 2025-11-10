@@ -71,6 +71,52 @@ def classify_reading(text, power: float = 2.0):
     score = weighted_sum / total
     return round(score ** (1 / power))  # normalize back to 0–5 scale
 
+def classify_reading_with_length_simple(text: str, power: float = 1.3) -> int:
+    base_level = classify_reading(text, power=power)
+    num_words = len(re.findall(r"[a-zA-Z]+", text))
+
+    # Simple thresholds
+    if num_words < 120:
+        return base_level
+    elif num_words < 200:
+        return min(base_level + 0.5, 5)
+    elif num_words < 300:
+        return min(base_level + 1, 5)
+    else:
+        return min(base_level + 1.5, 5)
+
+def classify_reading_with_length(text: str, power: float = 2.0) -> int:
+    """
+    Classify CEFR level based on vocabulary + text length.
+    0=A1, 1=A2, 2=B1, 3=B2, 4=C1, 5=C2
+    """
+    words = re.findall(r"[a-zA-Z]+", text.lower())
+    num_words = len(words)
+    level_counts = Counter()
+
+    # Vocabulary-based difficulty
+    for w in words:
+        for i, vocab in enumerate(vocab_levels):
+            if w in vocab:
+                level_counts[i] += 1
+                break
+        else:
+            level_counts[5] += 1  # unknown = C2
+
+    if not level_counts:
+        return 5
+
+    total = sum(level_counts.values())
+    weighted_sum = sum((i ** power) * c for i, c in level_counts.items())
+    vocab_score = (weighted_sum / total) ** (1 / power)  # base CEFR score
+
+    # --- Add length effect ---
+    # Normalize num_words effect: longer text → slightly higher level
+    # Example scaling: 100 words = no effect, 300 words = +0.5 level, 500 = +1.0
+    length_bonus = min(1.0, max(0.0, (num_words - 100) / 400))  # cap between 0–1
+    final_score = vocab_score + length_bonus
+
+    return int(round(min(final_score, 5)))
 
 # ------------------------------
 # Example

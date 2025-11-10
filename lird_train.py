@@ -147,6 +147,26 @@ def select_action(actor, state, item_embeddings):
     action = torch.stack(action_list)  # (K, d)
     return action
 
+def select_action_random(item_embeddings, K):
+    """Select K random distinct items from the item pool."""
+    num_items = item_embeddings.size(0)
+    if K > num_items:
+        K = num_items
+    idx = torch.randperm(num_items)[:K]
+    action = item_embeddings[idx]
+    return action
+
+def evaluate(actor, simulator, item_embeddings, states, K, random_baseline=False):
+    rewards = []
+    for s in states:
+        if random_baseline:
+            a = select_action_random(item_embeddings, K)
+        else:
+            a = select_action(actor, s, item_embeddings)
+        r, _ = simulator.simulate_reward(s, a)
+        rewards.append(r.item())
+    return sum(rewards) / len(rewards)
+
 class Critic(nn.Module):
     def __init__(self, state_dim, action_dim, hidden_dim=settings.item_embedding_dim):
         super(Critic, self).__init__()

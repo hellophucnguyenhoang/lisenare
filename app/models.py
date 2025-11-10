@@ -56,7 +56,6 @@ class Reading(SQLModel, table=True):
     title: str
     content_text: str
     difficulty: int
-    num_words: int = Field(ge=3)
     num_questions: int = 1
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 

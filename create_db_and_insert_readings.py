@@ -3,7 +3,7 @@ from app.database import create_db_and_tables, get_session
 from app.models import Topic, Reading, ObjectiveQuestion
 import pandas as pd
 import ast
-from ai_models.cefr_classifier.reading_level_classifier import classify_reading, naive_classify_reading
+from ai_models.cefr_classifier.reading_level_classifier import classify_reading_with_length
 
 # --- helper functions ---
 def parse_options(raw):
@@ -41,7 +41,7 @@ def create_data():
             reading = Reading(
                 title=str(title),
                 content_text=str(article),
-                difficulty=classify_reading(str(article) + " " + str(title), power=1.3),
+                difficulty=classify_reading_with_length(str(article) + " " + str(title)),
                 num_questions=len(group),
                 topic=topic_map.get(topic_name),
             )
