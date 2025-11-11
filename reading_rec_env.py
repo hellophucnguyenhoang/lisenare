@@ -16,7 +16,6 @@ REWARD_MAP = {
     "dislike": -1.0,
     "skip": -0.25,
     "view": 0.1,
-    "click": 0.5,
     "submit": 0.8,
     "like": 1.0,
 }
@@ -29,6 +28,16 @@ def _softmax(x: np.ndarray) -> np.ndarray:
     e = np.exp(x)
     return e / e.sum()
 
+def get_updated_user_state(recent_items : np.ndarray, item_embeddings: np.ndarray, current_user_state_emb: np.ndarray, discount_factor: float = 0.5) -> np.ndarray:
+    # Weighted average update
+    weights = np.array([0.9 ** (len(recent_items) - 1 - i) for i in range(len(recent_items))], dtype=np.float32)
+    embeddings = np.array([item_embeddings[i] for i in recent_items], dtype=np.float32)
+    new_state = np.average(embeddings, axis=0, weights=weights)
+
+    # Smooth update with discount_factor
+    current_user_state_emb = (1 - discount_factor) * current_user_state_emb + discount_factor * new_state
+    current_user_state_emb /= (np.linalg.norm(current_user_state_emb) + 1e-12)
+    return current_user_state_emb
 
 class ReadingRecEnv(gym.Env):
     """
@@ -249,14 +258,7 @@ class ReadingRecEnvContinuous(gym.Env):
             if len(self.recent_items) > self.recent_N:
                 self.recent_items.pop(0)
 
-        # Weighted average update
-        weights = np.array([0.9 ** (len(self.recent_items) - 1 - i) for i in range(len(self.recent_items))], dtype=np.float32)
-        embeddings = np.array([self.item_embeddings[i] for i in self.recent_items], dtype=np.float32)
-        new_state = np.average(embeddings, axis=0, weights=weights)
-
-        # Smooth update with discount_factor
-        self.user_state = (1 - self.discount_factor) * self.user_state + self.discount_factor * new_state
-        self.user_state /= (np.linalg.norm(self.user_state) + 1e-12)
+        self.user_state = get_updated_user_state(self.recent_items, self.item_embeddings, self.user_state, discount_factor=self.discount_factor)
 
         # Record
         self.history.append({

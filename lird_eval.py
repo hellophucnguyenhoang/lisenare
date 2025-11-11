@@ -1,7 +1,7 @@
 import torch
 from lird_train import Actor, Critic, Simulator, evaluate, item_embeddings, historical_data, N, K, EMBED_DIM
 from app.database import get_session
-from app.services.item_embeddings import load_random_item_embeddings
+from app.services.item_embeddings import get_random_embeddings
 from app.config import settings
 
 # Instantiate models

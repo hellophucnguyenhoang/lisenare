@@ -1,7 +1,7 @@
 import torch
 from lird_train import Actor, Critic, select_action
 from app.database import get_session
-from app.services.item_embeddings import load_random_item_embeddings
+from app.services.item_embeddings import get_random_embeddings
 import torch.nn as nn
 from app.config import settings
 
@@ -26,7 +26,7 @@ critic.eval()
 
 # Load item embeddings
 with next(get_session()) as session:
-    item_embeddings = load_random_item_embeddings(session, NUM_ITEMS, EMBED_DIM)
+    item_embeddings = get_random_embeddings(session, NUM_ITEMS, EMBED_DIM)
 
 # Build a dummy state for inference
 state_idx = torch.randint(0, item_embeddings.size(0), (N,))

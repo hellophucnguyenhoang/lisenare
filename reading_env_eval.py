@@ -3,7 +3,7 @@ from stable_baselines3 import PPO
 from stable_baselines3.common.evaluation import evaluate_policy
 from reading_rec_env import ReadingRecEnv
 from sqlmodel import Session, create_engine, select
-from app.services.item_embeddings import get_item_embedding_by_reading_id
+from app.services.item_embeddings import get_embedding_by_reading_id
 from app.models import Reading
 
 # ---------------------------
@@ -21,7 +21,7 @@ with Session(engine) as session:
     reading_ids = session.exec(select(Reading.id)).all()
     reading_embeddings = []
     for rid in reading_ids:
-        vec = get_item_embedding_by_reading_id(session, rid)
+        vec = get_embedding_by_reading_id(session, rid)
         if vec is not None:
             reading_embeddings.append(vec)
         else:
@@ -70,7 +70,7 @@ for ep in range(RANDOM_EVAL_EPISODES):
     done = False
     total_reward = 0
     while not done:
-        # pick the exercise whose embedding is most similar to current user_state
+        # pick the exercise whose embedding is most similar to current recommendation_state
         sims = [
             np.dot(obs, emb) / (np.linalg.norm(obs) * np.linalg.norm(emb) + 1e-12)
             for emb in env.reading_embeddings

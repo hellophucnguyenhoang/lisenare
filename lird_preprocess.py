@@ -26,7 +26,7 @@ def preprocess_data():
         # Gom interactions theo user
         user_groups = defaultdict(list)
         for inter in results:
-            user_id = inter.user_state.user_id
+            user_id = inter.recommendation_state.user_id
             user_groups[user_id].append(inter)
 
         EMBED_DIM = settings.item_embedding_dim

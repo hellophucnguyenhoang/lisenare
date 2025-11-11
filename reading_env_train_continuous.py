@@ -6,7 +6,7 @@ from sqlmodel import Session, create_engine
 from stable_baselines3 import PPO
 from stable_baselines3.common.vec_env import DummyVecEnv
 from stable_baselines3.common.monitor import Monitor
-from app.services.item_embeddings import load_all_item_embeddings
+from app.services.item_embeddings import get_all_item_embeddings
 from reading_rec_env import ReadingRecEnvContinuous
 
 # ---------------------------
@@ -28,7 +28,7 @@ MAX_STEPS_PER_EPISODE = 50
 # ---------------------------
 engine = create_engine("sqlite:///database.db")
 with Session(engine) as session:
-    reading_embeddings = load_all_item_embeddings(session)
+    reading_embeddings = get_all_item_embeddings(session)
 
 # ---------------------------
 # Environment creation

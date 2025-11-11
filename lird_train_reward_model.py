@@ -4,7 +4,7 @@ import torch.optim as optim
 from torch.utils.data import Dataset, DataLoader, random_split
 import random
 from app.database import get_session
-from app.services.item_embeddings import load_random_item_embeddings
+from app.services.item_embeddings import get_random_embeddings
 from app.config import settings
 
 # -------------------------------
@@ -147,7 +147,7 @@ def generate_synthetic_history_improved(
 
 
 with next(get_session()) as session:
-    item_embeddings = load_random_item_embeddings(session, NUM_ITEMS, EMBED_DIM)
+    item_embeddings = get_random_embeddings(session, NUM_ITEMS, EMBED_DIM)
 historical_data = generate_synthetic_history_improved(item_embeddings,
                                                       num_hist=100000,
                                                       n=N, k=K,

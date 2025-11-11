@@ -35,11 +35,11 @@ class UserWithToken(SQLModel):
 
 
 # --- User State ---
-class UserStateBase(SQLModel):
+class RecommendationStateBase(SQLModel):
     item_ids: str = "" # e.g., "21,11,34,5"
     user_id: int
 
-class UserStateRead(UserStateBase):
+class RecommendationStateRead(RecommendationStateBase):
     id: int
 
 
@@ -140,13 +140,13 @@ class RatingUpdate(SQLModel):
 class InteractionCreate(SQLModel):
     event_type: str
     event_time: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
-    user_state_id: int
+    recommendation_state_id: int
     item_id: int
 
 
 class RecommendItemRequest(SQLModel):
-    username: str = "anonymous"
+    username: str = "phuc"
 
 class RecommendItemResponse(SQLModel):
-    user_state: UserStateRead
+    recommendation_state: RecommendationStateRead
     item: ReadingRead

@@ -7,7 +7,7 @@ from stable_baselines3.common.vec_env import DummyVecEnv, VecMonitor
 from stable_baselines3.common.monitor import Monitor
 import matplotlib.pyplot as plt
 from reading_rec_env import ReadingRecEnv
-from app.services.item_embeddings import create_item_embeddings, get_item_embedding_by_reading_id
+from app.services.item_embeddings import create_item_embeddings, get_embedding_by_reading_id
 from app.models import Reading
 
 # ---------------------------
@@ -37,7 +37,7 @@ with Session(engine) as session:
     reading_embeddings = []
 
     for rid in reading_ids:
-        vec = get_item_embedding_by_reading_id(session, rid)
+        vec = get_embedding_by_reading_id(session, rid)
         if vec is not None:
             reading_embeddings.append(vec)
         else:

@@ -1,6 +1,6 @@
 from typing import List, Optional
 import numpy as np
-from sqlmodel import Session, select
+from sqlmodel import Session, func, select
 from sentence_transformers import SentenceTransformer
 import torch
 from app.models import Reading, ReadingEmbedding
@@ -100,7 +100,7 @@ def create_item_embeddings(
     )
 
 
-def get_item_embedding_by_reading_id(session: Session, reading_id: int) -> Optional[np.ndarray]:
+def get_embedding_by_reading_id(session: Session, reading_id: int) -> Optional[np.ndarray]:
     """Retrieve the embedding for a reading_id as a NumPy array (dtype float32)."""
     emb_row = session.exec(
         select(ReadingEmbedding).where(ReadingEmbedding.reading_id == reading_id)
@@ -111,7 +111,34 @@ def get_item_embedding_by_reading_id(session: Session, reading_id: int) -> Optio
     arr = np.frombuffer(emb_row.vector_blob, dtype=np.float32).copy()
     return arr
 
-def load_random_item_embeddings(session: Session, num_items: int, embed_dim: int) -> torch.Tensor:
+
+def get_embeddings_by_reading_ids(session: Session, reading_ids: list[int]) -> list[np.ndarray]:
+    """Lấy danh sách embedding cho nhiều reading_id."""
+    if not reading_ids:
+        return []
+
+    stmt = select(ReadingEmbedding).where(ReadingEmbedding.reading_id.in_(reading_ids))
+    rows = session.exec(stmt).all()
+
+    embeddings = []
+    for r in rows:
+        arr = np.frombuffer(r.vector_blob, dtype=np.float32).copy()
+        embeddings.append(arr)
+    return embeddings
+
+
+def get_random_embedding(session: Session) -> Optional[np.ndarray]:
+    """Retrieve the embedding for a reading_id as a NumPy array (dtype float32)."""
+    emb_row = session.exec(
+        select(ReadingEmbedding).order_by(func.random()).limit(1)
+    ).first()
+    if not emb_row:
+        return None
+
+    arr = np.frombuffer(emb_row.vector_blob, dtype=np.float32).copy()
+    return arr
+
+def get_random_embeddings(session: Session, num_items: int, embed_dim: int) -> torch.Tensor:
     """
     Load up to num_items unique item embeddings randomly from the database.
 
@@ -150,7 +177,7 @@ def load_random_item_embeddings(session: Session, num_items: int, embed_dim: int
 
     return item_embeddings
 
-def load_all_item_embeddings(session: Session) -> torch.Tensor:
+def get_all_item_embeddings(session: Session):
     """
     Load all item embeddings from the database.
 
@@ -166,9 +193,10 @@ def load_all_item_embeddings(session: Session) -> torch.Tensor:
         raise ValueError("No embeddings found in the database.")
 
     item_embeddings = []
+    item_ids = []
     for i, row in enumerate(all_emb_rows):
         emb_arr = np.frombuffer(row.vector_blob, dtype=np.float32).copy()
         item_embeddings.append(emb_arr)
+        item_ids.append(row.reading_id)
     item_embeddings = np.array(item_embeddings, dtype=np.float32)
-    print("Loaded embeddings from DB:", item_embeddings.shape)
-    return item_embeddings
+    return item_embeddings, item_ids

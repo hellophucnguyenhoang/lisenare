@@ -35,18 +35,19 @@ class User(SQLModel, table=True):
 
     topic_preferences: list["Topic"] = Relationship(back_populates="users", link_model=UserTopicLink)
     study_sessions: list["StudySession"] = Relationship(back_populates="user")
-    # user_state: "UserState" = Relationship(back_populates="user") is not up-to-date, so we do not use here
+    user_state_emb: bytes  # do not confused with RecommendationState, this is the current embedding of the user
 
 
-class UserState(SQLModel, table=True):
-    __tablename__ = "user_states"
+class RecommendationState(SQLModel, table=True):
+    __tablename__ = "recommendation_states"
 
     id: int | None = Field(default=None, primary_key=True)
     item_ids: str = Field(default="", description="Comma-separated item IDs, e.g. '1,2,8,3,2'")
-
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    batch_id: str
     user_id: int = Field(foreign_key="users.id")
     user: User = Relationship()
-    interactions: list["Interaction"] = Relationship(back_populates="user_state")
+    interactions: list["Interaction"] = Relationship(back_populates="recommendation_state")
 
 
 class Reading(SQLModel, table=True):
@@ -120,10 +121,10 @@ class Interaction(SQLModel, table=True):
     event_type: str
     event_time: datetime = Field(default_factory=lambda: datetime.now(timezone.utc), index=True)
 
-    user_state_id: int = Field(foreign_key="user_states.id")
+    recommendation_state_id: int = Field(foreign_key="recommendation_states.id")
     item_id: int = Field(foreign_key="readings.id")
 
-    user_state: UserState = Relationship(back_populates="interactions")
+    recommendation_state: RecommendationState = Relationship(back_populates="interactions")
     item: Reading = Relationship(back_populates="interactions")
 
 
@@ -134,6 +135,5 @@ class ReadingEmbedding(SQLModel, table=True):
     id: int | None = Field(default=None, primary_key=True)
     reading_id: int = Field(foreign_key="readings.id", unique=True)
     vector_blob: bytes
-
 
     reading: Reading = Relationship(back_populates="reading_embedding")

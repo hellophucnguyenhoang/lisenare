@@ -28,7 +28,7 @@ def create_interactions(
                 Interaction(
                     event_type=ev.event_type,
                     event_time=ev.event_time or datetime.now(timezone.utc),
-                    user_state_id=ev.user_state_id,
+                    recommendation_state_id=ev.recommendation_state_id,
                     item_id=ev.item_id,
                 )
             )

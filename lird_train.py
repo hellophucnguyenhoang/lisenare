@@ -8,7 +8,7 @@ import random
 from app.config import settings
 import pickle
 from app.database import get_session
-from app.services.item_embeddings import load_random_item_embeddings
+from app.services.item_embeddings import get_random_embeddings
 from app.config import settings
 
 # Hyperparameters
@@ -41,7 +41,7 @@ EPISODE_LEN = 20   # T
 #     historical_data.append(((s, a), r_vec))
 
 with next(get_session()) as session:
-    item_embeddings = load_random_item_embeddings(session, NUM_ITEMS, EMBED_DIM)
+    item_embeddings = get_random_embeddings(session, NUM_ITEMS, EMBED_DIM)
 
 print(f"Loaded item embeddings with shape: {item_embeddings.shape}")  # (num_items_loaded, EMBED_DIM)
 
