@@ -11,7 +11,7 @@ from app.services.item_embeddings import load_all_item_embeddings
 # ---------------------------
 MODEL_PATH = "./training_output_continuous/ppo_user_sim_continuous.zip"
 EVAL_EPISODES = 100
-RANDOM_EVAL_EPISODES = 10000  # giảm để đánh giá nhanh
+RANDOM_EVAL_EPISODES = 1000  # giảm để đánh giá nhanh
 
 # ---------------------------
 # Load embeddings from DB
@@ -30,7 +30,7 @@ model = PPO.load(MODEL_PATH, env=env)
 # ---------------------------
 # 1️⃣ Evaluate PPO
 # ---------------------------
-mean_reward_ppo, std_reward_ppo = evaluate_policy(model, env, n_eval_episodes=EVAL_EPISODES, deterministic=True)
+mean_reward_ppo, std_reward_ppo = evaluate_policy(model, env, n_eval_episodes=EVAL_EPISODES, deterministic=False)
 print(f"PPO Mean Reward: {mean_reward_ppo:.3f} ± {std_reward_ppo:.3f}")
 
 # ---------------------------
@@ -63,9 +63,9 @@ for ep in range(RANDOM_EVAL_EPISODES):
     while not done:
         # pick the embedding most similar to current user_state
         obs_norm = obs / (np.linalg.norm(obs) + 1e-12)
-        sims = [np.dot(obs_norm, emb / (np.linalg.norm(emb) + 1e-12)) for emb in env.reading_embeddings]
+        sims = [np.dot(obs_norm, emb / (np.linalg.norm(emb) + 1e-12)) for emb in env.item_embeddings]
         # now action = chosen embedding vector
-        action = env.reading_embeddings[np.argmax(sims)]
+        action = env.item_embeddings[np.argmax(sims)]
         obs, reward, terminated, truncated, _ = env.step(action)
         total_reward += reward
         done = terminated or truncated

@@ -17,8 +17,9 @@ os.makedirs(OUTPUT_DIR, exist_ok=True)
 MODEL_PATH = os.path.join(OUTPUT_DIR, "ppo_user_sim_continuous.zip")
 PLOT_PATH = os.path.join(OUTPUT_DIR, "ppo_eval_rewards_continuous.png")
 REWARDS_NPY = os.path.join(OUTPUT_DIR, "ppo_eval_rewards_continuous.npy")
+LOG_DIR = os.path.join(OUTPUT_DIR, "tensorboard")
 
-TOTAL_TIMESTEPS = 500000
+TOTAL_TIMESTEPS = 200000
 EVAL_EPISODES = 100
 MAX_STEPS_PER_EPISODE = 50
 
@@ -36,8 +37,7 @@ def make_env():
     def _init():
         env = ReadingRecEnvContinuous(
             reading_embeddings,
-            max_steps=MAX_STEPS_PER_EPISODE,
-            noise_scale=0.05
+            max_steps=MAX_STEPS_PER_EPISODE
         )
         return Monitor(env)
     return _init
@@ -56,6 +56,7 @@ model = PPO(
     n_steps=512,
     batch_size=64,
     gamma=0.95,
+    tensorboard_log=LOG_DIR
 )
 
 model.learn(total_timesteps=TOTAL_TIMESTEPS)

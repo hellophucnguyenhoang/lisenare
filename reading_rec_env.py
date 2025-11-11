@@ -21,17 +21,19 @@ REWARD_MAP = {
     "like": 1.0,
 }
 
+# Cách sắp xếp này không phải ngẫu nhiên, xem cách tính xác suất từ cosine sim trong step()
 POSSIBLE_EVENTS = ["dislike", "skip", "view", "click", "submit", "like"]
 
 def _softmax(x: np.ndarray) -> np.ndarray:
-    e = np.exp(x - np.max(x))
+    x = x - np.max(x)
+    e = np.exp(x)
     return e / e.sum()
 
 
 class ReadingRecEnv(gym.Env):
     """
     Môi trường rất đơn giản:
-    - reset(): sample user_state từ reading_embeddings + small noise
+    - reset(): sample user_state từ item_embeddings + small noise
     - step(action): lấy embedding của action, tính cosine sim với user_state,
       chuyển sim -> xác suất cho 6 tổ hợp, sample 1 tổ hợp, compute reward.
     """
@@ -40,14 +42,14 @@ class ReadingRecEnv(gym.Env):
 
     def __init__(
         self,
-        reading_embeddings: np.ndarray,
+        item_embeddings: np.ndarray,
         max_steps: int = 50,
         noise_scale: float = 0.05,
         discount_factor: float = 0.5
     ):
-        assert isinstance(reading_embeddings, np.ndarray) and reading_embeddings.ndim == 2
-        self.reading_embeddings = reading_embeddings.astype(np.float32)
-        self.num_items, self.emb_dim = self.reading_embeddings.shape
+        assert isinstance(item_embeddings, np.ndarray) and item_embeddings.ndim == 2
+        self.item_embeddings = item_embeddings.astype(np.float32)
+        self.num_items, self.emb_dim = self.item_embeddings.shape
 
         self.observation_space = spaces.Box(low=-np.inf, high=np.inf, shape=(self.emb_dim,), dtype=np.float32)
         self.action_space = spaces.Discrete(self.num_items)
@@ -65,8 +67,8 @@ class ReadingRecEnv(gym.Env):
         self.history: List[Dict[str, Any]] = []
 
         # normalized embeddings to compute cosine fast
-        norms = np.linalg.norm(self.reading_embeddings, axis=1, keepdims=True) + 1e-12
-        self.emb_normed = self.reading_embeddings / norms
+        norms = np.linalg.norm(self.item_embeddings, axis=1, keepdims=True) + 1e-12
+        self.emb_normed = self.item_embeddings / norms
 
     def reset(self, *, seed: Optional[int] = None, options: Optional[dict] = None):
         if seed is not None:
@@ -76,7 +78,7 @@ class ReadingRecEnv(gym.Env):
 
         # sample an index and set user_state = reading_embedding + small noise
         idx = int(self.rng.integers(0, self.num_items))
-        base = self.reading_embeddings[idx]
+        base = self.item_embeddings[idx]
         noise = self.rng.normal(0, self.noise_scale, size=self.emb_dim).astype(np.float32)
         self.user_state = (base + noise).astype(np.float32)
         # ensure non-zero
@@ -96,7 +98,7 @@ class ReadingRecEnv(gym.Env):
         assert 0 <= action < self.num_items
 
         # item embedding (normalized)
-        item_emb = self.reading_embeddings[action]
+        item_emb = self.item_embeddings[action]
         item_emb_norm = item_emb / (np.linalg.norm(item_emb) + 1e-12)
 
         # cosine similarity in [-1, 1]
@@ -166,24 +168,24 @@ class ReadingRecEnvContinuous(gym.Env):
 
     def __init__(
         self,
-        reading_embeddings: np.ndarray,
+        item_embeddings: np.ndarray,
         max_steps: int = 50,
         noise_scale: float = 0.05,
         discount_factor: float = 0.5,
         scale: float = 6.0,
         recent_N: int = 5,
-        skip_prob_if_seen: float = 0.9
+        boring_scale: float = 0.5
     ):
-        assert isinstance(reading_embeddings, np.ndarray) and reading_embeddings.ndim == 2
-        self.reading_embeddings = reading_embeddings.astype(np.float32)
-        self.num_items, self.emb_dim = self.reading_embeddings.shape
+        assert isinstance(item_embeddings, np.ndarray) and item_embeddings.ndim == 2
+        self.item_embeddings = item_embeddings.astype(np.float32)
+        self.num_items, self.emb_dim = self.item_embeddings.shape
 
         self.max_steps = max_steps
         self.noise_scale = noise_scale
         self.discount_factor = discount_factor
         self.scale = scale
         self.recent_N = recent_N
-        self.skip_prob_if_seen = skip_prob_if_seen
+        self.boring_scale = boring_scale
 
         self.rng = np.random.default_rng()
         self.user_state = np.zeros(self.emb_dim, dtype=np.float32)
@@ -192,8 +194,8 @@ class ReadingRecEnvContinuous(gym.Env):
 
         self.recent_items: List[int] = []
 
-        norms = np.linalg.norm(self.reading_embeddings, axis=1, keepdims=True) + 1e-12
-        self.emb_normed = self.reading_embeddings / norms
+        norms = np.linalg.norm(self.item_embeddings, axis=1, keepdims=True) + 1e-12
+        self.emb_normed = self.item_embeddings / norms
 
         self.observation_space = spaces.Box(low=-np.inf, high=np.inf, shape=(self.emb_dim,), dtype=np.float32)
         self.action_space = spaces.Box(low=-1.0, high=1.0, shape=(self.emb_dim,), dtype=np.float32)
@@ -206,7 +208,7 @@ class ReadingRecEnvContinuous(gym.Env):
         self.recent_items = []
 
         idx = int(self.rng.integers(0, self.num_items))
-        base = self.reading_embeddings[idx]
+        base = self.item_embeddings[idx]
         noise = self.rng.normal(0, self.noise_scale, size=self.emb_dim).astype(np.float32)
         self.user_state = (base + noise).astype(np.float32)
         if np.linalg.norm(self.user_state) == 0:
@@ -222,7 +224,7 @@ class ReadingRecEnvContinuous(gym.Env):
         # Find most similar item to the action
         sims = self.emb_normed @ a_norm
         idx = int(np.argmax(sims))
-        item_emb = self.reading_embeddings[idx]
+        item_emb = self.item_embeddings[idx]
         item_emb_norm = self.emb_normed[idx]
 
         # Compute similarity between item and user_state
@@ -232,23 +234,24 @@ class ReadingRecEnvContinuous(gym.Env):
 
         # Decrease interest if item was recently seen
         if idx in self.recent_items:
-            sim01 *= 0.7
+            sim01 *= self.boring_scale
 
         # Probabilistic event sampling
-        logits = np.arange(len(POSSIBLE_EVENTS), dtype=float) * (sim01 - 0.85) * self.scale
+        logits = np.arange(len(POSSIBLE_EVENTS), dtype=float) * (sim01 - 0.8) * self.scale
         probs = _softmax(logits)
         chosen_idx = int(self.rng.choice(len(POSSIBLE_EVENTS), p=probs))
         chosen_event = POSSIBLE_EVENTS[chosen_idx]
         total_reward = float(REWARD_MAP[chosen_event])
 
-        # Update recent_items
-        self.recent_items.append(idx)
-        if len(self.recent_items) > self.recent_N:
-            self.recent_items.pop(0)
+        # Update recent_items (only add if not already in list)
+        if idx not in self.recent_items:
+            self.recent_items.append(idx)
+            if len(self.recent_items) > self.recent_N:
+                self.recent_items.pop(0)
 
         # Weighted average update
         weights = np.array([0.9 ** (len(self.recent_items) - 1 - i) for i in range(len(self.recent_items))], dtype=np.float32)
-        embeddings = np.array([self.reading_embeddings[i] for i in self.recent_items], dtype=np.float32)
+        embeddings = np.array([self.item_embeddings[i] for i in self.recent_items], dtype=np.float32)
         new_state = np.average(embeddings, axis=0, weights=weights)
 
         # Smooth update with discount_factor
@@ -271,7 +274,7 @@ class ReadingRecEnvContinuous(gym.Env):
         terminated = (chosen_event == "like")
         truncated = self.step_count >= self.max_steps
         obs = self.user_state.copy()
-        info = {"event": chosen_event, "sim": sim, "chosen_index": idx, "recent_items": self.recent_items.copy()}
+        info = {"chosen_index": idx, "event": chosen_event, "sim": np.round(sim, 4), "chosen_index": idx, "recent_items": self.recent_items.copy(), "probs": np.round(probs, 4).tolist()}
 
         return obs, total_reward, bool(terminated), bool(truncated), info
 
