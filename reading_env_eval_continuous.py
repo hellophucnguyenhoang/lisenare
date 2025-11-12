@@ -30,7 +30,7 @@ model = PPO.load(MODEL_PATH, env=env)
 # ---------------------------
 # 1️⃣ Evaluate PPO
 # ---------------------------
-mean_reward_ppo, std_reward_ppo = evaluate_policy(model, env, n_eval_episodes=EVAL_EPISODES, deterministic=True)
+mean_reward_ppo, std_reward_ppo = evaluate_policy(model, env, n_eval_episodes=EVAL_EPISODES, deterministic=False)
 print(f"PPO Mean Reward: {mean_reward_ppo:.3f} ± {std_reward_ppo:.3f}")
 
 # ---------------------------

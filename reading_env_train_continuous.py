@@ -19,7 +19,7 @@ PLOT_PATH = os.path.join(OUTPUT_DIR, "ppo_eval_rewards_continuous.png")
 REWARDS_NPY = os.path.join(OUTPUT_DIR, "ppo_eval_rewards_continuous.npy")
 LOG_DIR = os.path.join(OUTPUT_DIR, "tensorboard")
 
-TOTAL_TIMESTEPS = 100000
+TOTAL_TIMESTEPS = 1000000
 EVAL_EPISODES = 100
 MAX_STEPS_PER_EPISODE = 50
 

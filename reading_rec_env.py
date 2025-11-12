@@ -207,7 +207,7 @@ class ReadingRecEnvContinuous(gym.Env):
         project_out_scale: float = 0.2,
         prob_scale: float = 6.0,
         max_recent: int = 5,
-        user_conservative: float = 0.8
+        user_conservative: float = 0.5
     ):
         assert isinstance(item_embeddings, np.ndarray) and item_embeddings.ndim == 2
         self.item_embeddings = item_embeddings.astype(np.float32)
@@ -230,7 +230,7 @@ class ReadingRecEnvContinuous(gym.Env):
         norms = np.linalg.norm(self.item_embeddings, axis=1, keepdims=True) + 1e-12
         self.emb_normed = self.item_embeddings / norms
 
-        self.observation_space = spaces.Box(low=-np.inf, high=np.inf, shape=(self.emb_dim,), dtype=np.float32)
+        self.observation_space = spaces.Box(low=-np.inf, high=np.inf, shape=(self.emb_dim + 2,), dtype=np.float32)
         self.action_space = spaces.Box(low=-1.0, high=1.0, shape=(self.emb_dim,), dtype=np.float32)
 
     def reset(self, *, seed: Optional[int] = None, options: Optional[dict] = None):
@@ -241,12 +241,13 @@ class ReadingRecEnvContinuous(gym.Env):
         self.recent_items = []
 
         idx = int(self.rng.integers(0, self.num_items))
+        # print(f"Reset: sampled index {idx}")
         base = self.item_embeddings[idx]
         noise = self.rng.normal(0, self.noise_scale, size=self.emb_dim).astype(np.float32)
         self.user_state = (base + noise).astype(np.float32)
         if np.linalg.norm(self.user_state) == 0:
             self.user_state += 1e-6
-        return self.user_state.copy(), {}
+        return self.get_state_vector(), {}
 
     def step(self, action: np.ndarray):
         self.step_count += 1
@@ -301,13 +302,38 @@ class ReadingRecEnvContinuous(gym.Env):
             "probs": event_probs.tolist(),
         })
 
-        terminated = False # (chosen_event == "like")
+        terminated = (chosen_event == "like")
         truncated = self.step_count >= self.max_steps
-        obs = self.user_state.copy()
-        info = {"chsn_idx": item_idx, "evt": chosen_event, "sim": float(np.round(sim, 3)), "nov": float(np.round(novelty, 3)), "rcet_items": self.recent_items.copy(), "probs": np.round(event_probs, 4).tolist()}
+        obs = self.get_state_vector()
+        info = {"chsn_idx": item_idx, "evt": chosen_event, "sim01": float(np.round(sim01, 2)), "nov": float(np.round(novelty, 2)), "rcet_items": self.recent_items.copy(), "probs": np.round(event_probs, 2).tolist()}
 
         return obs, total_reward, bool(terminated), bool(truncated), info
 
+    def get_state_vector(self):
+        # 1️⃣ base: hướng sở thích (như hiện tại)
+        s_pref = normalize(self.user_state)
+
+        # 2️⃣ diversity: mức độ giống nhau giữa các item gần đây
+        if len(self.recent_items) > 1:
+            recent_embs = self.emb_normed[self.recent_items]
+            sims = np.tril(recent_embs @ recent_embs.T, -1)
+            sims = sims[sims != 0]
+            diversity = 1.0 - np.mean(sims)
+        else:
+            diversity = 1.0
+
+        # 3️⃣ reward trend: trung bình reward gần nhất
+        if len(self.history) > 0:
+            recent_rewards = [h["reward"] for h in self.history[-self.max_recent:]]
+            reward_trend = np.mean(recent_rewards)
+        else:
+            reward_trend = 0.0
+
+        # 4️⃣ gộp lại thành vector
+        return np.concatenate([
+            s_pref,                           # (d,)
+            np.array([diversity, reward_trend], dtype=np.float32)  # (2,)
+        ]).astype(np.float32)
 
     def render(self):
         if not self.history:
