@@ -21,23 +21,25 @@ REWARD_MAP = {
 }
 
 # Cách sắp xếp này không phải ngẫu nhiên, xem cách tính xác suất từ cosine sim trong step()
-POSSIBLE_EVENTS = ["dislike", "skip", "view", "click", "submit", "like"]
+POSSIBLE_EVENTS = ["dislike", "skip", "view", "submit", "like"]
 
 def _softmax(x: np.ndarray) -> np.ndarray:
     x = x - np.max(x)
     e = np.exp(x)
     return e / e.sum()
 
-def get_updated_user_state(recent_items : np.ndarray, item_embeddings: np.ndarray, current_user_state_emb: np.ndarray, discount_factor: float = 0.5) -> np.ndarray:
-    # Weighted average update
-    weights = np.array([0.9 ** (len(recent_items) - 1 - i) for i in range(len(recent_items))], dtype=np.float32)
-    embeddings = np.array([item_embeddings[i] for i in recent_items], dtype=np.float32)
-    new_state = np.average(embeddings, axis=0, weights=weights)
+def projection_novelty_update_user_state(s, a, r, alpha, recent_embs):
+    a_norm = normalize(a)
+    proj = np.dot(s, a_norm) * (a_norm ** 2)
+    novelty = compute_novelty(a_norm, recent_embs)
+    s_new = s + alpha * novelty * (r * 0.7 * proj + r * 0.3 * a)
+    return normalize(s_new)
 
-    # Smooth update with discount_factor
-    current_user_state_emb = (1 - discount_factor) * current_user_state_emb + discount_factor * new_state
-    current_user_state_emb /= (np.linalg.norm(current_user_state_emb) + 1e-12)
-    return current_user_state_emb
+def projection_update_user_state(s, a, r, alpha):
+    a_norm = normalize(a)
+    proj = np.dot(s, a_norm) * (a_norm ** 2)
+    s_new = s + alpha * (r * 0.7 * proj + r * 0.3 * a)
+    return normalize(s_new)
 
 class ReadingRecEnv(gym.Env):
     """
@@ -52,7 +54,7 @@ class ReadingRecEnv(gym.Env):
     def __init__(
         self,
         item_embeddings: np.ndarray,
-        max_steps: int = 50,
+        max_steps: int = 100,
         noise_scale: float = 0.05,
         discount_factor: float = 0.5
     ):
@@ -90,6 +92,8 @@ class ReadingRecEnv(gym.Env):
         base = self.item_embeddings[idx]
         noise = self.rng.normal(0, self.noise_scale, size=self.emb_dim).astype(np.float32)
         self.user_state = (base + noise).astype(np.float32)
+        self.user_state /= np.linalg.norm(self.user_state) + 1e-12
+
         # ensure non-zero
         if np.linalg.norm(self.user_state) == 0:
             self.user_state += 1e-6
@@ -169,6 +173,26 @@ class ReadingRecEnv(gym.Env):
         return self.history
 
 
+def normalize(v: np.ndarray, eps: float = 1e-12) -> np.ndarray:
+    return v / (np.linalg.norm(v) + eps)
+
+def cosine_similarity(v1: np.ndarray, v2: np.ndarray, eps: float = 1e-12) -> float:
+    v1n, v2n = normalize(v1, eps), normalize(v2, eps)
+    return float(np.dot(v1n, v2n))
+
+def mean_cosine_similarity(v: np.ndarray, M: np.ndarray, eps: float = 1e-12) -> float:
+    # M: (n, d), v: (d,)
+    v_norm = normalize(v, eps)
+    M_norm = M / (np.linalg.norm(M, axis=1, keepdims=True) + eps)
+    sims = M_norm @ v_norm
+    return float(np.mean(sims))
+
+def compute_novelty(v: np.ndarray, recent: np.ndarray) -> float:
+    """Return novelty in [0,1]: 1 means fully new, 0 means identical to history"""
+    if len(recent) == 0:
+        return 1.0
+    return 1.0 - mean_cosine_similarity(v, recent)
+
 class ReadingRecEnvContinuous(gym.Env):
     """
     Continuous action environment with N-recent items memory
@@ -178,12 +202,12 @@ class ReadingRecEnvContinuous(gym.Env):
     def __init__(
         self,
         item_embeddings: np.ndarray,
-        max_steps: int = 50,
+        max_steps: int = 100,
         noise_scale: float = 0.05,
-        discount_factor: float = 0.5,
-        scale: float = 6.0,
-        recent_N: int = 5,
-        boring_scale: float = 0.5
+        project_out_scale: float = 0.2,
+        prob_scale: float = 6.0,
+        max_recent: int = 5,
+        user_conservative: float = 0.8
     ):
         assert isinstance(item_embeddings, np.ndarray) and item_embeddings.ndim == 2
         self.item_embeddings = item_embeddings.astype(np.float32)
@@ -191,10 +215,10 @@ class ReadingRecEnvContinuous(gym.Env):
 
         self.max_steps = max_steps
         self.noise_scale = noise_scale
-        self.discount_factor = discount_factor
-        self.scale = scale
-        self.recent_N = recent_N
-        self.boring_scale = boring_scale
+        self.project_out_scale = project_out_scale
+        self.prob_scale = prob_scale
+        self.max_recent = max_recent
+        self.user_conservative = user_conservative
 
         self.rng = np.random.default_rng()
         self.user_state = np.zeros(self.emb_dim, dtype=np.float32)
@@ -228,55 +252,59 @@ class ReadingRecEnvContinuous(gym.Env):
         self.step_count += 1
 
         # Normalize action
-        a_norm = action / (np.linalg.norm(action) + 1e-12)
+        a_norm = normalize(action)
 
         # Find most similar item to the action
         sims = self.emb_normed @ a_norm
-        idx = int(np.argmax(sims))
-        item_emb = self.item_embeddings[idx]
-        item_emb_norm = self.emb_normed[idx]
+        item_idx = int(np.argmax(sims))
+        item_emb = self.item_embeddings[item_idx]
+        item_emb_norm = self.emb_normed[item_idx]
 
         # Compute similarity between item and user_state
-        user_norm = self.user_state / (np.linalg.norm(self.user_state) + 1e-12)
-        sim = float(np.dot(user_norm, item_emb_norm))
+        sim = cosine_similarity(self.user_state, item_emb)
         sim01 = (sim + 1.0) / 2.0
 
-        # Decrease interest if item was recently seen
-        if idx in self.recent_items:
-            sim01 *= self.boring_scale
+        novelty = compute_novelty(item_emb_norm, self.emb_normed[self.recent_items])
+
+        # --- Combine similarity & novelty ---
+        reward_base = self.user_conservative * sim01 + (1 - self.user_conservative) * novelty
 
         # Probabilistic event sampling
-        logits = np.arange(len(POSSIBLE_EVENTS), dtype=float) * (sim01 - 0.8) * self.scale
-        probs = _softmax(logits)
-        chosen_idx = int(self.rng.choice(len(POSSIBLE_EVENTS), p=probs))
-        chosen_event = POSSIBLE_EVENTS[chosen_idx]
+        event_logits = np.arange(len(POSSIBLE_EVENTS), dtype=float) * (reward_base - 0.8) * self.prob_scale
+        event_probs = _softmax(event_logits)
+        event_idx = int(self.rng.choice(len(POSSIBLE_EVENTS), p=event_probs))
+        chosen_event = POSSIBLE_EVENTS[event_idx]
         total_reward = float(REWARD_MAP[chosen_event])
 
-        # Update recent_items (only add if not already in list)
-        if idx not in self.recent_items:
-            self.recent_items.append(idx)
-            if len(self.recent_items) > self.recent_N:
-                self.recent_items.pop(0)
+        # Update recent_items
+        self.recent_items.append(item_idx)
+        if len(self.recent_items) > self.max_recent:
+            self.recent_items.pop(0)
 
-        self.user_state = get_updated_user_state(self.recent_items, self.item_embeddings, self.user_state, discount_factor=self.discount_factor)
+        self.user_state = projection_update_user_state(
+            self.user_state, 
+            self.item_embeddings[item_idx], 
+            r=total_reward, 
+            alpha=self.project_out_scale
+        )
 
         # Record
         self.history.append({
             "action_vector": action.copy(),
-            "chosen_index": idx,
-            "chosen_embedding": item_emb.copy(),
+            "chosen_idx": item_idx,
+            "chosen_emb": item_emb.copy(),
             "sim": sim,
             "sim01": sim01,
             "event": chosen_event,
             "reward": total_reward,
             "recent_items": self.recent_items.copy(),
-            "probs": probs.tolist(),
+            "probs": event_probs.tolist(),
         })
 
-        terminated = (chosen_event == "like")
+        terminated = False # (chosen_event == "like")
         truncated = self.step_count >= self.max_steps
         obs = self.user_state.copy()
-        info = {"chosen_index": idx, "event": chosen_event, "sim": np.round(sim, 4), "chosen_index": idx, "recent_items": self.recent_items.copy(), "probs": np.round(probs, 4).tolist()}
+        info = {"chsn_idx": item_idx, "evt": chosen_event, "sim": float(np.round(sim, 3)), "nov": float(np.round(novelty, 3)), "rcet_items": self.recent_items.copy(), "probs": np.round(event_probs, 4).tolist()}
 
         return obs, total_reward, bool(terminated), bool(truncated), info
 

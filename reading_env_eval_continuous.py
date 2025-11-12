@@ -30,7 +30,7 @@ model = PPO.load(MODEL_PATH, env=env)
 # ---------------------------
 # 1️⃣ Evaluate PPO
 # ---------------------------
-mean_reward_ppo, std_reward_ppo = evaluate_policy(model, env, n_eval_episodes=EVAL_EPISODES, deterministic=False)
+mean_reward_ppo, std_reward_ppo = evaluate_policy(model, env, n_eval_episodes=EVAL_EPISODES, deterministic=True)
 print(f"PPO Mean Reward: {mean_reward_ppo:.3f} ± {std_reward_ppo:.3f}")
 
 # ---------------------------
@@ -79,9 +79,9 @@ print(f"Cosine-Sim Mean Reward: {mean_cosine:.3f} ± {std_cosine:.3f}")
 # 4️⃣ Compare all
 # ---------------------------
 print("\n=== Summary ===")
+print(f"PPO      : {mean_reward_ppo:.3f} ± {std_reward_ppo:.3f}")
 print(f"Random   : {mean_random:.3f} ± {std_random:.3f}")
 print(f"Cosine   : {mean_cosine:.3f} ± {std_cosine:.3f}")
-print(f"PPO      : {mean_reward_ppo:.3f} ± {std_reward_ppo:.3f}")
 
 improve_random = (mean_reward_ppo - mean_random) / (abs(mean_random) + 1e-8) * 100
 print(f"✅ PPO improves over random baseline by {improve_random:.2f}%")

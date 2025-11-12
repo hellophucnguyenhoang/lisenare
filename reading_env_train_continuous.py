@@ -19,7 +19,7 @@ PLOT_PATH = os.path.join(OUTPUT_DIR, "ppo_eval_rewards_continuous.png")
 REWARDS_NPY = os.path.join(OUTPUT_DIR, "ppo_eval_rewards_continuous.npy")
 LOG_DIR = os.path.join(OUTPUT_DIR, "tensorboard")
 
-TOTAL_TIMESTEPS = 200000
+TOTAL_TIMESTEPS = 100000
 EVAL_EPISODES = 100
 MAX_STEPS_PER_EPISODE = 50
 
@@ -28,8 +28,8 @@ MAX_STEPS_PER_EPISODE = 50
 # ---------------------------
 engine = create_engine("sqlite:///database.db")
 with Session(engine) as session:
-    reading_embeddings = get_all_item_embeddings(session)
-
+    reading_embeddings, _ = get_all_item_embeddings(session)
+print(f"reading_embeddings.shape{reading_embeddings.shape}")
 # ---------------------------
 # Environment creation
 # ---------------------------
