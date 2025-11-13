@@ -42,13 +42,13 @@ total_reward = 0
 while not episode_over:
     # pick the embedding most similar to current recommendation_state
     obs_norm = obs / (np.linalg.norm(obs) + 1e-12)
-    sims = [np.dot(obs_norm, emb / (np.linalg.norm(emb) + 1e-12)) for emb in env.item_embeddings]
+    sims = [np.dot(obs_norm[:env.emb_dim], emb / (np.linalg.norm(emb) + 1e-12)) for emb in env.item_embeddings]
     # now action = chosen embedding vector
     action = env.item_embeddings[np.argmax(sims)]
     obs, reward, terminated, truncated, info = env.step(action)
     print(reward, info)
     total_reward += reward
     episode_over = terminated or truncated
-    
+
 print(f"Episode finished! Total reward: {total_reward}")
 env.close()

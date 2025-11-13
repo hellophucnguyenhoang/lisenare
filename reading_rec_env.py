@@ -28,12 +28,9 @@ def _softmax(x: np.ndarray) -> np.ndarray:
     e = np.exp(x)
     return e / e.sum()
 
-def projection_novelty_update_user_state(s, a, r, alpha, recent_embs):
-    a_norm = normalize(a)
-    proj = np.dot(s, a_norm) * (a_norm ** 2)
-    novelty = compute_novelty(a_norm, recent_embs)
-    s_new = s + alpha * novelty * (r * 0.7 * proj + r * 0.3 * a)
-    return normalize(s_new)
+def smooth_sigmoid(x: float, k: float = 5.0) -> float:
+    """Smooth sigmoid in [0,1] for weighting."""
+    return 1.0 / (1.0 + np.exp(-k * x))
 
 def projection_update_user_state(s, a, r, alpha):
     a_norm = normalize(a)
@@ -172,7 +169,6 @@ class ReadingRecEnv(gym.Env):
     def get_history(self) -> List[Dict[str, Any]]:
         return self.history
 
-
 def normalize(v: np.ndarray, eps: float = 1e-12) -> np.ndarray:
     return v / (np.linalg.norm(v) + eps)
 
@@ -187,11 +183,53 @@ def mean_cosine_similarity(v: np.ndarray, M: np.ndarray, eps: float = 1e-12) -> 
     sims = M_norm @ v_norm
     return float(np.mean(sims))
 
-def compute_novelty(v: np.ndarray, recent: np.ndarray) -> float:
-    """Return novelty in [0,1]: 1 means fully new, 0 means identical to history"""
-    if len(recent) == 0:
+def compute_diversity(vectors: np.ndarray, eps: float = 1e-12) -> float:
+    """
+    Compute average pairwise diversity among a set of normalized vectors.
+    
+    Parameters
+    ----------
+    vectors : np.ndarray, shape (n, d)
+        The set of vectors to measure diversity over.
+    eps : float
+        Small value to avoid division by zero.
+    
+    Returns
+    -------
+    diversity : float in [0, 1]
+        1 means maximally diverse (orthogonal vectors), 0 means identical.
+    """
+    n = len(vectors)
+    if n <= 1:
         return 1.0
-    return 1.0 - mean_cosine_similarity(v, recent)
+
+    # Normalize vectors
+    norms = np.linalg.norm(vectors, axis=1, keepdims=True) + eps
+    v_normed = vectors / norms
+
+    # Compute pairwise cosine similarities
+    sim_matrix = v_normed @ v_normed.T
+    # Take lower-triangular (i < j) part only
+    sims = sim_matrix[np.tril_indices(n, k=-1)]
+
+    diversity = 1.0 - np.mean(sims)
+    return float(np.clip(diversity, 0.0, 1.0))
+
+def compute_diversity_gain(existing: np.ndarray, new_vec: np.ndarray) -> float:
+    """
+    Measure how much diversity increases (or decreases) when adding new_vec to existing set.
+    
+    Returns
+    -------
+    gain : float
+        Positive if diversity increases, negative if decreases.
+    """
+    if len(existing) == 0:
+        return 1.0  # full diversity for first item
+
+    base_div = compute_diversity(existing)
+    new_div = compute_diversity(np.vstack([existing, new_vec]))
+    return new_div - base_div
 
 class ReadingRecEnvContinuous(gym.Env):
     """
@@ -265,10 +303,21 @@ class ReadingRecEnvContinuous(gym.Env):
         sim = cosine_similarity(self.user_state, item_emb)
         sim01 = (sim + 1.0) / 2.0
 
-        novelty = compute_novelty(item_emb_norm, self.emb_normed[self.recent_items])
+        div_gain = compute_diversity_gain(self.emb_normed[self.recent_items], item_emb_norm)
 
-        # --- Combine similarity & novelty ---
-        reward_base = self.user_conservative * sim01 + (1 - self.user_conservative) * novelty
+        # --- Reward weighting control ---
+        mean_recent_reward = (
+            np.mean([h["reward"] for h in self.history[-self.max_recent:]]) 
+            if self.history else 0.0
+        )
+
+        # Dynamic balance between exploitation and exploration
+        r_target = 0.5  # neutral satisfaction
+        k = 6.0         # sharpness of transition
+        w_explore = smooth_sigmoid(r_target - mean_recent_reward, k)
+
+        # Final reward_base
+        reward_base = (1 - w_explore) * sim01 + w_explore * div_gain
 
         # Probabilistic event sampling
         event_logits = np.arange(len(POSSIBLE_EVENTS), dtype=float) * (reward_base - 0.8) * self.prob_scale
@@ -305,7 +354,7 @@ class ReadingRecEnvContinuous(gym.Env):
         terminated = (chosen_event == "like")
         truncated = self.step_count >= self.max_steps
         obs = self.get_state_vector()
-        info = {"chsn_idx": item_idx, "evt": chosen_event, "sim01": float(np.round(sim01, 2)), "nov": float(np.round(novelty, 2)), "rcet_items": self.recent_items.copy(), "probs": np.round(event_probs, 2).tolist()}
+        info = {"chsn_idx": item_idx, "evt": chosen_event, "sim01": float(np.round(sim01, 2)), "dver_gn": float(np.round(div_gain, 2)), "rcet_items": self.recent_items.copy(), "probs": np.round(event_probs, 2).tolist()}
 
         return obs, total_reward, bool(terminated), bool(truncated), info
 
@@ -316,9 +365,7 @@ class ReadingRecEnvContinuous(gym.Env):
         # 2️⃣ diversity: mức độ giống nhau giữa các item gần đây
         if len(self.recent_items) > 1:
             recent_embs = self.emb_normed[self.recent_items]
-            sims = np.tril(recent_embs @ recent_embs.T, -1)
-            sims = sims[sims != 0]
-            diversity = 1.0 - np.mean(sims)
+            diversity = compute_diversity(recent_embs)
         else:
             diversity = 1.0
 
