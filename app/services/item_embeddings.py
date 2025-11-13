@@ -4,7 +4,7 @@ from sqlmodel import Session, func, select
 from sentence_transformers import SentenceTransformer
 import torch
 from app.models import Reading, ReadingEmbedding
-
+from sklearn.decomposition import PCA
 
 def _reading_to_text(reading: Reading, include_questions: bool = True) -> str:
     """Combine topic name, title, content_text, and optionally questions into one text string."""
@@ -200,3 +200,42 @@ def get_all_item_embeddings(session: Session):
         item_ids.append(row.reading_id)
     item_embeddings = np.array(item_embeddings, dtype=np.float32)
     return item_embeddings, item_ids
+
+def get_reduced_item_embeddings(session: Session, n_components: int = 50):
+    """
+    Load all item embeddings from the database and reduce dimensionality using PCA.
+
+    Args:
+        session: SQLAlchemy/SQLModel session
+        n_components (int): number of PCA components to keep
+
+    Returns:
+        reduced_embeddings: torch.Tensor of shape (num_items, n_components)
+        item_ids: list of reading_id
+        pca_model: trained PCA model (can be reused for transforming new data)
+    """
+    # --- Load từ database ---
+    all_emb_rows = session.exec(select(ReadingEmbedding)).all()
+    total_items = len(all_emb_rows)
+    if total_items == 0:
+        raise ValueError("No embeddings found in the database.")
+
+    item_embeddings = []
+    item_ids = []
+    for row in all_emb_rows:
+        emb_arr = np.frombuffer(row.vector_blob, dtype=np.float32).copy()
+        item_embeddings.append(emb_arr)
+        item_ids.append(row.reading_id)
+
+    item_embeddings = np.array(item_embeddings, dtype=np.float32)
+    print(f"Loaded {total_items} embeddings of shape {item_embeddings.shape}")
+
+    # --- PCA reduction ---
+    print(f"🔹 Reducing dimension from {item_embeddings.shape[1]} → {n_components} using PCA...")
+    pca = PCA(n_components=n_components)
+    reduced = pca.fit_transform(item_embeddings)
+    print(f"   → Giữ lại {pca.explained_variance_ratio_.sum():.2%} thông tin")
+
+    reduced_embeddings = torch.tensor(reduced, dtype=torch.float32)
+
+    return reduced_embeddings, item_ids, pca

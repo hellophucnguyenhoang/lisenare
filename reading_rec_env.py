@@ -28,9 +28,9 @@ def _softmax(x: np.ndarray) -> np.ndarray:
     e = np.exp(x)
     return e / e.sum()
 
-def smooth_sigmoid(x: float, k: float = 5.0) -> float:
+def sigmoid01(x: float, k: float = 2.0) -> float:
     """Smooth sigmoid in [0,1] for weighting."""
-    return 1.0 / (1.0 + np.exp(-k * x))
+    return 1.0 / (1.0 + np.exp(-k * (x - 0.5)))
 
 def projection_update_user_state(s, a, r, alpha):
     a_norm = normalize(a)
@@ -312,16 +312,15 @@ class ReadingRecEnvContinuous(gym.Env):
         )
 
         # Dynamic balance between exploitation and exploration
-        r_target = 0.5  # neutral satisfaction
-        k = 6.0         # sharpness of transition
-        w_explore = smooth_sigmoid(r_target - mean_recent_reward, k)
+        mood = sigmoid01(mean_recent_reward)
 
         # Final reward_base
-        reward_base = (1 - w_explore) * sim01 + w_explore * div_gain
+        reward_base = mood * sim01 + (1 - mood) * div_gain
+        reward_base = float(np.clip(reward_base, 0.0, 1.0))
 
         # Probabilistic event sampling
         event_logits = np.arange(len(POSSIBLE_EVENTS), dtype=float) * (reward_base - 0.8) * self.prob_scale
-        event_probs = _softmax(event_logits)
+        event_probs = _softmax(event_logits / 2)
         event_idx = int(self.rng.choice(len(POSSIBLE_EVENTS), p=event_probs))
         chosen_event = POSSIBLE_EVENTS[event_idx]
         total_reward = float(REWARD_MAP[chosen_event])

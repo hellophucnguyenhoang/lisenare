@@ -21,7 +21,7 @@ observation, info = env.reset()
 episode_over = False
 total_reward = 0
 
-while not episode_over:
+while False: # not episode_over:
     action = env.action_space.sample()
 
     observation, reward, terminated, truncated, info = env.step(action)
@@ -32,6 +32,7 @@ while not episode_over:
 print(f"Episode finished! Total reward: {total_reward}")
 # env.close()
 
+print("========================================================")
 
 # ---------------------------
 # Cosine-Similarity running test
