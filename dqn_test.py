@@ -164,20 +164,20 @@ def train_dqn_continuous(env, reading_embeddings, state_dim, action_dim, K=20,
     plt.grid(True)
     plt.tight_layout()
     plt.savefig("training_reward.png")  # 💾 Lưu thành ảnh
-    plt.show()
 
     return q_net
 
 
 # %%
-from app.services.item_embeddings import get_all_item_embeddings
+from app.services.item_embeddings import get_reduced_item_embeddings
 from sqlmodel import Session, create_engine, select
-from reading_rec_env import ReadingRecEnvContinuous
+from reading_env import ReadingRecEnvContinuous
 
 
 engine = create_engine("sqlite:///database.db")
 with Session(engine) as session:
-    reading_embeddings, item_ids = get_all_item_embeddings(session)
+    reading_embeddings, item_ids, _ = get_reduced_item_embeddings(session)
+
 
 env = ReadingRecEnvContinuous(reading_embeddings)
 trained_q_net = train_dqn_continuous(

@@ -1,15 +1,15 @@
-from reading_rec_env import ReadingRecEnvContinuous
+from reading_env import ReadingRecEnvContinuous
 import numpy as np
-from app.services.item_embeddings import get_all_item_embeddings
+from app.services.item_embeddings import get_reduced_item_embeddings
 from sqlmodel import Session, create_engine
 
 
 engine = create_engine("sqlite:///database.db")
 
 with Session(engine) as session:
-    reading_embeddings, _ = get_all_item_embeddings(session)
+    reading_embeddings, item_ids, _ = get_reduced_item_embeddings(session)
 
-env = ReadingRecEnvContinuous(item_embeddings=reading_embeddings)
+env = ReadingRecEnvContinuous(reading_embeddings)
 
 
 # ---------------------------
@@ -21,7 +21,7 @@ observation, info = env.reset()
 episode_over = False
 total_reward = 0
 
-while False: # not episode_over:
+while not episode_over:
     action = env.action_space.sample()
 
     observation, reward, terminated, truncated, info = env.step(action)
@@ -40,16 +40,27 @@ print("========================================================")
 obs, _ = env.reset()
 episode_over = False
 total_reward = 0
+
 while not episode_over:
-    # pick the embedding most similar to current recommendation_state
+    # Chuẩn hoá vector quan sát
     obs_norm = obs / (np.linalg.norm(obs) + 1e-12)
-    sims = [np.dot(obs_norm[:env.emb_dim], emb / (np.linalg.norm(emb) + 1e-12)) for emb in env.item_embeddings]
-    # now action = chosen embedding vector
-    action = env.item_embeddings[np.argmax(sims)]
+
+    # Tính độ tương đồng cosine cho toàn bộ embedding
+    sims = np.array([
+        np.dot(obs_norm[:env.emb_dim], emb / (np.linalg.norm(emb) + 1e-12))
+        for emb in env.item_db
+    ])
+
+    # Chọn item có similarity cao nhất trong các item hợp lệ
+    best_idx = np.argmax(sims)
+    action = env.item_db[best_idx]
+
+    # Bước tiếp theo trong môi trường
     obs, reward, terminated, truncated, info = env.step(action)
     print(reward, info)
     total_reward += reward
     episode_over = terminated or truncated
 
-print(f"Episode finished! Total reward: {total_reward}")
+print(f"✅ Episode finished! Total reward: {total_reward}")
 env.close()
+

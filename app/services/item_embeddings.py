@@ -235,7 +235,6 @@ def get_reduced_item_embeddings(session: Session, n_components: int = 50):
     pca = PCA(n_components=n_components)
     reduced = pca.fit_transform(item_embeddings)
     print(f"   → Giữ lại {pca.explained_variance_ratio_.sum():.2%} thông tin")
+    # reduced_embeddings = torch.tensor(reduced, dtype=torch.float32)
 
-    reduced_embeddings = torch.tensor(reduced, dtype=torch.float32)
-
-    return reduced_embeddings, item_ids, pca
+    return reduced, item_ids, pca
