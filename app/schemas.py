@@ -1,14 +1,5 @@
-from sqlmodel import SQLModel, Field
-from datetime import datetime, timezone
+from sqlmodel import SQLModel
 import re
-
-# ---- Topic ----
-class TopicCreate(SQLModel):
-    name: str
-
-class TopicRead(SQLModel):
-    id: int
-    name: str
 
 
 # ---- User and Auth/Token ----
@@ -33,24 +24,24 @@ class UserWithToken(SQLModel):
     user: UserRead
     token: Token
 
+class EventUpdate(SQLModel):
+    event_type: str
 
-# --- User State ---
-class RecommendationStateBase(SQLModel):
-    item_ids: str = "" # e.g., "21,11,34,5"
-    user_id: int
+class Submition(SQLModel):
+    user_answer: str
 
-class RecommendationStateRead(RecommendationStateBase):
-    id: int
+class RecommendedItem(SQLModel):
+    study_session_id: int
+    batch_id: str
+    item: "ReadingRead"
 
-
-# ---- Reading ----
 class ReadingBase(SQLModel):
     topic_id: int
     title: str
     content_text: str
     difficulty: int
-    num_words: int = Field(ge=3)
-    num_questions: int = 1
+    num_words: int | None = None
+    num_questions: int | None = None
     questions: list["ObjectiveQuestionRead"] = []
 
     @property
@@ -61,92 +52,21 @@ class ReadingBase(SQLModel):
         text = f"{self.title} {self.content_text}"
         words = re.findall(r"\b\w+\b", text)
         return len(words)
-
-class ReadingCreate(ReadingBase):
-    pass
-
+    
 class ReadingRead(ReadingBase):
     id: int
-    created_at: datetime
-
-
-# ---- Objective Question ----
+    
 class ObjectiveQuestionBase(SQLModel):
     reading_id: int
     question_text: str
     option_a: str
-    option_b: str
-    option_c: str
-    option_d: str
+    option_b: str | None = None
+    option_c: str | None = None
+    option_d: str | None = None
     correct_option: int
     explanation: str | None = None
     order_index: int | None = None
 
-class ObjectiveQuestionCreate(ObjectiveQuestionBase):
-    pass
 
 class ObjectiveQuestionRead(ObjectiveQuestionBase):
     id: int
-
-
-# ---- StudySession ----
-class StudySessionBase(SQLModel):
-    score: float = Field(default=0.0, ge=0.0, le=1.0)
-    rating: int = Field(default=0, ge=-1, le=1)
-    time_spent: float = Field(default=0, ge=0, le=100, description="Minutes")
-    give_up: bool = False
-    user_answers: str = ""
-    user_id: int
-    reading_id: int
-
-class StudySessionCreate(StudySessionBase):
-    pass
-
-class StudySessionRead(StudySessionBase):
-    id: int
-    completed_at: datetime
-
-
-class QuestionResult(SQLModel):
-    id: int
-    question_text: str
-    option_a: str
-    option_b: str
-    option_c: str
-    option_d: str | None = None
-    correct_option: int
-    explanation: str | None
-    user_selected: int | None  # user's chosen option index or None
-    is_correct: bool
-
-class StudySessionResult(SQLModel):
-    id: int
-    user_id: int
-    reading_id: int
-    score: float
-    rating: int
-    time_spent: float | None
-    give_up: bool
-    user_answers: str | None
-    completed_at: datetime
-    reading_title: str
-    reading_content: str | None
-    questions: list[QuestionResult]
-
-class RatingUpdate(SQLModel):
-    rating: int = Field(default=0, ge=-1, le=1)
-
-# ------ Recommendation and Interaction ----------
-class InteractionCreate(SQLModel):
-    event_type: str
-    event_time: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
-    recommendation_state_id: int
-    item_id: int
-
-
-class RecommendItemRequest(SQLModel):
-    username: str = "phuc"
-
-class RecommendItemResponse(SQLModel):
-    recommendation_state: RecommendationStateRead
-    item: ReadingRead

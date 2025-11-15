@@ -28,7 +28,7 @@ MAX_STEPS_PER_EPISODE = 50
 # ---------------------------
 engine = create_engine("sqlite:///database.db")
 with Session(engine) as session:
-    reading_embeddings, _, _ = get_reduced_item_embeddings(session)
+    reading_embeddings, _, _ = get_reduced_item_embeddings(session, n_components=10)
 print(f"reading_embeddings.shape{reading_embeddings.shape}")
 # ---------------------------
 # Environment creation

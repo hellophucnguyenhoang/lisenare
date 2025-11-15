@@ -1,16 +1,15 @@
 from reading_env import ReadingRecEnvContinuous
 import numpy as np
-from app.services.item_embeddings import get_reduced_item_embeddings
+from app.services.item_embeddings import get_all_embeddings
 from sqlmodel import Session, create_engine
 
 
 engine = create_engine("sqlite:///database.db")
 
 with Session(engine) as session:
-    reading_embeddings, item_ids, _ = get_reduced_item_embeddings(session)
+    reading_embeddings, item_ids = get_all_embeddings(session)
 
 env = ReadingRecEnvContinuous(reading_embeddings)
-
 
 # ---------------------------
 # Random running test

@@ -8,7 +8,7 @@ from sklearn.cluster import KMeans
 # --- Load dữ liệu ---
 engine = create_engine("sqlite:///database.db")
 with Session(engine) as session:
-    reading_embeddings, item_ids, _ = get_reduced_item_embeddings(session)
+    reading_embeddings, item_ids, _ = get_reduced_item_embeddings(session, n_components=10)
 
 X = np.array(reading_embeddings)
 print("Shape:", X.shape)

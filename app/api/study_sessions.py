@@ -2,19 +2,17 @@
 from fastapi import APIRouter, Depends
 from sqlmodel import Session
 from app.database import get_session
-from app.schemas import StudySessionCreate, RatingUpdate, StudySessionResult
-from app.services import study_sessions as service
+from app.schemas import EventUpdate, Submition
+from app.services import study_sessions as study_session_services
 
 router = APIRouter(prefix="/study_sessions", tags=["StudySessions"])
 
-@router.post("/", response_model=StudySessionResult)
-def create_study_session(session_in: StudySessionCreate, db: Session = Depends(get_session)):
-    return service.create_study_session(db, session_in)
 
-@router.get("/{session_id}", response_model=StudySessionResult)
-def get_study_session_result(session_id: int, db: Session = Depends(get_session)):
-    return service.get_study_session_result(db, session_id)
+@router.patch("/{id}/event")
+def update_event_api(id: int, even_update: EventUpdate, session: Session = Depends(get_session)):
+    return study_session_services.update_event(session, id, event_type=even_update.event_type)
 
-@router.patch("/{session_id}/rating")
-def update_rating(session_id: int, payload: RatingUpdate, db: Session = Depends(get_session)):
-    return service.update_rating(db, session_id, payload)
+@router.patch("/{id}/submit")
+def submmit_answer_api(id: int, subbmition: Submition, session: Session = Depends(get_session)):
+    return study_session_services.submit_answer(session, id, user_answers=subbmition.user_answer)
+

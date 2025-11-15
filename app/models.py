@@ -1,6 +1,7 @@
 from datetime import datetime, timezone
 from sqlmodel import SQLModel, Field, Relationship, create_engine
 import re
+import uuid
 
 class UserTopicLink(SQLModel, table=True):
     __tablename__ = "user_topic_link"
@@ -35,19 +36,7 @@ class User(SQLModel, table=True):
 
     topic_preferences: list["Topic"] = Relationship(back_populates="users", link_model=UserTopicLink)
     study_sessions: list["StudySession"] = Relationship(back_populates="user")
-    user_state_emb: bytes  # do not confused with RecommendationState, this is the current embedding of the user
-
-
-class RecommendationState(SQLModel, table=True):
-    __tablename__ = "recommendation_states"
-
-    id: int | None = Field(default=None, primary_key=True)
-    item_ids: str = Field(default="", description="Comma-separated item IDs, e.g. '1,2,8,3,2'")
-    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
-    batch_id: str
-    user_id: int = Field(foreign_key="users.id")
-    user: User = Relationship()
-    interactions: list["Interaction"] = Relationship(back_populates="recommendation_state")
+    preference_emb: bytes
 
 
 class Reading(SQLModel, table=True):
@@ -65,7 +54,6 @@ class Reading(SQLModel, table=True):
     topic: Topic = Relationship(back_populates="readings")
     questions: list["ObjectiveQuestion"] = Relationship(back_populates="reading")
     study_sessions: list["StudySession"] = Relationship(back_populates="reading")
-    interactions: list["Interaction"] = Relationship(back_populates="item")
     reading_embedding: "ReadingEmbedding" = Relationship(back_populates="reading")
 
     @property
@@ -85,8 +73,8 @@ class ObjectiveQuestion(SQLModel, table=True):
     reading_id: int = Field(foreign_key="readings.id")
     question_text: str
     option_a: str
-    option_b: str | None = None
-    option_c: str | None = None
+    option_b: str
+    option_c: str
     option_d: str | None = None
     correct_option: int = Field(ge=0, le=3) # 0, 1, 2, 3
     explanation: str | None = None
@@ -101,11 +89,19 @@ class StudySession(SQLModel, table=True):
 
     id: int | None = Field(default=None, primary_key=True)
     score: float = Field(default=0.0, ge=0.0, le=1.0)
-    rating: int = Field(default=0, ge=-1, le=1, description="0: neutral, -1: dislike, 1: like")
-    time_spent: float = Field(default=0, ge=0, le=100, description="Minutes")
-    give_up: bool = False
-    user_answers: str = Field(default="", description="e.g., 0,1,2,0")
-    completed_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    user_answers: str = Field(default="", description="e.g., 0,-1,2,1, means user answered AxCB")
+    last_event_type: str | None = None
+    
+    # a recommendation is made from a specific user state,
+    # but we have to recommend a batch for performance reason
+    # so we recommend a batch instead of a item, for 1 recommendation, and later
+    # only get the item with the highest event reward in a batch as if 
+    # it's just 1 item recommendation when process the data for training further
+    batch_id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    last_update: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+    # similarity between user_preference vector and the item embedding at the recommendation time
+    sim01: float 
 
     user_id: int = Field(foreign_key="users.id")
     reading_id: int = Field(foreign_key="readings.id")
@@ -113,19 +109,6 @@ class StudySession(SQLModel, table=True):
     user: User | None = Relationship(back_populates="study_sessions")
     reading: Reading | None = Relationship(back_populates="study_sessions")
 
-
-class Interaction(SQLModel, table=True):
-    __tablename__ = "interactions"
-
-    id: int | None = Field(default=None, primary_key=True)
-    event_type: str
-    event_time: datetime = Field(default_factory=lambda: datetime.now(timezone.utc), index=True)
-
-    recommendation_state_id: int = Field(foreign_key="recommendation_states.id")
-    item_id: int = Field(foreign_key="readings.id")
-
-    recommendation_state: RecommendationState = Relationship(back_populates="interactions")
-    item: Reading = Relationship(back_populates="interactions")
 
 
 # Item embedding

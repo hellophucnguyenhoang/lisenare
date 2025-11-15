@@ -8,7 +8,7 @@ from typing import List, Dict, Any, Optional
 # ==============================================================
 
 POSSIBLE_EVENTS = ["dislike", "skip", "view", "submit", "like"]
-REWARD_MAP = {
+EVENT_REWARD_MAP = {
     "dislike": -1.0,
     "skip": -0.25,
     "view": 0.1,
@@ -16,44 +16,12 @@ REWARD_MAP = {
     "like": 1.0,
 }
 
-def _softmax(x: np.ndarray, temperature: float = 1.0) -> np.ndarray:
+def softmax(x: np.ndarray, temperature: float = 1.0) -> np.ndarray:
     x = np.asarray(x, dtype=np.float32)
     x = x / temperature
     e = np.exp(x - np.max(x))
     return e / e.sum()
 
-def dot(a: np.ndarray, b: np.ndarray) -> float:
-    return float(np.dot(a, b))
-
-def safe_norm(v: np.ndarray, eps: float = 1e-12) -> float:
-    return float(np.sqrt(np.sum(v * v)) + eps)
-
-def cosine_sim_raw(v1: np.ndarray, v2: np.ndarray) -> float:
-    return dot(v1, v2) / (safe_norm(v1) * safe_norm(v2))
-
-def pairwise_cosine_matrix(vectors: np.ndarray) -> np.ndarray:
-    n = vectors.shape[0]
-    if n == 0:
-        return np.array([])
-    norms = np.linalg.norm(vectors, axis=1, keepdims=True)
-    norms = np.where(norms == 0, 1e-12, norms)
-    normalized = vectors / norms
-    return normalized @ normalized.T
-
-def compute_diversity_raw(vectors: np.ndarray) -> float:
-    if vectors.shape[0] <= 1:
-        return 1.0
-    sim_matrix = pairwise_cosine_matrix(vectors)
-    tril = sim_matrix[np.tril_indices_from(sim_matrix, k=-1)]
-    avg_sim = tril.mean()
-    return float(np.clip(1.0 - avg_sim, 0.0, 1.0))
-
-def compute_diversity_gain_raw(existing: np.ndarray, new_vec: np.ndarray) -> float:
-    if existing.shape[0] == 0:
-        return 1.0
-    d0 = compute_diversity_raw(existing)
-    d1 = compute_diversity_raw(np.vstack([existing, new_vec]))
-    return d1 - d0
 
 import numpy as np
 from typing import List, Dict, Any
@@ -63,7 +31,7 @@ class Reader:
     Người dùng (user simulator) - chỉ biết:
     - Lịch sử tương tác của mình
     - Item hiện tại (action)
-    - Trạng thái sở thích nội tại (user_state)
+    - Trạng thái sở thích nội tại (user_preference)
     """
     def __init__(
         self,
@@ -80,7 +48,7 @@ class Reader:
         self.rng = rng or np.random.default_rng()
 
         # Nội tại người dùng
-        self.user_state = np.zeros(emb_dim, dtype=np.float32)
+        self.user_preference = np.zeros(emb_dim, dtype=np.float32)
         self.history: List[Dict[str, Any]] = []
         self.recent_embs: List[np.ndarray] = []
         self.recent_sim01: List[float] = []
@@ -91,28 +59,31 @@ class Reader:
         self.recent_embs = []
         self.recent_sim01 = []
         noise = self.rng.normal(0, self.noise_scale, self.emb_dim).astype(np.float32)
-        self.user_state = seed_item_emb + noise
-        return self.user_state.copy()
+        self.user_preference = seed_item_emb + noise
+        return self.user_preference.copy()
 
-    def _cosine_sim(self, v1: np.ndarray, v2: np.ndarray) -> float:
+    @staticmethod
+    def cosine_sim(v1: np.ndarray, v2: np.ndarray) -> float:
         num = np.dot(v1, v2)
         den = np.sqrt(np.sum(v1**2)) * np.sqrt(np.sum(v2**2)) + 1e-12
         return float(num / den)
 
-    def _diversity(self, vectors: np.ndarray) -> float:
+    @staticmethod
+    def diversity(vectors: np.ndarray) -> float:
         if len(vectors) <= 1:
             return 1.0
         sims = []
         for i in range(len(vectors)):
             for j in range(i + 1, len(vectors)):
-                sims.append(self._cosine_sim(vectors[i], vectors[j]))
+                sims.append(Reader.cosine_sim(vectors[i], vectors[j]))
         return max(0.0, 1.0 - np.mean(sims))
 
-    def _diversity_gain(self, existing: List[np.ndarray], new_vec: np.ndarray) -> float:
+    @staticmethod
+    def diversity_gain(existing: List[np.ndarray], new_vec: np.ndarray) -> float:
         if not existing:
             return 1.0
-        d0 = self._diversity(np.array(existing))
-        d1 = self._diversity(np.array(existing + [new_vec]))
+        d0 = Reader.diversity(np.array(existing))
+        d1 = Reader.diversity(np.array(existing + [new_vec]))
         return d1 - d0
 
     def step(self, item_emb: np.ndarray) -> Dict[str, Any]:
@@ -122,7 +93,7 @@ class Reader:
         item_emb = np.asarray(item_emb, dtype=np.float32)
 
         # 1. Similarity với sở thích
-        sim = self._cosine_sim(self.user_state, item_emb)
+        sim = Reader.cosine_sim(self.user_preference, item_emb)
         sim01 = (sim + 1.0) / 2.0
 
         # 2. Cập nhật recent
@@ -132,10 +103,11 @@ class Reader:
             self.recent_embs.pop(0)
             self.recent_sim01.pop(0)
 
+        # ----------- START USER SIMULATOR ---------------
         # 3. Tính hidden state: sum reward + diversity
         recent_rewards = [h["reward"] for h in self.history[-self.max_recent:]]
         sum_recent_reward = sum(recent_rewards) if recent_rewards else 0.0
-        diversity = self._diversity(np.array(self.recent_embs))
+        diversity = Reader.diversity(np.array(self.recent_embs))
 
         # 4. Logic ẩn: khi nào thưởng giống / khác?
         reward_high = sum_recent_reward >= 0.0
@@ -148,7 +120,7 @@ class Reader:
 
         # 5. Tính dense score
         exploit_score = sim01
-        explore_score = np.clip((self._diversity_gain(self.recent_embs[:-1], item_emb) + 1.0) / 2.0, 0.0, 1.0)
+        explore_score = np.clip((Reader.diversity_gain(self.recent_embs[:-1], item_emb) + 1.0) / 2.0, 0.0, 1.0)
 
         if target_similar:
             dense_reward = exploit_score
@@ -172,10 +144,10 @@ class Reader:
         elif event == "dislike":
             total_reward -= 0.5
 
-        # 8. Cập nhật user_state (residual)
-        proj = (np.dot(self.user_state, item_emb) / (np.sum(self.user_state**2) + 1e-12)) * self.user_state
-        residual = item_emb - proj
-        self.user_state += self.update_alpha * total_reward * residual
+        # ----------- END USER SIMULATOR ---------------
+
+        # 8. Cập nhật user_preference (residual)
+        self.user_preference = Reader.update_user_preference(self.user_preference, item_emb, total_reward, self.update_alpha)
 
         # 9. Lưu lịch sử
         info = {
@@ -190,6 +162,24 @@ class Reader:
         self.history.append(info)
 
         return info
+    
+    @staticmethod
+    def update_user_preference(user_preference, item_emb, total_reward, update_alpha=0.2):
+        """
+        Cập nhật state người dùng theo hướng item_emb nhưng chỉ lấy phần residual
+        (tức là phần thông tin 'mới' khác với user_preference hiện tại).
+        """
+        user_preference = user_preference.copy()
+
+        # projection of item onto user_preference
+        denom = np.sum(user_preference**2) + 1e-12
+        coef = np.dot(user_preference, item_emb) / denom
+        proj = coef * user_preference  # thành phần "đã biết"
+
+        residual = item_emb - proj  # phần mới → học vào user_preference
+
+        # update
+        return user_preference + update_alpha * total_reward * residual
     
 class ReadingRecEnvContinuous(gym.Env):
     metadata = {"render_modes": ["human"]}
@@ -219,10 +209,10 @@ class ReadingRecEnvContinuous(gym.Env):
         # Action = 1 item embedding (liên tục)
         self.action_space = spaces.Box(low=-1.0, high=1.0, shape=(self.emb_dim,), dtype=np.float32)
 
-        # Observation = user_state + signals
+        # Observation = user_preference + signals
         self.observation_space = spaces.Box(
             low=-np.inf, high=np.inf,
-            shape=(self.emb_dim + 4,),  # user_state + div + sum_r + avg_sim + mood
+            shape=(self.emb_dim + 4,),  # user_preference + div + sum_r + avg_sim + mood
             dtype=np.float32
         )
 
@@ -246,9 +236,9 @@ class ReadingRecEnvContinuous(gym.Env):
         self.step_count += 1
         action = np.asarray(action, dtype=np.float32)
 
-        # --- Gợi ý: tìm item gần nhất với action ---
+        # --- Gợi ý, tìm item gần nhất với action ---
         logits = self.item_db @ action
-        probs = _softmax(logits, temperature=0.1)
+        probs = softmax(logits, temperature=0.1)
         item_idx = int(self.rng.choice(self.num_items, p=probs))
         suggested_item = self.item_db[item_idx]
 
@@ -256,19 +246,26 @@ class ReadingRecEnvContinuous(gym.Env):
         user_response = self.reader.step(suggested_item)
 
         # --- Trả về ---
-        terminated = False
+        terminated = user_response["event"] == "like"
         truncated = self.step_count >= self.max_steps
-        return self._get_obs(), user_response["reward"], terminated, truncated, user_response
 
-    def _get_obs(self) -> np.ndarray:
+        recent_rewards = [h["reward"] for h in self.reader.history[-self.max_recent:]]
+        return ReadingRecEnvContinuous.get_obs(
+            self.reader.user_preference, 
+            self.reader.recent_embs,
+            recent_rewards,
+            self.reader.recent_sim01), user_response["reward"], terminated, truncated, user_response
+
+    @staticmethod
+    def get_obs(user_preference, recent_embs, recent_rewards, recent_sim01s) -> np.ndarray:
         # Từ Reader
-        div = self.reader._diversity(np.array(self.reader.recent_embs)) if len(self.reader.recent_embs) > 1 else 1.0
-        sum_r = sum(h["reward"] for h in self.reader.history[-self.max_recent:]) if self.reader.history else 0.0
-        avg_sim = np.mean(self.reader.recent_sim01) if self.reader.recent_sim01 else 0.5
+        div = Reader.diversity(np.array(recent_embs)) if len(recent_embs) > 1 else 1.0
+        sum_r = sum(np.array(recent_rewards)) if len(recent_rewards) > 0 else 0.0
+        avg_sim = np.mean(np.array(recent_sim01s)) if len(recent_sim01s) > 0 else 0.5
         mood = 0.5 * (1.0 + np.tanh(sum_r))
 
         return np.concatenate([
-            self.reader.user_state.astype(np.float32),
+            user_preference,
             np.array([div, sum_r, avg_sim, mood], dtype=np.float32)
         ])
 

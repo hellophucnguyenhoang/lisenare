@@ -18,7 +18,7 @@ RANDOM_EVAL_EPISODES = 1000  # giảm để đánh giá nhanh
 # ---------------------------
 engine = create_engine("sqlite:///database.db")
 with Session(engine) as session:
-    reading_embeddings, item_ids, _ = get_reduced_item_embeddings(session)
+    reading_embeddings, item_ids, _ = get_reduced_item_embeddings(session, n_components=10)
 print("Loaded reading embeddings from DB:", reading_embeddings.shape)
 
 # ---------------------------

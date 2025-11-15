@@ -6,7 +6,7 @@ engine = create_engine("sqlite:///database.db")
 
 with Session(engine) as session:
     # Create (or update) embeddings for all readings
-    create_item_embeddings(session, include_questions=False)
+    create_item_embeddings(session)
 
     # Get embedding for reading id 1
     vec = get_embedding_by_reading_id(session, 1)

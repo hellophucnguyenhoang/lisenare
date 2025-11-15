@@ -1,13 +1,14 @@
-# app/api/users.py
 from fastapi import APIRouter, Depends, HTTPException
 from sqlmodel import Session
 from app.database import get_session
 from app.services import readings as reading_service
 from app.services import users as user_service
-from app.services import recommendation_states as recommendation_state_service
-from app.schemas import RecommendItemRequest, RecommendItemResponse
+from app.services import study_sessions as study_session_services
 import numpy as np
 from stable_baselines3 import PPO
+import reading_env
+from app.config import settings
+from app.schemas import RecommendedItem, ReadingRead
 
 router = APIRouter(prefix="/recommendation", tags=["Recommendations"])
 
@@ -15,28 +16,33 @@ MODEL_PATH = "./ai_models/ppo_user_sim_continuous.zip"
 model = PPO.load(MODEL_PATH)
 
 
-@router.post("/recommend", response_model=list[RecommendItemResponse])
-def recommend_api(req: RecommendItemRequest, session: Session = Depends(get_session)):
-    batch_size = 3
-
-    user = user_service.get_user_by_username(session, req.username)
+@router.post("/recommend", response_model=list[RecommendedItem])
+def recommend_api(username: str, batch_size: int = settings.recommend_batch_size, session: Session = Depends(get_session)):
+    user = user_service.get_user_by_username(session, username)
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
     
-    user = user_service.refresh_and_get_user(session, user.id, interacted_only=True)
-    obs = np.frombuffer(user.user_state_emb, dtype=np.float32).copy()
+    user, recent_embs, recent_rewards, recent_sim01s = study_session_services.update_user_preference(session, user_id=user.id)
+    user_preference_emb = np.frombuffer(user.preference_emb, dtype=np.float32)
+    state = reading_env.ReadingRecEnvContinuous.get_obs(
+        user_preference=user_preference_emb,
+        recent_embs=recent_embs,
+        recent_rewards=recent_rewards,
+        recent_sim01s=recent_sim01s
+    )
+    action, _ = model.predict(state, deterministic=False)
+    recommended_readings = reading_service.get_nearest_readings(session, action, k=batch_size)
+    item_ids = [reading.id for reading in recommended_readings]
+    study_sessions = study_session_services.create_batch(session, user.id, item_ids)
 
-    action, _ = model.predict(obs, deterministic=False)
-    recommended_nearest_readings = reading_service.get_nearest_readings(session, action, k=batch_size)
+    recommended_items = []
+    for study_session, reading in zip(study_sessions, recommended_readings):
+        recommended_items.append(
+            RecommendedItem(
+                study_session_id=study_session.id,
+                batch_id=study_session.batch_id,
+                item=ReadingRead.model_validate(reading)
+            )
+        )
 
-    # these are new user states we create in prior to the real interaction, 
-    # so when the real interaction comes, we can just add the log and this will become true states
-    new_recommendation_states = recommendation_state_service.create_recommendation_states(session, user, recommended_nearest_readings)
-
-    recommendations = []
-    for i in range(batch_size):
-        recommendations.append(RecommendItemResponse(recommendation_state=new_recommendation_states[i], item=recommended_nearest_readings[i]))
-
-    return recommendations
-
-
+    return recommended_items

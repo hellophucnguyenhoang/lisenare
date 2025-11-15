@@ -3,7 +3,7 @@ from fastapi import HTTPException, status
 from sqlmodel import Session
 from datetime import timedelta
 from app.services.users import get_user_by_username
-from app.core.security import verify_password, create_access_token
+from app.security import verify_password, create_access_token
 from app.schemas import Token
 from app.config import settings
 

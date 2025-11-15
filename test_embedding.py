@@ -1,11 +1,9 @@
 from sqlmodel import Session, create_engine
-from app.services.item_embeddings import create_item_embeddings, get_embedding_by_reading_id
+from app.services.item_embeddings import get_embedding_by_reading_id
 
 
 engine = create_engine("sqlite:///database.db")
 with Session(engine) as session:
-    # Create (or update) embeddings for all readings
-    # create_item_embeddings(session)
 
     # Get embedding for reading id 1
     vec = get_embedding_by_reading_id(session, 1)

@@ -7,7 +7,7 @@ from jwt import InvalidTokenError
 from app.database import get_session
 from app.services import users as user_service
 from app.schemas import UserCreate, UserRead, UserWithToken, Token
-from app.core.security import decode_access_token, create_access_token
+from app.security import decode_access_token, create_access_token
 
 router = APIRouter(prefix="/users", tags=["Users"])
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login")
