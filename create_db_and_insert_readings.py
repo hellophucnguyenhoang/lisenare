@@ -3,9 +3,8 @@ from app.database import create_db_and_tables, get_session
 from app.models import Topic, Reading, ObjectiveQuestion
 import pandas as pd
 import ast
-from ai_models.cefr_classifier.reading_level_classifier import classify_reading_with_length
 from transformers import pipeline
-from test_cefr_classification import text_to_cefr
+from cefr_classification import text_to_cefr
 
 
 # --- helper functions ---

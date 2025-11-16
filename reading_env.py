@@ -230,7 +230,7 @@ class ReadingRecEnvContinuous(gym.Env):
         seed_emb = self.item_db[idx]
         self.reader.reset(seed_emb)
 
-        return self._get_obs(), {}
+        return ReadingRecEnvContinuous.get_obs(self.reader.user_preference, self.reader.recent_embs, [], []), {}
 
     def step(self, action: np.ndarray):
         self.step_count += 1
@@ -246,7 +246,7 @@ class ReadingRecEnvContinuous(gym.Env):
         user_response = self.reader.step(suggested_item)
 
         # --- Trả về ---
-        terminated = user_response["event"] == "like"
+        terminated = False # user_response["event"] == "like"
         truncated = self.step_count >= self.max_steps
 
         recent_rewards = [h["reward"] for h in self.reader.history[-self.max_recent:]]
