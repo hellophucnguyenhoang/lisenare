@@ -1,14 +1,15 @@
 # kmeans_elbow.py
 from sqlmodel import Session, create_engine
-from app.services.item_embeddings import get_reduced_item_embeddings
+from app.services.item_embeddings import get_all_embeddings
 import numpy as np
 import matplotlib.pyplot as plt
 from sklearn.cluster import KMeans
+from app.config import settings
 
 # --- Load dữ liệu ---
 engine = create_engine("sqlite:///database.db")
 with Session(engine) as session:
-    reading_embeddings, item_ids, _ = get_reduced_item_embeddings(session, n_components=10)
+    reading_embeddings, item_ids = get_all_embeddings(session)
 
 X = np.array(reading_embeddings)
 print("Shape:", X.shape)

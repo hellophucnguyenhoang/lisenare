@@ -4,6 +4,9 @@ from app.models import Topic, Reading, ObjectiveQuestion
 import pandas as pd
 import ast
 from ai_models.cefr_classifier.reading_level_classifier import classify_reading_with_length
+from transformers import pipeline
+from test_cefr_classification import text_to_cefr
+
 
 # --- helper functions ---
 def parse_options(raw):
@@ -42,10 +45,11 @@ def create_data1():
 
         readings_to_add = []
         for (title, article, topic_name), group in df.groupby(["Title", "article", "Topic"]):
+            avg_index, closest_label = text_to_cefr(str(article) + " " + str(title))
             reading = Reading(
                 title=str(title),
                 content_text=str(article),
-                difficulty=classify_reading_with_length(str(article) + " " + str(title)),
+                difficulty=round(avg_index),
                 num_questions=len(group),
                 topic=topic_map.get(topic_name),
             )
@@ -91,10 +95,11 @@ def create_data2():
 
         readings_to_add = []
         for (title, article, topic_name), group in df.groupby(["title", "passage", "topic"]):
+            avg_index, closest_label = text_to_cefr(str(article) + " " + str(title))
             reading = Reading(
                 title=str(title),
                 content_text=str(article),
-                difficulty=classify_reading_with_length(str(article) + " " + str(title)),
+                difficulty=round(avg_index),
                 num_questions=len(group),
                 topic=topic_map.get(topic_name),
             )
@@ -137,10 +142,11 @@ def create_data3():
 
         readings_to_add = []
         for (title, article, topic_name), group in df.groupby(["title", "passage", "topic"]):
+            avg_index, closest_label = text_to_cefr(str(article) + " " + str(title))
             reading = Reading(
                 title=str(title),
                 content_text=str(article),
-                difficulty=classify_reading_with_length(str(article) + " " + str(title)),
+                difficulty=round(avg_index),
                 num_questions=len(group),
                 topic=topic_map.get(topic_name),
             )

@@ -8,6 +8,7 @@ dependencies = [
     "alembic>=1.17.1",
     "fastapi[standard]>=0.120.1",
     "jupyter>=1.1.1",
+    "nltk>=3.9.2",
     "numpy>=2.3.4",
     "openpyxl>=3.1.5",
     "pwdlib[argon2]>=0.3.0",
