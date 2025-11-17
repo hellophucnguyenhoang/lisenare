@@ -16,15 +16,12 @@ EVENT_REWARD_MAP = {
     "like": 1.0,
 }
 
+
 def softmax(x: np.ndarray, temperature: float = 1.0) -> np.ndarray:
     x = np.asarray(x, dtype=np.float32)
     x = x / temperature
     e = np.exp(x - np.max(x))
     return e / e.sum()
-
-
-import numpy as np
-from typing import List, Dict, Any
 
 class Reader:
     """
@@ -38,26 +35,38 @@ class Reader:
         emb_dim: int,
         max_recent: int = 5,
         noise_scale: float = 0.05,
-        update_alpha: float = 0.2,
+        update_alpha: float = 0.7,
+        boredom_rate = 0.1,
         rng: Optional[np.random.Generator] = None,
     ):
         self.emb_dim = emb_dim
         self.max_recent = max_recent
         self.noise_scale = noise_scale
         self.update_alpha = update_alpha
+        self.boredom_rate = boredom_rate
         self.rng = rng or np.random.default_rng()
+        self.actions = POSSIBLE_EVENTS
+        self.rewards = list(EVENT_REWARD_MAP.values())
+
+        # Độ nhạy của từng action với dense_reward
+        # Càng âm → càng dễ xảy ra khi dense_reward âm
+        # Càng dương → càng dễ khi dense_reward dương
+        self.sensitivity = np.array([-2.0, -1.0, 0.0, 1.5, 1.0])
+
+        # Độ hiếm tự nhiên (càng nhỏ càng hiếm)
+        self.rarity = np.array([0.2, 1.0, 2.0, 1.2, 0.5])  # dislike & like hiếm
 
         # Nội tại người dùng
         self.user_preference = np.zeros(emb_dim, dtype=np.float32)
         self.history: List[Dict[str, Any]] = []
         self.recent_embs: List[np.ndarray] = []
-        self.recent_sim01: List[float] = []
+        self.recent_relevants: List[float] = []
 
     def reset(self, seed_item_emb: np.ndarray):
         """Khởi tạo sở thích từ 1 item ban đầu"""
         self.history = []
         self.recent_embs = []
-        self.recent_sim01 = []
+        self.recent_relevants = []
         noise = self.rng.normal(0, self.noise_scale, self.emb_dim).astype(np.float32)
         self.user_preference = seed_item_emb + noise
         return self.user_preference.copy()
@@ -90,68 +99,85 @@ class Reader:
         """
         Nhận item embedding → trả về reward + cập nhật nội tại
         """
-        item_emb = np.asarray(item_emb, dtype=np.float32)
-
-        # 1. Similarity với sở thích
-        sim = Reader.cosine_sim(self.user_preference, item_emb)
-        sim01 = (sim + 1.0) / 2.0
-
-        # 2. Cập nhật recent
-        self.recent_embs.append(item_emb)
-        self.recent_sim01.append(sim01)
-        if len(self.recent_embs) > self.max_recent:
-            self.recent_embs.pop(0)
-            self.recent_sim01.pop(0)
-
         # ----------- START USER SIMULATOR ---------------
-        # 3. Tính hidden state: sum reward + diversity
+        # xác định user muốn gì
+        # Tính hidden state hiện tại của user: sum reward & diversity
         recent_rewards = [h["reward"] for h in self.history[-self.max_recent:]]
         sum_recent_reward = sum(recent_rewards) if recent_rewards else 0.0
         diversity = Reader.diversity(np.array(self.recent_embs))
 
-        # 4. Logic ẩn: khi nào thưởng giống / khác?
+        # Logic ẩn, người dùng đang muốn quen thuộc hay đổi mới
         reward_high = sum_recent_reward >= 0.0
         reward_low = sum_recent_reward < 0.0
         div_low = diversity < 0.4
-        div_high = diversity >= 0.6
-
+        div_high = diversity >= 0.4
         target_similar = reward_high or (reward_low and div_high)
         target_diverse = reward_low and div_low
 
-        # 5. Tính dense score
-        exploit_score = sim01
-        explore_score = np.clip((Reader.diversity_gain(self.recent_embs[:-1], item_emb) + 1.0) / 2.0, 0.0, 1.0)
+        # Khi biết được mong muốn của người dùng, điểm sẽ cao nếu item thỏa mãn và thấp nếu ít thỏa mãn
+        item_emb = np.asarray(item_emb, dtype=np.float32)
+        exploit_score = Reader.cosine_sim(self.user_preference, item_emb)
+
+        # diversity is in range [0, 2]
+        gain = Reader.diversity_gain(self.recent_embs, item_emb) # [-2, 2]
+        explore_score = np.clip(gain / 2.0, -1.0, 1.0)
 
         if target_similar:
             dense_reward = exploit_score
         elif target_diverse:
             dense_reward = explore_score
-        else:
+        else: # this never happens, just in case we want to change the diversity threshold
             dense_reward = 0.5 * (exploit_score + explore_score)
 
-        # 6. Sự kiện ngẫu nhiên (xác suất ẩn)
-        base_logits = np.array([-10.0, -2.0, 0.0, 2.0, 4.0])
-        bonus = 6.0 * dense_reward
-        probs = np.exp(base_logits + bonus)
+        if not -1.0 <= dense_reward <= 1.0:
+            print(f"WARNING: dense_reward:{dense_reward}")
+
+        dense_reward = np.clip(dense_reward, -1.0, 1.0)
+
+        # User đưa ra phản hồi dựa trên dense_reward của item được gợi ý
+        # Dense reward thể hiện item này hợp với người dùng như thế nào một cách tổng thể
+        # Dense reward là những gì thuộc về  determistic, hành vi người dùng hoàn toàn có thể đoán được
+        # Nhưng đối với real user, họ có thể  đột nhiên thấy chán và cho điểm thấp với cái được cho là 'hợp' với trạng thái hiện tại của họ
+        # Yếu đố không đoán trước được này cần được định nghĩa bằng một con số  thể hiện sự nhanh chán của người dùng
+        # Người dùng càng nhanh chán thì những hành vi cho điểm thấp với cái 'hợp' với trạng thái của họ sẽ nhiều hơn.
+        # Những sự hiện mà người dùng có thể đưa ra cũng có những 'độ hiếm' khác nhau.
+        # Ví dụ hầu hết thời gian người dùng sẽ cho các hành dộng skip, view, và đôi khi submit, và hiếm khi like, dislike.
+        # Reward cuối cùng phải quy về việc chọn hành động, dense_reward chỉ ảnh hưởng việc chọn hành động, không đóng góp và reward cuối cùng.
+        
+        
+        # Tính logits: bias (hiếm) + ảnh hưởng từ dense_reward
+        logits = self.rarity + dense_reward * self.sensitivity
+
+        # Chán một cách ngẫu nhiên
+        is_bored = self.rng.random() < self.boredom_rate
+        if is_bored:
+            logits = self.rarity
+
+        # Softmax
+        probs = np.exp(logits - np.max(logits))
         probs /= probs.sum()
-        event_idx = self.rng.choice(5, p=probs)
-        event = ["dislike", "skip", "view", "submit", "like"][event_idx]
 
-        # 7. Final reward
-        total_reward = dense_reward
-        if event == "like":
-            total_reward += 1.0
-        elif event == "dislike":
-            total_reward -= 0.5
-
+        # Chọn action
+        idx = self.rng.choice(len(self.actions), p=probs)
         # ----------- END USER SIMULATOR ---------------
 
-        # 8. Cập nhật user_preference (residual)
+        # Reward CHỈ từ hành động
+        total_reward = self.rewards[idx]
+        event = self.actions[idx]
+
+        # Cập nhật user_preference (residual) dựa trên item gợi ý và reward nhận được
         self.user_preference = Reader.update_user_preference(self.user_preference, item_emb, total_reward, self.update_alpha)
+
+        # Cập nhật recent
+        self.recent_embs.append(item_emb)
+        self.recent_relevants.append(exploit_score)
+        if len(self.recent_embs) > self.max_recent:
+            self.recent_embs.pop(0)
+            self.recent_relevants.pop(0)
 
         # 9. Lưu lịch sử
         info = {
-            "sim01": round(sim01, 3),
+            "relevant": round(exploit_score, 3),
             "diversity": round(diversity, 3),
             "sum_reward": round(sum_recent_reward, 3),
             "dense_reward": round(dense_reward, 3),
@@ -254,14 +280,14 @@ class ReadingRecEnvContinuous(gym.Env):
             self.reader.user_preference, 
             self.reader.recent_embs,
             recent_rewards,
-            self.reader.recent_sim01), user_response["reward"], terminated, truncated, user_response
+            self.reader.recent_relevants), user_response["reward"], terminated, truncated, user_response
 
     @staticmethod
-    def get_obs(user_preference, recent_embs, recent_rewards, recent_sim01s) -> np.ndarray:
+    def get_obs(user_preference, recent_embs, recent_rewards, recent_relevants) -> np.ndarray:
         # Từ Reader
         div = Reader.diversity(np.array(recent_embs)) if len(recent_embs) > 1 else 1.0
         sum_r = sum(np.array(recent_rewards)) if len(recent_rewards) > 0 else 0.0
-        avg_sim = np.mean(np.array(recent_sim01s)) if len(recent_sim01s) > 0 else 0.5
+        avg_sim = np.mean(np.array(recent_relevants)) if len(recent_relevants) > 0 else 0.5
         mood = 0.5 * (1.0 + np.tanh(sum_r))
 
         return np.concatenate([
@@ -276,6 +302,6 @@ class ReadingRecEnvContinuous(gym.Env):
         last = self.reader.history[-1]
         print(
             f"[Step {self.step_count}] "
-            f"Sim:{last['sim01']:.2f} Div:{last['diversity']:.2f} "
+            f"Sim:{last['relevant']:.2f} Div:{last['diversity']:.2f} "
             f"SumR:{last['sum_reward']:.2f} → {last['event']} | R:{last['reward']:.2f}"
         )

@@ -28,7 +28,7 @@ def recommend_api(username: str, batch_size: int = settings.recommend_batch_size
         user_preference=user_preference_emb,
         recent_embs=recent_embs,
         recent_rewards=recent_rewards,
-        recent_sim01s=recent_sim01s
+        recent_relevants=recent_sim01s
     )
     action, _ = model.predict(state, deterministic=False)
     recommended_readings = reading_service.get_nearest_readings(session, action, k=batch_size)

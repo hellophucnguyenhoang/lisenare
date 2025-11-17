@@ -181,8 +181,11 @@ def create_data3():
 def main():
     create_db_and_tables()
     create_data1()
+    print('Done file 1')
     create_data2()
+    print('Done file 2')
     create_data3()
+    print('Done file 3')
 
 if __name__ == "__main__":  
     main()

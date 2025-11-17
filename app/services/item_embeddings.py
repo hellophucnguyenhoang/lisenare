@@ -120,7 +120,7 @@ def get_embedding_by_reading_id(session: Session, reading_id: int) -> Optional[n
     return arr
 
 
-def init_user_embedding(session: Session) -> Optional[np.ndarray]:
+def init_user_embedding(session: Session, noise_scale: float = 0.2) -> Optional[np.ndarray]:
     """Retrieve the embedding for a reading_id as a NumPy array (dtype float32)."""
     emb_row = session.exec(
         select(ReadingEmbedding).order_by(func.random()).limit(1)
@@ -129,7 +129,22 @@ def init_user_embedding(session: Session) -> Optional[np.ndarray]:
         return None
 
     arr = np.frombuffer(emb_row.vector_blob, dtype=np.float32).copy()
-    return arr
+    noise = np.random.normal(loc=0.0, scale=noise_scale, size=arr.shape).astype(np.float32)
+    final = (arr + noise)
+    return final
+
+def init_user_embedding_by_level(session: Session, user_level: int, noise_scale: float = 0.2) -> Optional[np.ndarray]:
+    """Retrieve the embedding for a reading_id as a NumPy array (dtype float32)."""
+    emb_row = session.exec(
+        select(ReadingEmbedding).join(Reading).where(Reading.difficulty == user_level)
+    ).first()
+    if not emb_row:
+        return None
+
+    arr = np.frombuffer(emb_row.vector_blob, dtype=np.float32).copy()
+    noise = np.random.normal(loc=0.0, scale=noise_scale, size=arr.shape).astype(np.float32)
+    final = (arr + noise)
+    return final
 
 
 def get_all_embeddings(session: Session):

@@ -21,7 +21,6 @@ LOG_DIR = os.path.join(OUTPUT_DIR, "tensorboard")
 
 TOTAL_TIMESTEPS = 1000000
 EVAL_EPISODES = 100
-MAX_STEPS_PER_EPISODE = 50
 
 # ---------------------------
 # Load item embeddings
@@ -36,8 +35,7 @@ print(f"reading_embeddings.shape{reading_embeddings.shape}")
 def make_env():
     def _init():
         env = ReadingRecEnvContinuous(
-            reading_embeddings,
-            max_steps=MAX_STEPS_PER_EPISODE
+            reading_embeddings
         )
         return Monitor(env)
     return _init
@@ -67,17 +65,17 @@ print(f"✅ Model saved to {MODEL_PATH}")
 # Evaluate model
 # ---------------------------
 print("🎯 Evaluating model...")
-eval_env = ReadingRecEnvContinuous(reading_embeddings, max_steps=MAX_STEPS_PER_EPISODE)
+eval_env = ReadingRecEnvContinuous(reading_embeddings)
 episode_rewards = []
 
 for ep in range(EVAL_EPISODES):
     obs, _ = eval_env.reset()
     total_reward = 0.0
-    for _ in range(MAX_STEPS_PER_EPISODE):
+    while True:
         action, _ = model.predict(obs, deterministic=True)
-        obs, reward, done, truncated, _ = eval_env.step(action)
+        obs, reward, terminated, truncated, _ = eval_env.step(action)
         total_reward += reward
-        if done or truncated:
+        if terminated or truncated:
             break
     episode_rewards.append(total_reward)
 

@@ -14,11 +14,12 @@ def create_user(session: Session, user_create: UserCreate) -> User:
         email=user_create.email,
         hashed_password=hashed_password,
         # TODO: cần cải thiện sau: khởi tạo theo sở thích đã chọn của user
-        preference_emb=item_embedding_service.init_user_embedding(session)
+        preference_emb=item_embedding_service.init_user_embedding_by_level(session, user_level=1).tobytes()
     )
     session.add(user)
     session.commit()
     session.refresh(user)
+    print(f'user.shape={np.frombuffer(user.preference_emb, dtype=np.float32).shape}')
     return user
 
 

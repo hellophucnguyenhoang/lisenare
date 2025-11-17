@@ -8,6 +8,7 @@ from app.database import get_session
 from app.services import users as user_service
 from app.schemas import UserCreate, UserRead, UserWithToken, Token
 from app.security import decode_access_token, create_access_token
+import numpy as np
 
 router = APIRouter(prefix="/users", tags=["Users"])
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login")
@@ -18,6 +19,7 @@ def register_user(user: UserCreate, session: Session = Depends(get_session)):
     if existing:
         raise HTTPException(status_code=400, detail="Username already taken")
     new_user = user_service.create_user(session, user)
+
     access_token = create_access_token({"sub": new_user.username})
     return {"user": new_user, "token": Token(access_token=access_token)}
 
