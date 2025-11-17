@@ -70,3 +70,21 @@ class ObjectiveQuestionBase(SQLModel):
 
 class ObjectiveQuestionRead(ObjectiveQuestionBase):
     id: int
+
+
+# COEDIT
+# Request body
+class WritingCheckRequest(SQLModel):
+    instruction: str = "Fix the grammar"
+    text: str
+
+class WritingCheckResponse(SQLModel):
+    edited_text: str
+    total_sentences: int
+
+class CEFRClassificationRequest(SQLModel):
+    text: str
+
+class CEFRClassificationResponse(SQLModel):
+    cefr_index: int
+    cefr_label: str

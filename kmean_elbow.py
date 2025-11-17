@@ -31,8 +31,7 @@ plt.grid(True)
 plt.savefig("elbow_plot.png")
 print("✅ Saved: elbow_plot.png")
 
-# --- Chọn số cụm hợp lý (ví dụ 3) và xem ID trong từng cụm ---
-best_k = 3
+best_k = 4
 km = KMeans(n_clusters=best_k, random_state=42)
 labels = km.fit_predict(X)
 

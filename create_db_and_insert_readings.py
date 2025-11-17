@@ -3,8 +3,7 @@ from app.database import create_db_and_tables, get_session
 from app.models import Topic, Reading, ObjectiveQuestion
 import pandas as pd
 import ast
-from transformers import pipeline
-from cefr_classification import text_to_cefr
+from app.services.readmepp import predict_cefr 
 
 
 # --- helper functions ---
@@ -44,7 +43,7 @@ def create_data1():
 
         readings_to_add = []
         for (title, article, topic_name), group in df.groupby(["Title", "article", "Topic"]):
-            avg_index, closest_label = text_to_cefr(str(article) + " " + str(title))
+            avg_index = predict_cefr(str(article) + " " + str(title))
             reading = Reading(
                 title=str(title),
                 content_text=str(article),
@@ -94,7 +93,7 @@ def create_data2():
 
         readings_to_add = []
         for (title, article, topic_name), group in df.groupby(["title", "passage", "topic"]):
-            avg_index, closest_label = text_to_cefr(str(article) + " " + str(title))
+            avg_index = predict_cefr(str(article) + " " + str(title))
             reading = Reading(
                 title=str(title),
                 content_text=str(article),
@@ -141,7 +140,7 @@ def create_data3():
 
         readings_to_add = []
         for (title, article, topic_name), group in df.groupby(["title", "passage", "topic"]):
-            avg_index, closest_label = text_to_cefr(str(article) + " " + str(title))
+            avg_index = predict_cefr(str(article) + " " + str(title))
             reading = Reading(
                 title=str(title),
                 content_text=str(article),
