@@ -1,7 +1,8 @@
 from sqlmodel import create_engine, SQLModel, Session, select
 # from .models import User, Reading, ObjectiveQuestion, Topic, UserTopicLink, StudySession
 from typing import Iterator
-
+import sqlite3
+from .config import settings
 
 
 sqlite_file_name = "database.db"
@@ -18,3 +19,10 @@ def create_db_and_tables():
 def get_session() -> Iterator[Session]:
     with Session(engine) as session:
         yield session
+
+def get_db():
+    conn = sqlite3.connect(settings.ytb_subtitles_db_url)
+    try:
+        yield conn
+    finally:
+        conn.close()

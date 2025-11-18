@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from app.api import auth, recommendations, users, study_sessions, readings, coedit, readmepp
+from app.api import auth, recommendations, users, study_sessions, readings, coedit, readmepp, context_search
 
 app = FastAPI(title="Learning Platform API")
 
@@ -26,3 +26,4 @@ app.include_router(study_sessions.router)
 app.include_router(readings.router)
 app.include_router(coedit.router)
 app.include_router(readmepp.router)
+app.include_router(context_search.router)
