@@ -20,4 +20,7 @@ dependencies = [
     "spacy>=3.8.9",
     "sqlmodel>=0.0.27",
     "stable-baselines3[extra]>=2.7.0",
+    "youtube-transcript-api>=1.2.3",
+    "yt-dlp>=2025.11.12",
+    "yt-dlp-ejs>=0.3.1",
 ]
