@@ -21,14 +21,20 @@ def add_subtitles_to_db(video_id: str, db: Connection) -> dict:
         (video_id, video_url)
     )
 
-    # Get cleaned transcript
-    transcript = ytb_preprocess.get_clean_transcript(video_id)
+    # If insert was ignored (duplicate), rowcount == 0
+    if c.rowcount == 0:
+        return {
+            "video_id": video_id,
+            "message": "Video already exists. Skipping."
+        }
+
+    transcript = ytb_preprocess.get_raw_transcripts(video_id)
 
     # Insert transcript segments
     for seg in transcript:
         c.execute(
-            "INSERT INTO subtitles (video_id, text, start) VALUES (?, ?, ?)",
-            (video_id, seg['text'], seg['start'])
+            "INSERT INTO subtitles (video_id, text, start, duration) VALUES (?, ?, ?, ?)",
+            (video_id, seg['text'], seg['start'], seg['duration'])
         )
 
     # Commit changes
@@ -41,14 +47,42 @@ def add_subtitles_to_db(video_id: str, db: Connection) -> dict:
         "message": "Subtitles added successfully"
     }
 
-
 def search_subtitles_from_db(q: str, db: Connection):
     c = db.cursor()
-    c.execute("SELECT video_id, text, start FROM subtitles WHERE subtitles MATCH ?", (q,))
+
+    # In case:
+    # SELECT *
+    # FROM clean_subtitles
+    # WHERE clean_subtitles MATCH '"I don''t know"'
+    q = q.replace("'", "''")
+    match_query = f'"{q}"'  # Wrap inside double quotes for phrase search
+
+
+    # 1. Query FTS5
+    c.execute("SELECT video_id, text, start, duration FROM clean_subtitles WHERE clean_subtitles MATCH ?", (match_query,))
     results = c.fetchall()
     
+    # 2. Sort results by video_id and start time
+    results.sort(key=lambda x: (x[0], x[2]))  # sort by video_id, then start
+    
+    filtered = []
+    last_start_per_video = {}  # track last end time per video for overlap check
+    
+    for video_id, text, start, duration in results:
+        end = start + duration
+        
+        # Skip if overlapping previous subtitle for same video
+        last_end = last_start_per_video.get(video_id, -1)
+        if start < last_end:
+            continue
+        
+        # Otherwise, keep it
+        last_start_per_video[video_id] = end
+        filtered.append((video_id, text, start, duration))
+    
+    # 3. Build response with video URL
     response = []
-    for video_id, text, start in results:
+    for video_id, text, start, duration in filtered:
         c.execute("SELECT url FROM videos WHERE id=?", (video_id,))
         video_info = c.fetchone()
         video_url = f"{video_info[0]}&t={int(start)}s"
@@ -57,4 +91,6 @@ def search_subtitles_from_db(q: str, db: Connection):
             "text": text,
             "start": start
         })
+    
     return response
+
