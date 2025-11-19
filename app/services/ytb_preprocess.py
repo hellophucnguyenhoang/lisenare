@@ -1,92 +1,186 @@
 import re
 from youtube_transcript_api import YouTubeTranscriptApi
-ytt_api = YouTubeTranscriptApi()
 import yt_dlp
+from typing import List, Dict, Any
+
+ytt_api = YouTubeTranscriptApi()
+
+def get_video_ids(channel_url="https://www.youtube.com/@mrmememe777/videos"):
+    ydl_opts = {
+        'extract_flat': True,   # don't download video, just metadata
+        'skip_download': True
+    }
+    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+        info = ydl.extract_info(channel_url, download=False)
+        # info['entries'] is a list of videos
+        video_ids = [entry['id'] for entry in info['entries'] if 'id' in entry]
+    return video_ids
 
 def get_raw_transcripts(video_id):
+    """
+    Output:
+        chunks = [{text, start, duration}, ...]
+    """
     fetched_transcript = ytt_api.fetch(video_id)
     raw_transcript = fetched_transcript.to_raw_data()
     return raw_transcript
 
 
-def get_video_ids(channel_url="https://www.youtube.com/@mrmememe777/videos"):
-
-    ydl_opts = {
-        'extract_flat': True,   # don't download video, just metadata
-        'skip_download': True
-    }
-
-    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-        info = ydl.extract_info(channel_url, download=False)
-        # info['entries'] is a list of videos
-        video_ids = [entry['id'] for entry in info['entries'] if 'id' in entry]
-
-    return video_ids
-
-
-def split_sentences(segment):
+# ============================================================
+# 1) Convert chunks → flat word list + per-word start time + per-word duration
+# ============================================================
+def flatten_transcript(chunks: List[Dict[str, Any]]):
     """
-    Split a text into multiple segments at sentence boundaries.
-    Keeps the same start time for all pieces.
+    Input:
+        chunks = [{text, start, duration}, ...]
+    Output:
+        words = ["hello", "world", ...]
+        word_times = [1.23, 1.40, ...]        # per-word start times
+        word_durations = [0.12, 0.12, ...]   # per-word durations (evenly split from chunk)
     """
-    text = segment['text'].strip()
-    start = segment['start']
-    
-    # Split after punctuation followed by space or end of string
-    parts = re.split(r'(?<=[.!?])\s+', text)
-    
-    return [{'text': p, 'start': start} for p in parts if p]
+    words: List[str] = []
+    word_times: List[float] = []
+    word_durations: List[float] = []
+
+    for chunk in chunks:
+        text = chunk.get("text", "").strip()
+        if not text:
+            continue
+
+        start = float(chunk.get("start", 0.0))
+        dur = float(chunk.get("duration", 0.0))
+        w = text.split()
+
+        if len(w) == 0:
+            continue
+
+        # even duration per word (fallback to 0 if chunk duration is 0)
+        per_word = dur / len(w) if dur > 0 else 0.0
+
+        for i, word in enumerate(w):
+            words.append(word)
+            word_times.append(round(start + i * per_word, 2))
+            word_durations.append(round(per_word, 2))
+
+    return words, word_times, word_durations
 
 
-def merge_incomplete_segments(segments):
-    SENTENCE_END_RE = re.compile(r'[.!?]$')  # segment ends with ., !, or ?
+
+# ============================================================
+# 2) Try to find a sentence boundary in a window of text
+# ============================================================
+def find_sentence_end(words_slice: List[str]):
     """
-    Merge segments that don't end with sentence punctuation with the next one.
-    Keeps the earliest start time.
+    Input:  words_slice - list of words (short window)
+    Output: number of words up to and including the first word that ends with . ! or ?
+            returns None if none of the words end with punctuation
+    Purpose: extremely simple rule — avoids regex complexity.
     """
-    merged = []
-    buffer_text = ""
-    buffer_start = None
-    
-    for seg in segments:
-        text = seg['text']
-        start = seg['start']
-        
-        if buffer_text == "":
-            buffer_text = text
-            buffer_start = start
+    for i, w in enumerate(words_slice):
+        if w.endswith((".", "!", "?")):
+            return i + 1
+    return None
+
+
+
+# -----------------------------
+# 3) Make segments (sentence-first, fallback to max_words)
+# -----------------------------
+def make_segments(
+    words: List[str],
+    word_times: List[float],
+    word_durations: List[float],
+    max_words: int,
+    overlap: int
+) -> List[Dict[str, Any]]:
+    """
+    Input:
+      - words, word_times, word_durations aligned lists
+      - max_words: fallback chunk size when no sentence-end found
+      - overlap: how many words to overlap between segments
+    Output:
+      - list of {'text': str, 'start': float, 'duration': float}
+    Behavior:
+      - Try to end segments at a sentence end within max_words.
+      - If no sentence end found or the sentence end is farther than max_words,
+        use max_words as fallback (sliding-window behavior).
+      - Segment duration is the sum of per-word durations inside the segment.
+    """
+    n = len(words)
+    if n == 0:
+        return []
+
+    segments: List[Dict[str, Any]] = []
+    start_idx = 0
+    while start_idx < n:
+        # search window
+        window_end = min(start_idx + max_words, n)
+        window = words[start_idx:window_end]
+
+        found = find_sentence_end(window)
+        if found is not None:
+            end_idx = start_idx + found
         else:
-            buffer_text += " " + text
-        
-        # If ends with sentence punctuation, commit buffer
-        if SENTENCE_END_RE.search(buffer_text):
-            merged.append({'text': buffer_text.strip(), 'start': buffer_start})
-            buffer_text = ""
-            buffer_start = None
-    
-    # Add any leftover text
-    if buffer_text:
-        merged.append({'text': buffer_text.strip(), 'start': buffer_start})
-    
-    return merged
+            # not found → fallback to max_words
+            end_idx = min(start_idx + max_words, n)
+
+        seg_words = words[start_idx:end_idx]
+        seg_text = " ".join(seg_words)
+        seg_start = word_times[start_idx] if start_idx < len(word_times) else 0.0
+
+        # compute duration as sum of per-word durations for words in the segment
+        seg_duration = sum(word_durations[start_idx:end_idx]) if start_idx < len(word_durations) else 0.0
+
+        # If seg_duration is zero (e.g., source chunks had zero duration),
+        # try a small fallback: approximate by difference between next word start and this start
+        if seg_duration == 0.0 and end_idx < len(word_times):
+            seg_duration = max(0.0, round(word_times[end_idx] - seg_start, 2))
+
+        segments.append({
+            "text": seg_text,
+            "start": round(seg_start, 2),
+            "duration": round(seg_duration, 2)
+        })
+
+        # advance logic: similar to original
+        next_i = end_idx - overlap
+        if next_i <= start_idx:
+            next_i = end_idx  # force forward motion
+
+        # if found a complete sentence, don't do overlap (start next after end)
+        if found:
+            next_i = end_idx
+
+        start_idx = next_i
+
+    return segments
 
 
-def clean_transcripts(raw_transcript):
-    # Step 1: split sentences
-    split_segments = []
-    for seg in raw_transcript:
-        split_segments.extend(split_sentences(seg))
+# -----------------------------
+# 4) Public wrapper
+# -----------------------------
+def create_hybrid_searchable_segments(
+    chunks: List[Dict[str, Any]],
+    max_words: int = 25,
+    overlap: int = 8
+) -> List[Dict[str, Any]]:
+    """
+    Input: raw chunks from YouTubeTranscriptApi, chunks = [{text, start, duration}, ...]   
+    Output: final searchable segments: [{'text': ..., 'start': ..., 'duration': ...}, ...]  
+    """
+    words, word_times, word_durations = flatten_transcript(chunks)
+    return make_segments(words, word_times, word_durations, max_words=max_words, overlap=overlap)
 
-    # Step 2: merge incomplete segments
-    simplified = merge_incomplete_segments(split_segments)
-    return simplified
 
-
-def get_clean_transcript(video_id):
-    raw_transcript = get_raw_transcripts(video_id)
-    transcripts = clean_transcripts(raw_transcript)
-    return transcripts
-
+# ------------------ Example quick test ------------------
 if __name__ == "__main__":
-    video_ids = get_video_ids()
-    
+    # tiny simulated chunks for quick local test
+    sample_chunks = [
+        {"text": "Hello world. This is a test transcript chunk", "start": 0.0, "duration": 5.0},
+        {"text": "It continues here and might have more sentences. Another sentence here!", "start": 5.0, "duration": 6.0},
+        {"text": "Short end", "start": 11.0, "duration": 1.5},
+    ]
+
+    segs = create_hybrid_searchable_segments(sample_chunks)
+    for s in segs:
+        print(f"[{s['start']:>6.2f}s → +{s['duration']:.2f}s] {s['text']}")

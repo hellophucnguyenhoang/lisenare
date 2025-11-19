@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends
 from app.schemas import WritingCheckRequest, WritingCheckResponse
 from app.database import get_db
 from sqlite3 import Connection
-from app.services import ytb_preprocess, context_search
+from app.services import context_search
 
 router = APIRouter(prefix="/context-search", tags=["Context Search"])
 
