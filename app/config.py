@@ -11,7 +11,7 @@ class Settings(BaseSettings):
     If not in .env, fallback to default values ("database.db", True)
     """
     database_url: str = "./database.db"
-    ytb_subtitles_db_url: str = "./youtube_subtitles copy.db"
+    ytb_subtitles_db_url: str = "./youtube_subtitles_copy.db"
     secret_key: str
     seed_on_startup: bool = True
     algorithm: str = "HS256"
