@@ -1,10 +1,6 @@
-a = []
+import numpy as np
 
 
-for i in range(5):
-    a.append({"text": "abc", "start": i})
+a = np.array([1, 2, 3, 3, 4, 1])
 
-for chunk in a:
-    print(chunk["text"])
-    print(chunk["start"])
-    print()
+print(np.random.choice(a))
