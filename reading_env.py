@@ -48,9 +48,9 @@ class Reader:
         self.actions = POSSIBLE_EVENTS
         self.rewards = list(EVENT_REWARD_MAP.values())
 
-        # Độ nhạy của từng action với dense_reward
-        # Càng âm → càng dễ xảy ra khi dense_reward âm
-        # Càng dương → càng dễ khi dense_reward dương
+        # Độ nhạy của từng action với satisfaction
+        # Càng âm → càng dễ xảy ra khi satisfaction âm
+        # Càng dương → càng dễ khi satisfaction dương
         self.sensitivity = np.array([-2.0, -1.0, 0.0, 1.5, 1.0])
 
         # Độ hiếm tự nhiên (càng nhỏ càng hiếm)
@@ -95,9 +95,9 @@ class Reader:
         d1 = Reader.diversity(np.array(existing + [new_vec]))
         return d1 - d0
 
-    def step(self, item_emb: np.ndarray) -> Dict[str, Any]:
+    def step(self, item_emb: np.ndarray, update_state: bool = True) -> Dict[str, Any]:
         """
-        Nhận item embedding → trả về reward + cập nhật nội tại
+        Nhận item embedding (no normalized) → trả về reward + cập nhật nội tại
         """
         # ----------- START USER SIMULATOR ---------------
         # xác định user muốn gì
@@ -123,18 +123,18 @@ class Reader:
         explore_score = np.clip(gain / 2.0, -1.0, 1.0)
 
         if target_similar:
-            dense_reward = exploit_score
+            satisfaction = exploit_score
         elif target_diverse:
-            dense_reward = explore_score
+            satisfaction = explore_score
         else: # this never happens, just in case we want to change the diversity threshold
-            dense_reward = 0.5 * (exploit_score + explore_score)
+            satisfaction = 0.5 * (exploit_score + explore_score)
 
-        if not -1.0 <= dense_reward <= 1.0:
-            print(f"WARNING: dense_reward:{dense_reward}")
+        if not -1.0 <= satisfaction <= 1.0:
+            print(f"WARNING: satisfaction:{satisfaction}")
 
-        dense_reward = np.clip(dense_reward, -1.0, 1.0)
+        satisfaction = np.clip(satisfaction, -1.0, 1.0)
 
-        # User đưa ra phản hồi dựa trên dense_reward của item được gợi ý
+        # User đưa ra phản hồi dựa trên satisfaction của item được gợi ý
         # Dense reward thể hiện item này hợp với người dùng như thế nào một cách tổng thể
         # Dense reward là những gì thuộc về  determistic, hành vi người dùng hoàn toàn có thể đoán được
         # Nhưng đối với real user, họ có thể  đột nhiên thấy chán và cho điểm thấp với cái được cho là 'hợp' với trạng thái hiện tại của họ
@@ -142,11 +142,11 @@ class Reader:
         # Người dùng càng nhanh chán thì những hành vi cho điểm thấp với cái 'hợp' với trạng thái của họ sẽ nhiều hơn.
         # Những sự hiện mà người dùng có thể đưa ra cũng có những 'độ hiếm' khác nhau.
         # Ví dụ hầu hết thời gian người dùng sẽ cho các hành dộng skip, view, và đôi khi submit, và hiếm khi like, dislike.
-        # Reward cuối cùng phải quy về việc chọn hành động, dense_reward chỉ ảnh hưởng việc chọn hành động, không đóng góp và reward cuối cùng.
+        # Reward cuối cùng phải quy về việc chọn hành động, satisfaction chỉ ảnh hưởng việc chọn hành động, không đóng góp và reward cuối cùng.
         
         
-        # Tính logits: bias (hiếm) + ảnh hưởng từ dense_reward
-        logits = self.rarity + dense_reward * self.sensitivity
+        # Tính logits: bias (hiếm) + ảnh hưởng từ satisfaction
+        logits = self.rarity + satisfaction * self.sensitivity
 
         # Chán một cách ngẫu nhiên
         is_bored = self.rng.random() < self.boredom_rate
@@ -165,27 +165,28 @@ class Reader:
         total_reward = self.rewards[idx]
         event = self.actions[idx]
 
-        # Cập nhật user_preference (residual) dựa trên item gợi ý và reward nhận được
-        self.user_preference = Reader.update_user_preference(self.user_preference, item_emb, total_reward, self.update_alpha)
-
-        # Cập nhật recent
-        self.recent_embs.append(item_emb)
-        self.recent_relevants.append(exploit_score)
-        if len(self.recent_embs) > self.max_recent:
-            self.recent_embs.pop(0)
-            self.recent_relevants.pop(0)
-
-        # 9. Lưu lịch sử
+        updated_diversity = Reader.diversity(np.vstack(self.recent_embs + [item_emb]))
         info = {
             "relevant": round(exploit_score, 3),
-            "diversity": round(diversity, 3),
+            "diversity": round(updated_diversity, 3),
             "sum_reward": round(sum_recent_reward, 3),
-            "dense_reward": round(dense_reward, 3),
+            "satisfaction": round(satisfaction, 3),
             "event": event,
             "reward": float(total_reward),
             "probs": np.round(probs, 3).tolist(),
         }
-        self.history.append(info)
+
+        if update_state:
+            # Cập nhật user_preference (residual) dựa trên item gợi ý và reward nhận được
+            self.user_preference = Reader.update_user_preference(self.user_preference, item_emb, total_reward, self.update_alpha)
+
+            # Cập nhật recent
+            self.recent_embs.append(item_emb)
+            self.recent_relevants.append(exploit_score)
+            if len(self.recent_embs) > self.max_recent:
+                self.recent_embs.pop(0)
+                self.recent_relevants.pop(0)
+            self.history.append(info)
 
         return info
     
@@ -220,6 +221,7 @@ class ReadingRecEnvContinuous(gym.Env):
         super().__init__()
         self.item_db = np.asarray(item_database, dtype=np.float32)
         self.num_items, self.emb_dim = self.item_db.shape
+        self.item_norms = np.linalg.norm(self.item_db, axis=1)
 
         self.max_steps = max_steps
         self.max_recent = max_recent
@@ -259,13 +261,18 @@ class ReadingRecEnvContinuous(gym.Env):
         return ReadingRecEnvContinuous.get_obs(self.reader.user_preference, self.reader.recent_embs, [], []), {}
 
     def step(self, action: np.ndarray):
+        # """ action normalized, comes directly from agent. """
         self.step_count += 1
         action = np.asarray(action, dtype=np.float32)
+        action_norm = np.linalg.norm(action)
+        if action_norm == 0:
+            # fallback: random item
+            item_idx = int(self.rng.integers(self.num_items))
+        else:
+            action_u = action / action_norm
+            sims = (self.item_db @ action_u) / self.item_norms
+            item_idx = int(np.argmax(sims))
 
-        # --- Gợi ý, tìm item gần nhất với action ---
-        logits = self.item_db @ action
-        probs = softmax(logits, temperature=0.1)
-        item_idx = int(self.rng.choice(self.num_items, p=probs))
         suggested_item = self.item_db[item_idx]
 
         # --- User phản hồi ---

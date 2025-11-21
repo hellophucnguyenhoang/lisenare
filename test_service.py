@@ -1,37 +1,81 @@
 from sqlmodel import Session, create_engine
-from app.services import readings
+from app.services import readings, item_embeddings
+from app.config import settings
 import numpy as np
 from reading_env import Reader
+import pandas as pd
+import matplotlib.pyplot as plt
 
+# ------------------------
+# Chuẩn bị environment
+# ------------------------
 def reading_vector(reading):
     return np.frombuffer(reading.reading_embedding.vector_blob, dtype=np.float32).copy()
 
+# Kết nối database
 engine = create_engine("sqlite:///database.db")
 with Session(engine) as session:
-    user_reading = readings.get_full_reading_by_id(session, 404)
-    print(f"Init user level: {user_reading.difficulty}")
 
-    user_preference = reading_vector(user_reading)
-    noise = np.random.normal(loc=0, scale=0.2, size=user_preference.shape)
-    user_preference += noise
-    recent_embs = []
-    recent_ids = []
-    recent_levels = []
-    for i in range(10):
-        nearest_readings = readings.get_nearest_readings(session, user_preference)
-        nearest_levels = [(reading.id, reading.difficulty) for reading in nearest_readings]
+    # Khởi tạo user state cố định
+    user_preference = item_embeddings.init_user_embedding_by_level(session, 1)
+    reader = Reader(settings.item_embedding_dim)
+    reader.reset(seed_item_emb=user_preference)
 
-        recommeded_reading = nearest_readings[0]
-        recommend_reading_vector = reading_vector(recommeded_reading)
-        diversity = Reader.diversity(np.array(recent_embs))
-        print(nearest_levels, recent_ids, recent_levels, diversity)
+    # Lấy tất cả embedding và difficulty
+    reading_embeddings, item_ids = readings.get_all_embeddings(session)
 
-        user_preference = Reader.update_user_preference(user_preference, recommend_reading_vector, -1, update_alpha=0.5)
-        recent_embs.append(recommend_reading_vector)
-        recent_ids.append(recommeded_reading.id)
-        recent_levels.append(recommeded_reading.difficulty)
-        if len(recent_embs) > 5:
-            recent_embs.pop(0)
-            recent_ids.pop(0)
-            recent_levels.pop(0)
-    
+    # Chạy simulation trên nhiều item random
+    n_samples = 100000  # số lượng item random để probe
+    history = []
+    difficulties = []
+    rng = np.random.default_rng(123)
+
+    for _ in range(n_samples):
+        selected_idx = rng.choice(item_ids)
+        reading = readings.get_full_reading_by_id(session, int(selected_idx))
+        difficulty = reading.difficulty
+        reading_embed = np.frombuffer(reading.reading_embedding.vector_blob, dtype=np.float32)
+
+        # Lấy info từ reader.step, nhưng KHÔNG cập nhật state
+        info = reader.step(reading_embed, update_state=False)
+
+        history.append(info)
+        difficulties.append(difficulty)
+
+# ------------------------
+# Chuyển difficulty sang nhãn CEFR
+# ------------------------
+difficulty_map = {0:'A1', 1:'A2', 2:'B1', 3:'B2', 4:'C1', 5:'C2'}
+labels = [difficulty_map.get(int(d), str(d)) for d in difficulties]
+
+# ------------------------
+# Chuẩn bị DataFrame chỉ với event và difficulty
+# ------------------------
+df = pd.DataFrame({
+    'difficulty': labels,
+    'event': [h['event'] for h in history],
+})
+
+# ------------------------
+# Biểu đồ: stacked bar chart - event distribution per difficulty
+# ------------------------
+event_types = ['dislike','skip','view','submit','like']
+count_data = df.groupby(['difficulty','event']).size().unstack(fill_value=0)
+count_data = count_data[event_types]  # giữ thứ tự event
+
+# Chuyển sang tỉ lệ %
+count_data = count_data.div(count_data.sum(axis=1), axis=0)
+
+# Vẽ stacked bar chart
+ax = count_data.plot(kind='bar', stacked=True, figsize=(10,6), colormap='tab20')
+plt.ylabel('Proportion')
+plt.xlabel('Difficulty')
+plt.title('User event proportion per difficulty (fixed state)')
+plt.tight_layout()
+
+# Đảo legend để dễ nhìn (cột 'like' lên trên cùng, 'dislike' xuống dưới)
+handles, labels = ax.get_legend_handles_labels()
+ax.legend(handles[::-1], labels[::-1], title='Event')
+
+# Lưu hình
+plt.savefig('event_proportion_per_difficulty.png')
