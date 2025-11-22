@@ -2,6 +2,8 @@ from datetime import datetime, timedelta, timezone
 from pwdlib import PasswordHash
 import jwt
 from app.config import settings
+import random
+
 
 password_hasher = PasswordHash.recommended()
 
@@ -19,3 +21,12 @@ def create_access_token(data: dict, expires_delta: timedelta | None = None):
 
 def decode_access_token(token: str):
     return jwt.decode(token, settings.secret_key, algorithms=[settings.algorithm])
+
+def generate_otp():
+    return f"{random.randint(100000, 999999)}"
+
+def hash_otp(code: str) -> str:
+    return password_hasher.hash(code)
+
+def verify_otp(code: str, hashed_code: str) -> bool:
+    return password_hasher.verify(code, hashed_code)

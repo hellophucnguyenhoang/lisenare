@@ -70,7 +70,6 @@ def update_user_preference(session: Session, user_id: int):
     total_reward = sum(recent_rewards)
     user = user_services.get_user_by_id(session, user_id)
     user_preference_emb = np.frombuffer(user.preference_emb, dtype=np.float32)
-    print(f"user_preference_emb.shape{user_preference_emb.shape}")
     if user_recent_history:
         new_item_id = user_recent_history[-1].reading_id
         item = reading_services.get_full_reading_by_id(session, new_item_id)

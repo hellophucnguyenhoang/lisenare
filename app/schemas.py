@@ -12,9 +12,19 @@ class UserBase(SQLModel):
 
 class UserCreate(UserBase):
     password: str  # raw password; service should hash it
+    preference_topic_ids: list[int] = []
 
 class UserRead(UserBase):
     id: int
+    preference_topics: list["TopicRead"] = []
+
+class UserUpdate(SQLModel):
+    email: str | None = None
+    user_level: int | None = None
+    goal_type: int | None = None
+    age_group: int | None = None
+    preference_topic_ids: list[int] | None = None
+
 
 class Token(SQLModel):
     access_token: str
@@ -71,6 +81,9 @@ class ObjectiveQuestionBase(SQLModel):
 class ObjectiveQuestionRead(ObjectiveQuestionBase):
     id: int
 
+class TopicRead(SQLModel):
+    id: int
+    name: str
 
 # COEDIT
 # Request body
