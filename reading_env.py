@@ -2,6 +2,7 @@ import gymnasium as gym
 from gymnasium import spaces
 import numpy as np
 from typing import List, Dict, Any, Optional
+from app.config import settings
 
 # ==============================================================
 # CÁC HẰNG SỐ & HỖ TRỢ
@@ -33,7 +34,7 @@ class Reader:
     def __init__(
         self,
         emb_dim: int,
-        max_recent: int = 5,
+        max_recent: int = settings.recent_history_size,
         noise_scale: float = 0.05,
         update_alpha: float = 0.7,
         boredom_rate = 0.1,
@@ -51,10 +52,10 @@ class Reader:
         # Độ nhạy của từng action với satisfaction
         # Càng âm → càng dễ xảy ra khi satisfaction âm
         # Càng dương → càng dễ khi satisfaction dương
-        self.sensitivity = np.array([-2.0, -1.0, 0.0, 1.5, 1.0])
+        self.sensitivity = np.array([-6.0, -3.0, 0.0, 1.5, 2.0])
 
         # Độ hiếm tự nhiên (càng nhỏ càng hiếm)
-        self.rarity = np.array([0.2, 1.0, 2.0, 1.2, 0.5])  # dislike & like hiếm
+        self.rarity = np.array([0.2, 1.5, 1.5, 1.2, 0.5])  # dislike & like hiếm
 
         # Nội tại người dùng
         self.user_preference = np.zeros(emb_dim, dtype=np.float32)
@@ -107,11 +108,11 @@ class Reader:
         diversity = Reader.diversity(np.array(self.recent_embs))
 
         # Logic ẩn, người dùng đang muốn quen thuộc hay đổi mới
-        reward_high = sum_recent_reward >= 0.0
         reward_low = sum_recent_reward < 0.0
         div_low = diversity < 0.4
         div_high = diversity >= 0.4
-        target_similar = reward_high or (reward_low and div_high)
+
+        target_similar = reward_low and div_high
         target_diverse = reward_low and div_low
 
         # Khi biết được mong muốn của người dùng, điểm sẽ cao nếu item thỏa mãn và thấp nếu ít thỏa mãn
@@ -126,8 +127,8 @@ class Reader:
             satisfaction = exploit_score
         elif target_diverse:
             satisfaction = explore_score
-        else: # this never happens, just in case we want to change the diversity threshold
-            satisfaction = 0.5 * (exploit_score + explore_score)
+        else: # target_balance when reward_high
+            satisfaction = 0.8 * exploit_score + 0.2 * explore_score
 
         if not -1.0 <= satisfaction <= 1.0:
             print(f"WARNING: satisfaction:{satisfaction}")
@@ -135,15 +136,14 @@ class Reader:
         satisfaction = np.clip(satisfaction, -1.0, 1.0)
 
         # User đưa ra phản hồi dựa trên satisfaction của item được gợi ý
-        # Dense reward thể hiện item này hợp với người dùng như thế nào một cách tổng thể
-        # Dense reward là những gì thuộc về  determistic, hành vi người dùng hoàn toàn có thể đoán được
-        # Nhưng đối với real user, họ có thể  đột nhiên thấy chán và cho điểm thấp với cái được cho là 'hợp' với trạng thái hiện tại của họ
-        # Yếu đố không đoán trước được này cần được định nghĩa bằng một con số  thể hiện sự nhanh chán của người dùng
-        # Người dùng càng nhanh chán thì những hành vi cho điểm thấp với cái 'hợp' với trạng thái của họ sẽ nhiều hơn.
-        # Những sự hiện mà người dùng có thể đưa ra cũng có những 'độ hiếm' khác nhau.
-        # Ví dụ hầu hết thời gian người dùng sẽ cho các hành dộng skip, view, và đôi khi submit, và hiếm khi like, dislike.
-        # Reward cuối cùng phải quy về việc chọn hành động, satisfaction chỉ ảnh hưởng việc chọn hành động, không đóng góp và reward cuối cùng.
-        
+        # satisfaction thể hiện item này hợp với người dùng như thế nào một cách tổng thể
+        # satisfaction là những gì thuộc về  determistic, hành vi người dùng có thể  'đoán được'
+        # Nhưng đối với real user, họ có thể  đột nhiên thấy chán và cho điểm thấp với cái 'đoán được' đó với cùng trạng thái
+        # Yếu đố  không thể đoán trước được này cần được định nghĩa bằng một con số  thể hiện sự nhanh chán của người dùng
+        # Người dùng càng nhanh chán thì những hành vi cho điểm bất ngờ của họ sẽ nhiều hơn.
+        # Những sự kiện mà người dùng có thể đưa ra cũng có những 'độ hiếm' khác nhau.
+        # Ví dụ hầu hết thời gian người dùng sẽ cho các hành động skip, view, và đôi khi submit, và hiếm khi like, dislike.
+        # Cuối cùng phải quy về việc chọn hành động, satisfaction chỉ ảnh hưởng việc chọn hành động, không đóng góp và reward cuối cùng.
         
         # Tính logits: bias (hiếm) + ảnh hưởng từ satisfaction
         logits = self.rarity + satisfaction * self.sensitivity
@@ -215,7 +215,7 @@ class ReadingRecEnvContinuous(gym.Env):
         self,
         item_database: np.ndarray,  # toàn bộ item embeddings
         max_steps: int = 50,
-        max_recent: int = 5,
+        max_recent: int = settings.recent_history_size,
         seed: Optional[int] = None,
     ):
         super().__init__()

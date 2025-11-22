@@ -16,7 +16,7 @@ class Topic(SQLModel, table=True):
     id: int | None = Field(default=None, primary_key=True)
     name: str = Field(description='e.g., "Science", "Travel", "Health"')
 
-    users: list["User"] = Relationship(back_populates="topic_preferences", link_model=UserTopicLink)
+    users: list["User"] = Relationship(back_populates="preference_topics", link_model=UserTopicLink)
     readings: list["Reading"] = Relationship(back_populates="topic")
 
 
@@ -34,7 +34,7 @@ class User(SQLModel, table=True):
     last_login: datetime | None = None
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
-    topic_preferences: list["Topic"] = Relationship(back_populates="users", link_model=UserTopicLink)
+    preference_topics: list["Topic"] = Relationship(back_populates="users", link_model=UserTopicLink)
     study_sessions: list["StudySession"] = Relationship(back_populates="user")
     preference_emb: bytes
 
@@ -120,3 +120,12 @@ class ReadingEmbedding(SQLModel, table=True):
     vector_blob: bytes
 
     reading: Reading = Relationship(back_populates="reading_embedding")
+
+
+# Auth
+class OTP(SQLModel, table=True):
+    id: int | None = Field(default=None, primary_key=True)
+    email: str
+    code: str  # store hashed OTP
+    expires_at: datetime
+    used: bool = False

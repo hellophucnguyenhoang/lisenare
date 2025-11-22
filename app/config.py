@@ -13,7 +13,9 @@ class Settings(BaseSettings):
     database_url: str = "./database.db"
     ytb_subtitles_db_url: str = "./youtube_subtitles_copy.db"
     secret_key: str
-    seed_on_startup: bool = True
+    google_app_email_address: str
+    google_app_password: str
+    otp_expire_minutes: int = 5
     algorithm: str = "HS256"
     access_token_expire_minutes: int = 30
     item_embedding_dim: int = 10
