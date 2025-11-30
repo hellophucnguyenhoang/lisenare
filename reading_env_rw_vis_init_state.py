@@ -2,7 +2,7 @@ from sqlmodel import Session, create_engine
 from app.services import readings, item_embeddings
 from app.config import settings
 import numpy as np
-from reading_env import Reader
+from reading_env import Reader, ReadingRecEnvContinuous
 import pandas as pd
 import matplotlib.pyplot as plt
 
@@ -17,7 +17,7 @@ engine = create_engine("sqlite:///database.db")
 with Session(engine) as session:
 
     # Khởi tạo user state cố định
-    user_level = 1
+    user_level = 1 # A2
     user_preference = item_embeddings.init_user_embedding_by_level(session, user_level)
     reader = Reader(settings.item_embedding_dim)
     reader.reset(seed_item_emb=user_preference)
@@ -26,7 +26,7 @@ with Session(engine) as session:
     reading_embeddings, item_ids = readings.get_all_embeddings(session)
 
     # Chạy simulation trên nhiều item random
-    n_samples = 10000  # số lượng item random để probe
+    n_samples = 100000  # số lượng item random để probe
     history = []
     difficulties = []
     rng = np.random.default_rng(123)
@@ -39,7 +39,6 @@ with Session(engine) as session:
 
         # Lấy info từ reader.step, nhưng KHÔNG cập nhật state
         info = reader.step(reading_embed, update_state=False)
-        print(info, difficulty)
         history.append(info)
         difficulties.append(difficulty)
 

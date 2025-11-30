@@ -23,17 +23,25 @@ CEFR2INDEX = {"A1": 0, "A2": 1, "B1": 2, "B2": 3, "C1": 4, "C2": 5}
 INDEX2CEFR = {i: level for level, i in CEFR2INDEX.items()}
 
 
+CEFR_WEIGHTS = {
+    "A1": 1,
+    "A2": 2,
+    "B1": 3,
+    "B2": 5,
+    "C1": 10,
+    "C2": 20,
+}
+
 def weighted_label(predictions, return_index=True):
     score_dict = defaultdict(float)
 
-    for pred in predictions:            # pred is [[ {...}, {...}, ... ]]]
-        items = pred[0]                 # list of dicts
-
-        for item in items:              # each dict = {'label': 'LABEL_1', 'score': 0.3}
+    for pred in predictions:
+        items = pred[0]
+        for item in items:
             cefr = LABEL2CEFR[item["label"]]
-            score_dict[cefr] += float(item["score"])
+            weight = CEFR_WEIGHTS[cefr]
+            score_dict[cefr] += float(item["score"]) * weight
 
-    # pick highest accumulated softmax score
     final_cefr = max(score_dict, key=score_dict.get)
 
     if return_index:

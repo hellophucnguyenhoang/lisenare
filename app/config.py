@@ -11,7 +11,9 @@ class Settings(BaseSettings):
     If not in .env, fallback to default values ("database.db", True)
     """
     database_url: str = "./database.db"
-    ytb_subtitles_db_url: str = "./youtube_subtitles_copy.db"
+    ytb_subtitles_db_url: str = "./youtube_subtitles_sentences.db"
+    chroma_subtitles_url: str = "./chroma_subtitles"
+    chroma_subtitles_url2: str = "./chroma_subtitles_mpnet-base"
     secret_key: str
     google_app_email_address: str
     google_app_password: str

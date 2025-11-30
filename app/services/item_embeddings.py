@@ -2,10 +2,12 @@ from typing import List, Optional
 import numpy as np
 from sqlmodel import Session, func, select
 from sentence_transformers import SentenceTransformer
-import torch
-from app.models import Reading, ReadingEmbedding
+from app.models import Reading, ReadingEmbedding, User
 from sklearn.decomposition import PCA
 from app.config import settings
+from typing import List, Tuple
+import random
+from np_utils import *
 
 def _reading_to_text(reading: Reading, include_questions: bool = True) -> str:
     """Combine topic name, title, content_text, and optionally questions into one text string."""
@@ -135,16 +137,22 @@ def init_user_embedding(session: Session, noise_scale: float = 0.2) -> Optional[
 
 def init_user_embedding_by_level(session: Session, user_level: int, noise_scale: float = 0.2) -> Optional[np.ndarray]:
     """Retrieve the embedding for a reading_id as a NumPy array (dtype float32)."""
-    emb_row = session.exec(
-        select(ReadingEmbedding).join(Reading).where(Reading.difficulty == user_level)
-    ).first()
-    if not emb_row:
-        return None
+    # Try to find embeddings for this level or lower levels
+    while user_level >= 0:
+        emb_rows = session.exec(
+            select(ReadingEmbedding).join(Reading).where(Reading.difficulty == user_level)
+        ).all()
 
-    arr = np.frombuffer(emb_row.vector_blob, dtype=np.float32).copy()
-    noise = np.random.normal(loc=0.0, scale=noise_scale, size=arr.shape).astype(np.float32)
-    final = (arr + noise)
-    return final
+        if emb_rows:  # if we found any embeddings
+            emb_row = np.random.choice(emb_rows)  # choose one randomly
+            arr = np.frombuffer(emb_row.vector_blob, dtype=np.float32).copy()
+            noise = np.random.normal(loc=0.0, scale=noise_scale, size=arr.shape).astype(np.float32)
+            return arr + noise
+
+        user_level -= 1
+
+    # If no embedding found at all
+    return None
 
 
 def get_all_embeddings(session: Session):
@@ -170,3 +178,75 @@ def get_all_embeddings(session: Session):
         item_ids.append(row.reading_id)
     item_embeddings = np.array(item_embeddings, dtype=np.float32)
     return item_embeddings, item_ids
+
+
+
+def get_candidate_embeddings(
+    session: Session, 
+    preferred_topic_ids: List[int], 
+    recent_item_ids: List[int],
+    recent_embs: List[np.ndarray],
+    per_topic_limit: int = 2,
+    nearest_k: int = 8,
+    random_k: int = 5
+) -> Tuple[List[np.ndarray], List[int]]:
+
+    # Get readings from preferred topics (e.g. 2 per topic)
+    topic_readings_ids = []
+    
+    for topic_id in preferred_topic_ids:
+        result = (
+            session.exec(
+                select(Reading)
+                .where(Reading.topic_id == topic_id)
+                .where(Reading.id.notin_(recent_item_ids))
+                .order_by(func.random())
+                .limit(per_topic_limit)
+            )
+            .all()
+        )
+        topic_readings_ids.extend([r.id for r in result])
+
+    # Get ALL embeddings except recent ones
+    all_embeddings = (
+        session.exec(
+            select(ReadingEmbedding)
+            .where(ReadingEmbedding.reading_id.notin_(recent_item_ids))
+        )
+        .all()
+    )
+
+    # Convert blob vectors into a matrix
+    ids = np.array([emb.reading_id for emb in all_embeddings])
+    vecs = np.stack([blob_to_vector(emb.vector_blob) for emb in all_embeddings]).astype(np.float32)
+
+    # Compute nearest K neighbors to user embedding
+    if len(recent_embs) == 0:
+        mean_recent_embs = np.zeros(settings.item_embedding_dim)
+    else:
+        temp_arr = np.asarray(recent_embs, dtype=np.float32)
+        mean_recent_embs = np.mean(temp_arr, axis=0).astype(np.float32)
+
+    # Get top K indices
+    topk_idxs = top_k_nearest_idx(vecs, mean_recent_embs, k=nearest_k)
+
+    # Map back to IDs
+    nearest_ids = ids[topk_idxs].tolist()
+
+    # Random sampling (exclude chosen ones)
+    used_ids = set(topic_readings_ids + nearest_ids)
+    remaining_ids = [id for id in ids if id not in used_ids]
+    random_ids = random.sample(
+        remaining_ids, 
+        min(random_k, len(remaining_ids))
+    )
+
+    # Combine final IDs and load vectors
+    final_ids = list(set(topic_readings_ids + nearest_ids + random_ids))
+    final_ids = [int(x) for x in final_ids]
+    
+    # Map reading_id --> vector for fast lookup
+    id_to_vec = {id: vec for id, vec in zip(ids, vecs)}
+    item_embeddings = [id_to_vec[id] for id in final_ids]
+
+    return item_embeddings, final_ids
