@@ -14,7 +14,10 @@ class Topic(SQLModel, table=True):
     __tablename__ = "topics"
 
     id: int | None = Field(default=None, primary_key=True)
-    name: str = Field(description='e.g., "Science", "Travel", "Health"')
+    name: str = Field(
+        sa_column_kwargs={"unique": True},
+        description='e.g., "Science", "Travel", "Health"'
+    )
 
     users: list["User"] = Relationship(back_populates="preference_topics", link_model=UserTopicLink)
     readings: list["Reading"] = Relationship(back_populates="topic")
@@ -36,7 +39,6 @@ class User(SQLModel, table=True):
 
     preference_topics: list["Topic"] = Relationship(back_populates="users", link_model=UserTopicLink)
     study_sessions: list["StudySession"] = Relationship(back_populates="user")
-    preference_emb: bytes
 
 
 class Reading(SQLModel, table=True):
@@ -99,9 +101,6 @@ class StudySession(SQLModel, table=True):
     # it's just 1 item recommendation when process the data for training further
     batch_id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     last_update: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
-
-    # similarity between user_preference vector and the item embedding at the recommendation time
-    sim01: float 
 
     user_id: int = Field(foreign_key="users.id")
     reading_id: int = Field(foreign_key="readings.id")

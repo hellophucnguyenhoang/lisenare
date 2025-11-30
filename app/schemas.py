@@ -65,6 +65,7 @@ class ReadingBase(SQLModel):
     
 class ReadingRead(ReadingBase):
     id: int
+    topic_name: str | None = None # none only for ReadingRead contruction
     
 class ObjectiveQuestionBase(SQLModel):
     reading_id: int
@@ -101,3 +102,17 @@ class CEFRClassificationRequest(SQLModel):
 class CEFRClassificationResponse(SQLModel):
     cefr_index: int
     cefr_label: str
+
+# Context Search
+# Request model
+class ContextSearchRequest(SQLModel):
+    query: str
+    n_results: int = 10  # optional
+
+class ContextSearchResult(SQLModel):
+    url: str
+    text: str
+    start: float
+
+# The top-level response is a list of SearchResult objects
+ContextSearchResponse = list[ContextSearchResult]

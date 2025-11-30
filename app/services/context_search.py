@@ -1,5 +1,10 @@
 from sqlite3 import Connection
+from app.schemas import ContextSearchResponse, ContextSearchResult
 from . import ytb_preprocess  # adjust import according to your project
+
+# Helper to build YouTube link
+def build_youtube_url(video_id: str, start: float) -> str:
+    return f"https://www.youtube.com/watch?v={video_id}&t={int(start)}s"
 
 def add_subtitles_to_db(video_id: str, db: Connection) -> dict:
     """
@@ -47,7 +52,7 @@ def add_subtitles_to_db(video_id: str, db: Connection) -> dict:
         "message": "Subtitles added successfully"
     }
 
-def search_subtitles_from_db(q: str, db: Connection):
+def search_literal_subtitles(q: str, db: Connection) -> ContextSearchResponse:
     c = db.cursor()
 
     # In case:
@@ -69,28 +74,64 @@ def search_subtitles_from_db(q: str, db: Connection):
     last_start_per_video = {}  # track last end time per video for overlap check
     
     for video_id, text, start, duration in results:
-        end = start + duration
-        
-        # Skip if overlapping previous subtitle for same video
+
+        # Skip if 'overlapping' previous subtitle for same video
         last_end = last_start_per_video.get(video_id, -1)
-        if start < last_end:
+        print(f"start:{start}, last_end:{last_end}")
+        if start < last_end + 10:
             continue
         
         # Otherwise, keep it
+        end = start + duration
         last_start_per_video[video_id] = end
         filtered.append((video_id, text, start, duration))
     
     # 3. Build response with video URL
-    response = []
+    response: list[ContextSearchResult] = []
     for video_id, text, start, duration in filtered:
         c.execute("SELECT url FROM videos WHERE id=?", (video_id,))
         video_info = c.fetchone()
         video_url = f"{video_info[0]}&t={int(start)}s"
-        response.append({
-            "url": video_url,
-            "text": text,
-            "start": start
-        })
-    
+        response.append(ContextSearchResult(url=video_url, text=text, start=float(start)))
     return response
 
+def search_semantic_subtitles(query: str, n_results: int, collection) -> ContextSearchResponse:
+    results = collection.query(
+        query_texts=[query],
+        n_results=n_results,
+        include=["documents", "metadatas", "distances"]
+    )
+    documents = results["documents"][0]
+    metadatas = results["metadatas"][0]
+    response: list[ContextSearchResult] = []
+    for text, meta in zip(documents, metadatas):
+        video_id = meta["video_id"]
+        start = meta["start"]
+        url = build_youtube_url(video_id, start)
+        response.append(ContextSearchResult(url=url, text=text, start=float(start)))
+    return response
+
+def remove_duplicates(results):
+    """
+    results: list of (video_id, text, start, duration) OR
+             list of ContextSearchResult (having .url, .text, .start and metadata)
+    """
+    seen = set()
+    unique = []
+    
+    for item in results:
+        # Handle both tuple and dataclass/object
+        if isinstance(item, tuple):
+            video_id = item[0]
+            start = item[2]
+        else:  # ContextSearchResult or similar object
+            # extract video_id & start from metadata encoded in URL
+            video_id = item.url.split("v=")[-1].split("&")[0]
+            start = int(item.start)
+        
+        key = (video_id, start)
+        if key not in seen:
+            seen.add(key)
+            unique.append(item)
+
+    return unique

@@ -29,6 +29,7 @@ engine = create_engine("sqlite:///database.db")
 with Session(engine) as session:
     reading_embeddings, _ = get_all_embeddings(session)
 print(f"reading_embeddings.shape{reading_embeddings.shape}")
+
 # ---------------------------
 # Environment creation
 # ---------------------------
@@ -50,10 +51,12 @@ model = PPO(
     "MlpPolicy",
     env,
     verbose=1,
-    learning_rate=3e-4,
-    n_steps=512,
-    batch_size=64,
     gamma=0.95,
+    batch_size=128,
+    
+    learning_rate=3e-4,
+    n_steps=4096,
+    
     tensorboard_log=LOG_DIR
 )
 

@@ -67,30 +67,24 @@ def update_user_me(
     session: Session = Depends(get_session),
 ):
     update_data = updates.model_dump(exclude_unset=True)
+    
+    # Extract preference topics if included
+    new_topic_ids = update_data.pop("preference_topic_ids", None)
 
-    # Handle preference_topic_ids separately
-    topic_ids = update_data.pop("preference_topic_ids", None)
-
-    # ---- Update normal scalar fields ----
+    # ---- Update simple fields ----
     for field, value in update_data.items():
         setattr(current_user, field, value)
 
-    # ---- Update user preference topics (Many-to-Many) ----
-    if topic_ids is not None:
-        # Clear existing topics
+    # ---- Handle user preference topics ----
+    if new_topic_ids is not None:
         current_user.preference_topics.clear()
 
-        if len(topic_ids) > 0:
-            # Fetch new topics that exist in DB
-            topics = topic_service.get_topics_by_ids(session, topic_ids)
-
-            # Assign them to the relationship
+        if new_topic_ids:
+            topics = topic_service.get_topics_by_ids(session, new_topic_ids)
             current_user.preference_topics.extend(topics)
 
     session.add(current_user)
     session.commit()
     session.refresh(current_user)
-
     return current_user
-
 
