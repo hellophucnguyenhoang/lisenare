@@ -1,0 +1,16 @@
+(lisenare) phuc@xichxo:~/code/lisenare$ uv run reading_env_eval_continuous.py 
+Loaded reading embeddings from DB: (431, 10)
+Wrapping the env in a DummyVecEnv.
+PPO Mean Reward (stochastic): 8.107 ± 9.292
+PPO Mean Reward (deterministic): 5.050 ± 15.822
+Random Mean Reward: -7.680 ± 4.171
+Cosine-Sim Mean Reward: -21.851 ± 20.414
+
+=== Summary ===
+PPO (stochastic)   : 8.107 ± 9.292
+PPO (deterministic): 5.050 ± 15.822
+Random             : -7.680 ± 4.171
+Cosine-Sim         : -21.851 ± 20.414
+✅ PPO improves over random baseline by 205.57%
+✅ PPO improves over cosine-sim baseline by 137.10%
+✅ Reward distributions saved to 'reward_distributions_curve.png'

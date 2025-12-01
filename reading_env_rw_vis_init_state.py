@@ -26,7 +26,7 @@ with Session(engine) as session:
     reading_embeddings, item_ids = readings.get_all_embeddings(session)
 
     # Chạy simulation trên nhiều item random
-    n_samples = 100000  # số lượng item random để probe
+    n_samples = 1000000  # số lượng item random để probe
     history = []
     difficulties = []
     rng = np.random.default_rng(123)
