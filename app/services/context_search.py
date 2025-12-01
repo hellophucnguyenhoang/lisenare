@@ -62,7 +62,6 @@ def search_literal_subtitles(q: str, db: Connection) -> ContextSearchResponse:
     q = q.replace("'", "''")
     match_query = f'"{q}"'  # Wrap inside double quotes for phrase search
 
-
     # 1. Query FTS5
     c.execute("SELECT video_id, text, start, duration FROM clean_subtitles WHERE clean_subtitles MATCH ?", (match_query,))
     results = c.fetchall()
@@ -70,29 +69,13 @@ def search_literal_subtitles(q: str, db: Connection) -> ContextSearchResponse:
     # 2. Sort results by video_id and start time
     results.sort(key=lambda x: (x[0], x[2]))  # sort by video_id, then start
     
-    filtered = []
-    last_start_per_video = {}  # track last end time per video for overlap check
-    
-    for video_id, text, start, duration in results:
-
-        # Skip if 'overlapping' previous subtitle for same video
-        last_end = last_start_per_video.get(video_id, -1)
-        print(f"start:{start}, last_end:{last_end}")
-        if start < last_end + 10:
-            continue
-        
-        # Otherwise, keep it
-        end = start + duration
-        last_start_per_video[video_id] = end
-        filtered.append((video_id, text, start, duration))
-    
     # 3. Build response with video URL
     response: list[ContextSearchResult] = []
-    for video_id, text, start, duration in filtered:
+    for video_id, text, start, duration in results:
         c.execute("SELECT url FROM videos WHERE id=?", (video_id,))
         video_info = c.fetchone()
         video_url = f"{video_info[0]}&t={int(start)}s"
-        response.append(ContextSearchResult(url=video_url, text=text, start=float(start)))
+        response.append(ContextSearchResult(url=video_url, text=text, start=float(start), duration=float(duration)))
     return response
 
 def search_semantic_subtitles(query: str, n_results: int, collection) -> ContextSearchResponse:
@@ -107,8 +90,9 @@ def search_semantic_subtitles(query: str, n_results: int, collection) -> Context
     for text, meta in zip(documents, metadatas):
         video_id = meta["video_id"]
         start = meta["start"]
+        duration = meta["duration"]
         url = build_youtube_url(video_id, start)
-        response.append(ContextSearchResult(url=url, text=text, start=float(start)))
+        response.append(ContextSearchResult(url=url, text=text, start=float(start), duration=float(duration)))
     return response
 
 def remove_duplicates(results):
@@ -116,22 +100,15 @@ def remove_duplicates(results):
     results: list of (video_id, text, start, duration) OR
              list of ContextSearchResult (having .url, .text, .start and metadata)
     """
-    seen = set()
     unique = []
-    
+    last_start_per_video = {}
     for item in results:
-        # Handle both tuple and dataclass/object
-        if isinstance(item, tuple):
-            video_id = item[0]
-            start = item[2]
-        else:  # ContextSearchResult or similar object
-            # extract video_id & start from metadata encoded in URL
-            video_id = item.url.split("v=")[-1].split("&")[0]
-            start = int(item.start)
-        
-        key = (video_id, start)
-        if key not in seen:
-            seen.add(key)
+        video_id = item.url.split("v=")[-1].split("&")[0]
+        start = item.start
+        if start > last_start_per_video.get(video_id, -99) + 10:
             unique.append(item)
+
+        duration = item.duration
+        last_start_per_video[video_id] = start + duration
 
     return unique

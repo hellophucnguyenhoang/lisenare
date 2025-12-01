@@ -113,6 +113,7 @@ class ContextSearchResult(SQLModel):
     url: str
     text: str
     start: float
+    duration: float
 
 # The top-level response is a list of SearchResult objects
 ContextSearchResponse = list[ContextSearchResult]

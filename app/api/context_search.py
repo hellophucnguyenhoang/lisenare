@@ -18,7 +18,9 @@ collection = chroma_client.get_collection("subtitles")
 @router.post("/search", response_model=ContextSearchResponse)
 def search_subtitles(req: ContextSearchRequest, db: Connection = Depends(get_db)):
     literal_results = context_search.search_literal_subtitles(req.query, db)
+    print('search_literal_subtitles')
     semantic_results = context_search.search_semantic_subtitles(req.query, req.n_results, collection)
+    print('search_semantic_subtitles')
     return context_search.remove_duplicates(literal_results + semantic_results)
     
 
