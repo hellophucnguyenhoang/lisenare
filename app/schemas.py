@@ -1,6 +1,7 @@
 from sqlmodel import SQLModel
 import re
-
+from pydantic import BaseModel
+from typing import List, Any
 
 # ---- User and Auth/Token ----
 class UserBase(SQLModel):
@@ -117,3 +118,11 @@ class ContextSearchResult(SQLModel):
 
 # The top-level response is a list of SearchResult objects
 ContextSearchResponse = list[ContextSearchResult]
+class RecommendRequest(BaseModel):
+    session_id: str
+    user_name: str
+    passage_text: str
+    top_k: int 
+
+class RecommendResponse(BaseModel):
+    items: List[Any]

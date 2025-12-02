@@ -2,6 +2,7 @@ from datetime import datetime, timezone
 from sqlmodel import SQLModel, Field, Relationship, create_engine
 import re
 import uuid
+from typing import Optional
 
 class UserTopicLink(SQLModel, table=True):
     __tablename__ = "user_topic_link"
@@ -39,7 +40,7 @@ class User(SQLModel, table=True):
 
     preference_topics: list["Topic"] = Relationship(back_populates="users", link_model=UserTopicLink)
     study_sessions: list["StudySession"] = Relationship(back_populates="user")
-
+    paragraphs: list["ParagraphAuthor"] = Relationship(back_populates="users")
 
 class Reading(SQLModel, table=True):
     __tablename__ = "readings"
@@ -117,7 +118,7 @@ class ReadingEmbedding(SQLModel, table=True):
     id: int | None = Field(default=None, primary_key=True)
     reading_id: int = Field(foreign_key="readings.id", unique=True)
     vector_blob: bytes
-
+    optional_vector: Optional[bytes] = None 
     reading: Reading = Relationship(back_populates="reading_embedding")
 
 
@@ -128,3 +129,18 @@ class OTP(SQLModel, table=True):
     code: str  # store hashed OTP
     expires_at: datetime
     used: bool = False
+
+class FeedBack(SQLModel, table = True):
+    __tablename__ = "user_feedback"
+    id: int | None = Field(default=None, primary_key=True)
+    user_name: str
+    reading_text: str
+    question_text: str
+    score: int
+
+class ParagraphAuthor(SQLModel, table = True):
+    __tablename__ = "paragraph_author"
+    id: int | None = Field(default=None, primary_key=True)
+    user_id: int = Field(foreign_key="users.id")
+    passage_text: str
+    users: User = Relationship(back_populates="paragraphs")
