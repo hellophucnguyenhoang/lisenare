@@ -21,6 +21,8 @@ from stable_baselines3 import PPO
 from stable_baselines3.common.vec_env import DummyVecEnv
 from sentence_transformers import SentenceTransformer
 from app.services.readmepp import predict_cefr 
+from app.config import settings
+
 MAX_CANDIDATES = 8 
 Q_DIM = 384
 TOP_K = 5
@@ -29,8 +31,7 @@ ppo_model = PPO.load(MODEL_PATH, device="cpu")
 embedder = SentenceTransformer("all-MiniLM-L6-v2")
 # khởi tạo model llama
 model = llama_cpp.Llama(
-    #model_path="D:/Nam4-hk1/TieuLuanChuyenNganh/Code/lisenare/ai_models/llama-3.2-1B-Instruct-f16.gguf",
-    model_path="D:/Nam4-hk1/TieuLuanChuyenNganh/Code/lisenare/ai_models/llama-3.2-3B-Instruct-f8.gguf",
+    model_path="ai_models/llama-3.2-3B-Instruct-f8.gguf",
     #seed = -1,
     n_ctx=5000,
     chat_fomat = "llama-3"

@@ -14,3 +14,5 @@ wheels/
 
 # embedding database
 chroma_subtitles*/
+
+llama-3.2-3B-Instruct-f8.gguf
