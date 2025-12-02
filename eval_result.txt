@@ -1,16 +1,47 @@
+==============================
+ Evaluating: training_output_continuous/ppo_reading_rec_1_512.zip
+==============================
+Wrapping the env in a DummyVecEnv.
+Stochastic : 8.663 ± 8.316
+Deterministic : 7.856 ± 11.660
+
+==============================
+ Evaluating: training_output_continuous/ppo_reading_rec_2_1024.zip
+==============================
+Wrapping the env in a DummyVecEnv.
+Stochastic : 8.437 ± 8.929
+Deterministic : 5.057 ± 15.358
+
+==============================
+ Evaluating: training_output_continuous/ppo_reading_rec_3_2048.zip
+==============================
+Wrapping the env in a DummyVecEnv.
+Stochastic : 8.714 ± 8.376
+Deterministic : 9.169 ± 8.636
+
+===== DONE Evaluation =====
+
+
+
 (lisenare) phuc@xichxo:~/code/lisenare$ uv run reading_env_eval_continuous.py 
 Loaded reading embeddings from DB: (431, 10)
 Wrapping the env in a DummyVecEnv.
-PPO Mean Reward (stochastic): 8.107 ± 9.292
-PPO Mean Reward (deterministic): 5.050 ± 15.822
-Random Mean Reward: -7.680 ± 4.171
-Cosine-Sim Mean Reward: -21.851 ± 20.414
+PPO Mean Reward (stochastic): 8.033 ± 8.729
+PPO Mean Reward (deterministic): 10.523 ± 7.538
+Random Mean Reward: -7.465 ± 4.054
+Cosine-Sim Mean Reward: -21.908 ± 20.583
 
 === Summary ===
-PPO (stochastic)   : 8.107 ± 9.292
-PPO (deterministic): 5.050 ± 15.822
-Random             : -7.680 ± 4.171
-Cosine-Sim         : -21.851 ± 20.414
-✅ PPO improves over random baseline by 205.57%
-✅ PPO improves over cosine-sim baseline by 137.10%
+PPO (stochastic)   : 8.033 ± 8.729
+PPO (deterministic): 10.523 ± 7.538
+Random             : -7.465 ± 4.054
+Cosine-Sim         : -21.908 ± 20.583
+✅ PPO improves over random baseline by 207.61%
+✅ PPO improves over cosine-sim baseline by 136.67%
 ✅ Reward distributions saved to 'reward_distributions_curve.png'
+
+
+🔹 Reducing dimension from 392 → 10 using PCA...
+   → Giữ lại 59.02% thông tin
+✅ Created 431 embeddings with metadata (only text dim=392)
+Embedding shape: (10,)

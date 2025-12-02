@@ -10,7 +10,7 @@ from app.services.item_embeddings import get_all_embeddings
 # ---------------------------
 # Parameters
 # ---------------------------
-MODEL_PATH = "./training_output_continuous/ppo_reading_rec_2_1024.zip"
+MODEL_PATH = "./training_output_continuous/ppo_reading_rec_3_2048.zip"
 EVAL_EPISODES = 100
 RANDOM_EVAL_EPISODES = 1000  # reduce for faster evaluation
 
