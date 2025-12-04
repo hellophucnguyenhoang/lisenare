@@ -1,16 +1,16 @@
 from sqlmodel import Session, create_engine
-from app.services.item_embeddings import create_item_embeddings, get_embedding_by_reading_id
-
+from app.services.item_embeddings import refresh_item_embeddings, get_embedding_by_reading_id
+import numpy as np
 
 engine = create_engine("sqlite:///database.db")
 
 with Session(engine) as session:
     # Create (or update) embeddings for all readings
-    create_item_embeddings(session)
+    refresh_item_embeddings(session)
 
     # Get embedding for reading id 1
     vec = get_embedding_by_reading_id(session, 1)
     if vec is not None:
-        print("Embedding shape:", vec.shape)
+        print(f"Embedding shape:{vec.shape},mean:{np.mean(vec)}, std:{np.std(vec)}")
     else:
         print("No embedding for reading 1")
