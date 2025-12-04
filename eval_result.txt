@@ -42,6 +42,6 @@ Cosine-Sim         : -21.908 ± 20.583
 
 
 🔹 Reducing dimension from 392 → 10 using PCA...
-   → Giữ lại 59.02% thông tin
+   → Giữ lại 82.63% thông tin
 ✅ Created 431 embeddings with metadata (only text dim=392)
 Embedding shape: (10,)

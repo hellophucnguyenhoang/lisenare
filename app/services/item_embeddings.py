@@ -8,6 +8,9 @@ from app.config import settings
 from typing import List, Tuple
 import random
 from np_utils import *
+import spacy
+
+nlp = spacy.load("en_core_web_sm")
 
 def _reading_to_text(reading: Reading, include_questions: bool = True) -> str:
     """Combine topic name, title, content_text, and optionally questions into one text string."""
@@ -38,6 +41,39 @@ def _reading_to_text(reading: Reading, include_questions: bool = True) -> str:
 
     return "\n\n".join([p for p in parts if p])
 
+def embed_long_text_by_sentences(model: SentenceTransformer, text: str, batch_size: int) -> np.ndarray:
+    """
+    Encode văn bản dài bằng cách tách câu bằng spaCy,
+    sau đó mean-pool các sentence embeddings.
+    """
+    model_max_length = model.max_seq_length
+    print(f"Max SEQ LENG: {model.max_seq_length}")
+
+    doc = nlp(text)
+
+    # Lọc câu rỗng
+    sentences = [sent.text.strip() for sent in doc.sents if sent.text.strip()]
+
+    for s in sentences:
+        s_len = len(model.tokenizer(s)["input_ids"])
+        if s_len > model_max_length:
+            print("WARNING: TRUNCATED")
+
+    if not sentences:
+        return model.encode([""], convert_to_numpy=True)[0]
+
+    # Encode từng câu
+    sent_embeddings = model.encode(
+        sentences,
+        convert_to_numpy=True,
+        batch_size=batch_size,
+        show_progress_bar=False
+    ).astype(np.float32)
+
+    # Mean pooling embedding cuối cùng
+    final_emb = sent_embeddings.mean(axis=0)
+
+    return final_emb
 
 def create_item_embeddings(
     session: Session,
@@ -60,9 +96,11 @@ def create_item_embeddings(
 
     # 3️⃣ Encode texts with SentenceTransformer
     model = SentenceTransformer(model_name)
-    text_embeddings = model.encode(
-        texts, convert_to_numpy=True, batch_size=batch_size, show_progress_bar=True
-    ).astype(np.float32)
+    
+    text_embeddings = np.array([
+        embed_long_text_by_sentences(model, txt, batch_size)
+        for txt in texts
+    ], dtype=np.float32)
 
     # 4️⃣ Add extra metadata: difficulty, num_words, num_questions
     combined_embeddings = []
