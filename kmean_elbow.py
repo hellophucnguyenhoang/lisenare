@@ -1,6 +1,7 @@
 # kmeans_elbow.py
 from sqlmodel import Session, create_engine
 from app.services.item_embeddings import get_all_embeddings
+from app.services.readings import get_full_reading_by_id
 import numpy as np
 import matplotlib.pyplot as plt
 from sklearn.cluster import KMeans
@@ -31,7 +32,7 @@ plt.grid(True)
 plt.savefig("elbow_plot.png")
 print("✅ Saved: elbow_plot.png")
 
-best_k = 4
+best_k = 3
 km = KMeans(n_clusters=best_k, random_state=42)
 labels = km.fit_predict(X)
 
@@ -40,7 +41,21 @@ clusters = {}
 for cluster_id in range(best_k):
     clusters[cluster_id] = [item_ids[i] for i, label in enumerate(labels) if label == cluster_id]
 
-# In kết quả
+# In kết quả + tính % độ khó
 for cluster_id, ids in clusters.items():
     print(f"\n🔹 Cụm {cluster_id} ({len(ids)} items):")
     print(ids)
+
+    # Đếm độ khó
+    diff_count = {d: 0 for d in range(6)}  # 0..5
+    for rid in ids:
+        reading = get_full_reading_by_id(session, rid)
+        diff_count[reading.difficulty] += 1
+
+    # Tính % cho từng độ khó
+    print("   ▪️ Phân bố độ khó:")
+    total = len(ids)
+    for d in range(6):
+        pct = diff_count[d] * 100 / total if total > 0 else 0
+        print(f"      - Level {d}: {pct:.2f}% ({diff_count[d]} items)")
+

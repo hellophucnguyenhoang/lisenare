@@ -3,7 +3,7 @@ from gymnasium import spaces
 import numpy as np
 from typing import List, Dict, Any, Optional
 from app.config import settings
-from np_utils import cosine_sim, top_k_nearest_idx
+from np_utils import cosine_sim, top_k_l2_nearest_idx
 
 
 EVENT_REWARD_MAP = {
@@ -141,7 +141,7 @@ class Reader:
             
         if update_state:
             # Cập nhật _user_preference (residual) dựa trên item gợi ý và reward nhận được
-            self.update_user_preference(item_emb, reward)
+            self._update_user_preference(item_emb, reward)
 
             # Cập nhật recent
             self.recent_embs.append(item_emb)
@@ -165,7 +165,7 @@ class Reader:
         }
         return info
     
-    def update_user_preference(self, item_emb, reward):
+    def _update_user_preference(self, item_emb, reward):
         """
         Cập nhật state người dùng theo hướng item_emb nhưng chỉ lấy phần residual
         (tức là phần thông tin 'mới' khác với _user_preference hiện tại).
@@ -177,8 +177,8 @@ class Reader:
         residual = item_emb - proj  # phần mới sẽ học vào _user_preference
         self._user_preference = self._user_preference + self.boredom_rate * reward * residual
     
+    
 class ReadingRecEnvContinuous(gym.Env):
-
     def __init__(
         self,
         item_database: np.ndarray,  # toàn bộ item embeddings
@@ -203,7 +203,12 @@ class ReadingRecEnvContinuous(gym.Env):
         )
 
         # Action = 1 item embedding (liên tục)
-        self.action_space = spaces.Box(low=-1.0, high=1.0, shape=(self.emb_dim,), dtype=np.float32)
+        self.action_space = spaces.Box(
+            low=self.item_db.min(axis=0), 
+            high=self.item_db.max(axis=0), 
+            shape=(self.emb_dim,), 
+            dtype=np.float32
+        )
 
         # Observation = mean_recent_item_embs + signals
         self.observation_space = spaces.Box(
@@ -230,7 +235,7 @@ class ReadingRecEnvContinuous(gym.Env):
         return ReadingRecEnvContinuous.get_obs(self.emb_dim, [], []), {}
 
     def step(self, action: np.ndarray):
-        # """ action normalized, comes directly from agent. """
+        """ action with values from normalized item space, comes directly from agent. """
         self.step_count += 1
         action = np.asarray(action, dtype=np.float32)
 
@@ -238,7 +243,7 @@ class ReadingRecEnvContinuous(gym.Env):
             # fallback: random item
             item_idx = int(self.rng.integers(self.num_items))
         else:
-            item_idx = int(top_k_nearest_idx(self.item_db, action, k=1)[0])
+            item_idx = int(top_k_l2_nearest_idx(self.item_db, action, k=1)[0])
 
         suggested_item = self.item_db[item_idx]
 

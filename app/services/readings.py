@@ -1,7 +1,7 @@
 from sqlmodel import Session, select
 from app.models import Reading, User
 import numpy as np
-from np_utils import top_k_nearest_idx
+from np_utils import *
 from app.services.item_embeddings import get_all_embeddings, get_candidate_embeddings
 
 
@@ -14,7 +14,7 @@ def get_nearest_readings(
     k: int = 3
 ):
     item_embeddings, item_ids = get_all_embeddings(session)
-    topk_idx = top_k_nearest_idx(item_embeddings, model_action_emb, k)
+    topk_idx = top_k_l2_nearest_idx(item_embeddings, model_action_emb, k)
     topk_item_ids = [item_ids[i] for i in topk_idx]
 
     return [
@@ -27,7 +27,7 @@ def get_relatest_readings(session: Session, model_action_emb: np.ndarray, prefer
     item_embeddings, item_ids = get_candidate_embeddings(session, preferred_topic_ids, recent_item_ids, recent_embs)
     print(f"item_ids:{item_ids}")
     # Ranking phase
-    topk_idx = top_k_nearest_idx(item_embeddings, model_action_emb, k=batch_size)
+    topk_idx = top_k_l2_nearest_idx(item_embeddings, model_action_emb, k=batch_size)
     print(f"topk_idx:{topk_idx}")
     topk_item_ids = [item_ids[i] for i in topk_idx]
     print(f"topk_item_ids:{topk_item_ids}")
