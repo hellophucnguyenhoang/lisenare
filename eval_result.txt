@@ -1,47 +1,43 @@
+(lisenare) phuc@xichxo:~/code/lisenare$ uv run reading_env_eval_grid.py 
+Loaded reading embeddings: (431, 10)
+
 ==============================
  Evaluating: training_output_continuous/ppo_reading_rec_1_512.zip
 ==============================
 Wrapping the env in a DummyVecEnv.
-Stochastic : 8.663 ± 8.316
-Deterministic : 7.856 ± 11.660
+Stochastic : 9.961 ± 12.451
+Deterministic : 11.605 ± 9.023
 
 ==============================
  Evaluating: training_output_continuous/ppo_reading_rec_2_1024.zip
 ==============================
 Wrapping the env in a DummyVecEnv.
-Stochastic : 8.437 ± 8.929
-Deterministic : 5.057 ± 15.358
+Stochastic : 12.336 ± 7.982
+Deterministic : 12.467 ± 7.863
 
 ==============================
  Evaluating: training_output_continuous/ppo_reading_rec_3_2048.zip
 ==============================
 Wrapping the env in a DummyVecEnv.
-Stochastic : 8.714 ± 8.376
-Deterministic : 9.169 ± 8.636
+Stochastic : 13.436 ± 5.242
+Deterministic : 13.452 ± 6.183
 
 ===== DONE Evaluation =====
 
 
 
-(lisenare) phuc@xichxo:~/code/lisenare$ uv run reading_env_eval_continuous.py 
-Loaded reading embeddings from DB: (431, 10)
-Wrapping the env in a DummyVecEnv.
-PPO Mean Reward (stochastic): 8.033 ± 8.729
-PPO Mean Reward (deterministic): 10.523 ± 7.538
-Random Mean Reward: -7.465 ± 4.054
-Cosine-Sim Mean Reward: -21.908 ± 20.583
+(lisenare) phuc@xichxo:~/code/lisenare$ uv run reading_env_eval_continuous_read.py 
 
-=== Summary ===
-PPO (stochastic)   : 8.033 ± 8.729
-PPO (deterministic): 10.523 ± 7.538
-Random             : -7.465 ± 4.054
-Cosine-Sim         : -21.908 ± 20.583
-✅ PPO improves over random baseline by 207.61%
-✅ PPO improves over cosine-sim baseline by 136.67%
-✅ Reward distributions saved to 'reward_distributions_curve.png'
+=== Summary statistics (mean ± std, n) ===
+PPO (stochastic)   : 13.3381 ± 5.2331 (n=10000)
+PPO (deterministic): 13.4941 ± 6.1355 (n=10000)
+Random baseline    : -7.9221 ± 8.0240 (n=10000)
+Cosine baseline    : -4.5256 ± 24.5502 (n=10000)
 
+=== Improvement (%) ===
+PPO (stoch) vs Random   : 268.36%
+PPO (stoch) vs Cosine   : 394.73%
+PPO (det) vs Random     : 270.33%
+PPO (det) vs Cosine     : 398.17%
 
-🔹 Reducing dimension from 392 → 10 using PCA...
-   → Giữ lại 82.63% thông tin
-✅ Created 431 embeddings with metadata (only text dim=392)
-Embedding shape: (10,)
+✔ Violin plot saved to: reward_violins.png
