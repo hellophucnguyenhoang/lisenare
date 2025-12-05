@@ -1,5 +1,6 @@
 from fastapi import FastAPI, HTTPException, Query, Depends
 from pydantic import BaseModel
+from sqlalchemy import func
 from typing import List, Optional, Dict, Any
 import numpy as np
 import redis
@@ -452,7 +453,7 @@ def generate_question_from_passage(req: RecommendRequest, session: Session):
             "user_name": req.user_name,
             "passage_text": req.passage_text,
             "reject_list": [],
-            "recommend_so_far": [q["question_text"] for q in final_add_question_norm],
+            "recommend_so_far": [q.get("question_text") for q in final_question_object],
             "candidate_list":[]
         }
         save_session(req.session_id, s)
@@ -634,19 +635,63 @@ def generate_question_from_passage(req: RecommendRequest, session: Session):
                 text = question_candidates[0].get("question_text")
                 print(f"Kiem tra xem out ra cai gi: {text}")
                 print(f"dinh dang cua 1 phan tu trong danh sach cau hoi ung vien la:{type(question_candidates[0])}")
-                # s["candidate_list"].extend([q.get("question_text") for q in question_candidates])
-                # save_session(req.session_id, s)
+                s["candidate_list"].extend([q.get("question_text") for q in question_candidates])
+                save_session(req.session_id, s)
                 print(f"Danh sach cau hoi mang di goi y la: {question_candidates}, /n dinh dang la: {type(question_candidates[0])}")
                 test = [q.get("question_text") for q in question_candidates]
                 print(f"dinh dang cua test la:{test}")
                 print(test)
             print("CHAY DUOC ROI")
             return question_candidates
+# def find_topic_id_by_topic(topic: str):
+#     with Session(engine) as session:
+#         statement = select(Topic.id).where(
+#             func.lower(Topic.name) == topic.lower()
+#         )
+#         topic_id = session.exec(statement).all()
+#         return topic_id
+#         if topic_id == None:
+#             list_topic = session.exec(select(Topic))
+
 def find_topic_id_by_topic(topic: str):
+    topic = topic.strip()
+
     with Session(engine) as session:
-        statement = select(Topic.id).where(Topic.name.lower() == topic.lower())
-        topic_id = session.exec(statement).all()
-        return topic_id
+        # 1. Tìm topic khớp chính xác (case-insensitive)
+        statement = select(Topic).where(func.lower(Topic.name) == topic.lower())
+        result = session.exec(statement).first()
+
+        if result:
+            return result.id  # tìm thấy thì trả về luôn
+
+        # 2. Không có -> lấy tất cả topic để so sánh
+        all_topics = session.exec(select(Topic)).all()
+        if not all_topics:
+            return None
+
+        topic_names = [t.name for t in all_topics]
+
+        # 3. Encode topic input
+        input_emb = encode_with_overlap(topic)
+
+        # 4. Encode tất cả Topic.name -> matrix
+        topic_embs = []
+        for name in topic_names:
+            emb = encode_with_overlap(name)
+            topic_embs.append(emb)
+        topic_embs = np.vstack(topic_embs)  # shape (N, D)
+
+        # 5. Tìm topic giống nhất
+        nearest_emb, sim = find_nearest_passage(input_emb, topic_embs)
+        nearest_idx = np.argmax([
+            np.dot(topic_embs[i], input_emb) /
+            ((np.linalg.norm(topic_embs[i]) * np.linalg.norm(input_emb)) + 1e-8)
+            for i in range(len(topic_embs))
+        ])
+
+        best_topic = all_topics[nearest_idx]
+        return best_topic.id
+
      
 ################################################# Test ###########################
 
