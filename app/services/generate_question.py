@@ -384,7 +384,7 @@ def generate_question_from_passage(req: RecommendRequest, session: Session):
 
         print(f"topic_raw: {topic_raw}")
         print(f"topic_id_found: {topic_id_found}")   # Bạn xem thử có phải list không
-        print(f"topic_id (first element): {topic_id_found[0] if topic_id_found else None}")
+        print(f"topic_id (first element): {topic_id_found}")
 
         print("================================\n")
 
@@ -393,7 +393,7 @@ def generate_question_from_passage(req: RecommendRequest, session: Session):
             content_text=req.passage_text,
             difficulty=avg_diff,
             num_questions=req.top_k,
-            topic_id=find_topic_id_by_topic(question_objects_norm.get("topic"))[0]
+            topic_id=find_topic_id_by_topic(question_objects_norm.get("topic"))
         )
         reading = insert_reading(new_reading, session)
         print(f"Them doan van moi thanh cong")
@@ -453,7 +453,7 @@ def generate_question_from_passage(req: RecommendRequest, session: Session):
             "user_name": req.user_name,
             "passage_text": req.passage_text,
             "reject_list": [],
-            "recommend_so_far": [q["question_text"] for q in final_add_question_norm],
+            "recommend_so_far": [q["question_text"] for q in final_question_object_norm],
             "candidate_list":[]
         }
         save_session(req.session_id, s)
