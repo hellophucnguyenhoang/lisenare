@@ -11,17 +11,18 @@ import time
 import json
 import pickle
 import pandas as pd
-from sqlmodel import Session, select
+from sqlmodel import Session, select, func
 from app.schemas import RecommendRequest
 from app.models import User
 from app.database import engine
-from app.models import ObjectiveQuestion, Reading, UserTopicLink, Topic, ParagraphAuthor
+from app.models import ObjectiveQuestion, Reading, UserTopicLink, Topic, ParagraphAuthor, HistoryGenerateQuestion
 from app.models import ReadingEmbedding
 from stable_baselines3 import PPO
 from stable_baselines3.common.vec_env import DummyVecEnv
 from sentence_transformers import SentenceTransformer
 from app.services.readmepp import predict_cefr 
 from app.config import settings
+from app.services.history_generate_question import insert_history_generate_question
 
 MAX_CANDIDATES = 8 
 Q_DIM = 384
@@ -340,6 +341,8 @@ def insert_question_object(object_questions: list[ObjectiveQuestion]):
             for question in object_questions:
                 session.add(question)
             session.commit()
+            object_question_ids = [question.id for question in object_questions]
+            return object_question_ids
         except Exception as e:
             session.rollback()
             raise e
@@ -396,7 +399,7 @@ def generate_question_from_passage(req: RecommendRequest, session: Session):
         print(f"Them doan van moi thanh cong")
         # new_reading_embedding = ReadingEmbedding(
         #     reading_id=reading.id,
-
+                
         # )
         new_paragraph_author = ParagraphAuthor(
             passage_text=req.passage_text,
@@ -432,8 +435,28 @@ def generate_question_from_passage(req: RecommendRequest, session: Session):
                 explanation=final_question_object[i].get("explanation")
             )
             list_object_questions.append(object_question)
-        insert_question_object(list_object_questions)
+        object_question_ids = insert_question_object(list_object_questions)
+        # Them history
+        list_history_generate_question = []
+        for i in range(len(final_question_object)):
+            history_generate_question = HistoryGenerateQuestion(
+                user_id=user_info[0][3],
+                reading_id=reading.id,
+                lession_id=req.session_id,
+                object_question_id=object_question_ids[i]
+            )
+            list_history_generate_question.append(history_generate_question)
+        insert_history_generate_question(list_history_generate_question)
+        print(f"Them lich su tao cau hoi thanh cong/ lich su nay cho truong hop reading moi hoan toan")
         final_question_object_norm = [convert_answer_letter_to_value(q) for q in question_objects_norm.get("questions")]
+        s = {
+            "user_name": req.user_name,
+            "passage_text": req.passage_text,
+            "reject_list": [],
+            "recommend_so_far": [q["question_text"] for q in final_add_question_norm],
+            "candidate_list":[]
+        }
+        save_session(req.session_id, s)
         return final_question_object_norm
     else: 
         print("chi can gen them hoac xai tiep")
@@ -485,8 +508,23 @@ def generate_question_from_passage(req: RecommendRequest, session: Session):
                 )
                 list_object_questions.append(object_question)
                 print(f"them cau hoi moi thu {i} thanh cong")
-            insert_question_object(object_question)
+            object_question_ids = insert_question_object(list_object_questions)
+
+            # Them history
+            list_history_generate_question = []
+            for i in range(len(final_question_object)):
+                history_generate_question = HistoryGenerateQuestion(
+                    user_id=user_info[0][3],
+                    reading_id=reading_id,
+                    lession_id=req.session_id,
+                    object_question_id=object_question_ids[i]
+                )
+                list_history_generate_question.append(history_generate_question)
+            insert_history_generate_question(list_history_generate_question)
+            print(f"them lich su generate cau hoi thanh cong/ lich su nay cho truong hop so luong cau hoi ung vien = 0")
             final_question_object_norm = [convert_answer_letter_to_value(q) for q in question_objects_norm.get("questions")]
+            s["candidate_list"].extend(q["question_text"] for q in final_add_question_norm)
+            save_session(req.session_id, s)
             return final_question_object_norm
         else:
             cand_embs = np.array([encode_with_overlap(p) for p in avail])
@@ -513,6 +551,19 @@ def generate_question_from_passage(req: RecommendRequest, session: Session):
             ranked_pos = sorted(counts.keys(), key=lambda x: counts[x], reverse=True)
             top_pos = [pos for pos in ranked_pos if pos < len(avail)][:req.top_k]  
             chosen_qidxs = [avail[int(pos)] for pos in top_pos]
+            list_question_chonsen = [q for q in questions_list if q.question_text in chosen_qidxs]
+            list_history_candicadate_question = []
+            for i in range(len(list_question_chonsen)):
+                history_candidate_question = HistoryGenerateQuestion(
+                    user_id=user_info[0][3],
+                    reading_id=reading_id,
+                    lession_id=req.session_id,
+                    object_question_id=list_question_chonsen[i].id
+                )
+                list_history_candicadate_question.append(history_candidate_question)
+            insert_history_generate_question(list_history_candicadate_question)
+            print(f"them lich su generate cau hoi thanh cong/ truong hop nay cho cac cau hoi ung vien co san")
+
             question_candidates = [convert_object_question_format(q) for q in questions_list if q.question_text in chosen_qidxs]
             print(f"cau hoi ung vien la: {question_candidates}")
             if len(chosen_qidxs) < req.top_k:
@@ -558,17 +609,81 @@ def generate_question_from_passage(req: RecommendRequest, session: Session):
                     )
                     print(f"question duoc them vao la: {object_question}")
                     list_object_questions.append(object_question)
-                insert_question_object(list_object_questions)
+                object_question_ids = insert_question_object(list_object_questions)
+                # Them history
+                list_history_generate_question = []
+                for i in range(len(add_question_norm)):
+                    history_generate_question = HistoryGenerateQuestion(
+                        user_id=user_info[0][3],
+                        reading_id=reading_id,
+                        lession_id=req.session_id,
+                        object_question_id=object_question_ids[i]
+                    )
+                    list_history_generate_question.append(history_generate_question)
+                insert_history_generate_question(list_history_generate_question)
+                print(f"Them lich su generate cau hoi thanh cong/ truong hop nay cho cac cau hoi ung vien ko du so luong")
                 final_add_question_norm = [convert_answer_letter_to_value(q) for q in process_add_question.get("questions")]
-                question_candidates.append(final_add_question_norm)
+                print(f"cac cau hoi sau khi chuan hoa la:{type(final_add_question_norm)}")
+                print(final_add_question_norm)
+                print(f"danh sach cau hoi ung vien la: {question_candidates}")
+                try:
+                    question_candidates.extend(final_add_question_norm)
+                except Exception as e:
+                    print("hop nhat 2 file ko thanh cong")
+                    raise e
+                print("tao dang kiem tra")
+                text = question_candidates[0].get("question_text")
+                print(f"Kiem tra xem out ra cai gi: {text}")
+                print(f"dinh dang cua 1 phan tu trong danh sach cau hoi ung vien la:{type(question_candidates[0])}")
+                # s["candidate_list"].extend([q.get("question_text") for q in question_candidates])
+                # save_session(req.session_id, s)
+                print(f"Danh sach cau hoi mang di goi y la: {question_candidates}, /n dinh dang la: {type(question_candidates[0])}")
+                test = [q.get("question_text") for q in question_candidates]
+                print(f"dinh dang cua test la:{test}")
+                print(test)
             print("CHAY DUOC ROI")
             return question_candidates
+        
 def find_topic_id_by_topic(topic: str):
+    topic = topic.strip()
+
     with Session(engine) as session:
-        statement = select(Topic.id).where(Topic.name == topic)
-        topic_id = session.exec(statement).all()
-        return topic_id
+        # 1. Tìm topic khớp chính xác (case-insensitive)
+        statement = select(Topic).where(func.lower(Topic.name) == topic.lower())
+        result = session.exec(statement).first()
+
+        if result:
+            return result.id  # tìm thấy thì trả về luôn
+
+        # 2. Không có -> lấy tất cả topic để so sánh
+        all_topics = session.exec(select(Topic)).all()
+        if not all_topics:
+            return None
+
+        topic_names = [t.name for t in all_topics]
+
+        # 3. Encode topic input
+        input_emb = encode_with_overlap(topic)
+
+        # 4. Encode tất cả Topic.name -> matrix
+        topic_embs = []
+        for name in topic_names:
+            emb = encode_with_overlap(name)
+            topic_embs.append(emb)
+        topic_embs = np.vstack(topic_embs)  # shape (N, D)
+
+        # 5. Tìm topic giống nhất
+        nearest_emb, sim = find_nearest_passage(input_emb, topic_embs)
+        nearest_idx = np.argmax([
+            np.dot(topic_embs[i], input_emb) /
+            ((np.linalg.norm(topic_embs[i]) * np.linalg.norm(input_emb)) + 1e-8)
+            for i in range(len(topic_embs))
+        ])
+
+        best_topic = all_topics[nearest_idx]
+        return best_topic.id
      
+
 ################################################# Test ###########################
 
 # passage = f"""
