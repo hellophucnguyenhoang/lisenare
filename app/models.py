@@ -41,7 +41,7 @@ class User(SQLModel, table=True):
     preference_topics: list["Topic"] = Relationship(back_populates="users", link_model=UserTopicLink)
     study_sessions: list["StudySession"] = Relationship(back_populates="user")
     paragraphs: list["ParagraphAuthor"] = Relationship(back_populates="users")
-
+    history_generate_question : list["HistoryGenerateQuestion"] = Relationship(back_populates="users")
 class Reading(SQLModel, table=True):
     __tablename__ = "readings"
 
@@ -58,6 +58,7 @@ class Reading(SQLModel, table=True):
     questions: list["ObjectiveQuestion"] = Relationship(back_populates="reading")
     study_sessions: list["StudySession"] = Relationship(back_populates="reading")
     reading_embedding: "ReadingEmbedding" = Relationship(back_populates="reading")
+    history_generate_questions : list["HistoryGenerateQuestion"] = Relationship(back_populates="reading")
 
     @property
     def num_words(self) -> int:
@@ -85,6 +86,7 @@ class ObjectiveQuestion(SQLModel, table=True):
 
     # Relationships
     reading: Reading | None = Relationship(back_populates="questions")
+    history_generate_question: list["HistoryGenerateQuestion"] = Relationship(back_populates="object_question")
 
 
 class StudySession(SQLModel, table=True):
@@ -144,3 +146,15 @@ class ParagraphAuthor(SQLModel, table = True):
     user_id: int = Field(foreign_key="users.id")
     passage_text: str
     users: User = Relationship(back_populates="paragraphs")
+
+class HistoryGenerateQuestion(SQLModel, table = True):
+    __tablename__ = "history_generate_question"
+    id: int | None = Field(default=None, primary_key=True)
+    user_id: int = Field(foreign_key="users.id")
+    reading_id: int = Field(foreign_key="readings.id")
+    lession_id: str
+    object_question_id: int = Field(foreign_key="objective_questions.id")
+
+    users: User = Relationship(back_populates="history_generate_question")
+    reading: Reading = Relationship(back_populates="history_generate_questions")
+    object_question: ObjectiveQuestion = Relationship(back_populates="history_generate_question")
