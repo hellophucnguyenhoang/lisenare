@@ -48,8 +48,8 @@ def get_reading_question_history_by_user_id(user_id: int):
     with Session(engine) as session:
         statement = (select(HistoryGenerateQuestion, Reading.content_text, Reading.title,ObjectiveQuestion)
                      .where(HistoryGenerateQuestion.user_id == user_id)
-                     .join(Reading, Reading.id == HistoryGenerateQuestion.reading_id)
                      .join(ObjectiveQuestion, ObjectiveQuestion.id == HistoryGenerateQuestion.object_question_id)
+                     .join(Reading, Reading.id == ObjectiveQuestion.reading_id)
                      )
         result = session.exec(statement).all()
         return result
@@ -95,10 +95,10 @@ def group_history_output(raw_data):
 
     return grouped
 
-# history = get_reading_question_history_by_user_id(2)[:20]
-# data = group_history_output(history)
-# # print(type(history))
-# print(history[0][1])
+history = get_reading_question_history_by_user_id(2)[:20]
+data = group_history_output(history)
+# print(type(history))
+print(history[0][1])
 # print(f"data sau khi chuan hoa: {data}")
 # with open("history_log.txt", "w", encoding="utf-8") as f:
 #     f.write(f"{history}")
