@@ -24,7 +24,7 @@ from sentence_transformers import SentenceTransformer
 from app.services.readmepp import predict_cefr 
 from app.config import settings
 from app.services.history_generate_question import insert_history_generate_question
-
+from redis_client import r
 MAX_CANDIDATES = 8 
 Q_DIM = 384
 TOP_K = 5
@@ -33,13 +33,13 @@ ppo_model = PPO.load(MODEL_PATH, device="cpu")
 embedder = SentenceTransformer("all-MiniLM-L6-v2")
 # khởi tạo model llama
 model = llama_cpp.Llama(
-    model_path="ai_models/llama-3.2-3B-Instruct-f8.gguf",
+    model_path="d:/Nam4-hk1/TieuLuanChuyenNganh/Code/lisenare/ai_models/llama-3.2-3B-Instruct-f8.gguf",
     #seed = -1,
     n_ctx=5000,
     chat_fomat = "llama-3"
 )
 # Tạo và lưu session
-r = redis.Redis(host="localhost", port=6379, db=0)
+# r = redis.Redis(host="localhost", port=6379, db=0)
 
 def get_session(session_id: str):
     raw = r.get(f"session:{session_id}")
