@@ -14,6 +14,7 @@ class Settings(BaseSettings):
     ytb_subtitles_db_url: str = "./youtube_subtitles_sentences.db"
     chroma_subtitles_url: str = "./chroma_subtitles"
     chroma_subtitles_url2: str = "./chroma_subtitles_mpnet-base"
+    server_ip: str = "10.185.109.230"
     secret_key: str
     google_app_email_address: str
     google_app_password: str

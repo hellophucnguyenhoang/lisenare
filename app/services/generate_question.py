@@ -12,7 +12,7 @@ import time
 import json
 import pickle
 import pandas as pd
-from sqlmodel import Session, select
+from sqlmodel import Session, select, func
 from app.schemas import RecommendRequest
 from app.models import User
 from app.database import engine
@@ -22,7 +22,9 @@ from stable_baselines3 import PPO
 from stable_baselines3.common.vec_env import DummyVecEnv
 from sentence_transformers import SentenceTransformer
 from app.services.readmepp import predict_cefr 
+from app.config import settings
 from app.services.history_generate_question import insert_history_generate_question
+
 MAX_CANDIDATES = 8 
 Q_DIM = 384
 TOP_K = 5
@@ -31,8 +33,7 @@ ppo_model = PPO.load(MODEL_PATH, device="cpu")
 embedder = SentenceTransformer("all-MiniLM-L6-v2")
 # khởi tạo model llama
 model = llama_cpp.Llama(
-    #model_path="D:/Nam4-hk1/TieuLuanChuyenNganh/Code/lisenare/ai_models/llama-3.2-1B-Instruct-f16.gguf",
-    model_path="D:/Nam4-hk1/TieuLuanChuyenNganh/Code/lisenare/ai_models/llama-3.2-3B-Instruct-f8.gguf",
+    model_path="ai_models/llama-3.2-3B-Instruct-f8.gguf",
     #seed = -1,
     n_ctx=5000,
     chat_fomat = "llama-3"
@@ -639,16 +640,7 @@ def generate_question_from_passage(req: RecommendRequest, session: Session):
                 print(test)
             print("CHAY DUOC ROI")
             return question_candidates
-# def find_topic_id_by_topic(topic: str):
-#     with Session(engine) as session:
-#         statement = select(Topic.id).where(
-#             func.lower(Topic.name) == topic.lower()
-#         )
-#         topic_id = session.exec(statement).all()
-#         return topic_id
-#         if topic_id == None:
-#             list_topic = session.exec(select(Topic))
-
+        
 def find_topic_id_by_topic(topic: str):
     topic = topic.strip()
 
@@ -687,8 +679,8 @@ def find_topic_id_by_topic(topic: str):
 
         best_topic = all_topics[nearest_idx]
         return best_topic.id
-
      
+
 ################################################# Test ###########################
 
 # passage = f"""

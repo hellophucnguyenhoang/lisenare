@@ -1,16 +1,43 @@
-(lisenare) phuc@xichxo:~/code/lisenare$ uv run reading_env_eval_continuous.py 
-Loaded reading embeddings from DB: (431, 10)
-Wrapping the env in a DummyVecEnv.
-PPO Mean Reward (stochastic): 8.107 ± 9.292
-PPO Mean Reward (deterministic): 5.050 ± 15.822
-Random Mean Reward: -7.680 ± 4.171
-Cosine-Sim Mean Reward: -21.851 ± 20.414
+(lisenare) phuc@xichxo:~/code/lisenare$ uv run reading_env_eval_grid.py 
+Loaded reading embeddings: (431, 10)
 
-=== Summary ===
-PPO (stochastic)   : 8.107 ± 9.292
-PPO (deterministic): 5.050 ± 15.822
-Random             : -7.680 ± 4.171
-Cosine-Sim         : -21.851 ± 20.414
-✅ PPO improves over random baseline by 205.57%
-✅ PPO improves over cosine-sim baseline by 137.10%
-✅ Reward distributions saved to 'reward_distributions_curve.png'
+==============================
+ Evaluating: training_output_continuous/ppo_reading_rec_1_512.zip
+==============================
+Wrapping the env in a DummyVecEnv.
+Stochastic : 9.961 ± 12.451
+Deterministic : 11.605 ± 9.023
+
+==============================
+ Evaluating: training_output_continuous/ppo_reading_rec_2_1024.zip
+==============================
+Wrapping the env in a DummyVecEnv.
+Stochastic : 12.336 ± 7.982
+Deterministic : 12.467 ± 7.863
+
+==============================
+ Evaluating: training_output_continuous/ppo_reading_rec_3_2048.zip
+==============================
+Wrapping the env in a DummyVecEnv.
+Stochastic : 13.436 ± 5.242
+Deterministic : 13.452 ± 6.183
+
+===== DONE Evaluation =====
+
+
+
+(lisenare) phuc@xichxo:~/code/lisenare$ uv run reading_env_eval_continuous_read.py 
+
+=== Summary statistics (mean ± std, n) ===
+PPO (stochastic)   : 13.3381 ± 5.2331 (n=10000)
+PPO (deterministic): 13.4941 ± 6.1355 (n=10000)
+Random baseline    : -7.9221 ± 8.0240 (n=10000)
+Cosine baseline    : -4.5256 ± 24.5502 (n=10000)
+
+=== Improvement (%) ===
+PPO (stoch) vs Random   : 268.36%
+PPO (stoch) vs Cosine   : 394.73%
+PPO (det) vs Random     : 270.33%
+PPO (det) vs Cosine     : 398.17%
+
+✔ Violin plot saved to: reward_violins.png
