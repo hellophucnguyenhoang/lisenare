@@ -137,7 +137,7 @@ class FeedBack(SQLModel, table = True):
     user_name: str
     reading_text: str
     question_text: str
-    score: int
+    score: float
 
 class ParagraphAuthor(SQLModel, table = True):
     __tablename__ = "paragraph_author"
