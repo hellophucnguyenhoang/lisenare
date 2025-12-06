@@ -19,3 +19,7 @@ def top_k_nearest_idx(a_rows: np.ndarray, b: np.ndarray, k: int | None = None) -
     sims = cosine_sim_batch(a_rows, b)
     sorted_idxs = np.argsort(-sims)
     return sorted_idxs[:k] if k else sorted_idxs
+
+def top_k_l2_nearest_idx(db: np.ndarray, query: np.ndarray, k=1):
+    dists = np.linalg.norm(db - query, axis=1)
+    return np.argsort(dists)[:k]
