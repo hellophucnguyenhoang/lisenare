@@ -7,6 +7,22 @@ from datetime import datetime, timezone
 from app.config import settings
 
 
+def get_all_submitted_sessions(session: Session, user_id: int):
+    stmt = (
+        select(StudySession)
+        .where(StudySession.user_id == user_id)
+        .where(StudySession.last_event_type.in_(["submit", "like", "dislike"]))
+        .order_by(StudySession.last_update.desc())
+    )
+    return session.exec(stmt).all()
+
+def get_by_id(session: Session, id: int):
+    stmt = (
+        select(StudySession)
+        .where(StudySession.id == id)
+    )
+    return session.exec(stmt).first()
+
 def get_user_recent_study_sessions(session: Session, user_id: int, recent_history_size: int = settings.recent_history_size):
     # 1. GET the latest 5 batches (by last_update)
     stmt_batches = (

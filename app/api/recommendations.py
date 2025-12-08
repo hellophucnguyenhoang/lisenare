@@ -9,14 +9,24 @@ from stable_baselines3 import PPO
 import reading_env
 from app.config import settings
 from app.schemas import RecommendedItem, ReadingRead
+import time
+import logging
+
+logger = logging.getLogger("latency_item_rec")
+logger.setLevel(logging.INFO)
+if not logger.handlers:
+    fh = logging.FileHandler("latency_item_rec.log")
+    fh.setFormatter(logging.Formatter("%(asctime)s - %(levelname)s - %(message)s"))
+    logger.addHandler(fh)
 
 router = APIRouter(prefix="/recommendation", tags=["Recommendations"])
-
-MODEL_PATH = "./ai_models/ppo_reading_rec_2_1024.zip"
+MODEL_PATH = "./ai_models/ppo_reading_rec_3_2048.zip"
 model = PPO.load(MODEL_PATH)
 
 @router.post("/recommend", response_model=list[RecommendedItem])
 def recommend_api(username: str, batch_size: int = settings.recommend_batch_size, session: Session = Depends(get_session)):
+    start = time.time()
+
     user = user_service.get_user_by_username(session, username)
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
@@ -30,7 +40,14 @@ def recommend_api(username: str, batch_size: int = settings.recommend_batch_size
         recent_embs=recent_embs,
         recent_rewards=recent_rewards
     )
+
+    # ---- Task 1: inference ----
+    infer_t0 = time.time()
     action, _ = model.predict(state, deterministic=False)
+    infer_ms = (time.time() - infer_t0) * 1000
+
+    # ---- Task 2: DB ----
+    db_t0 = time.time()
     recommended_readings = reading_service.get_relatest_readings(
         session, 
         action, 
@@ -38,6 +55,8 @@ def recommend_api(username: str, batch_size: int = settings.recommend_batch_size
         recent_item_ids, 
         recent_embs, 
         batch_size=batch_size)
+    db_ms = (time.time() - db_t0) * 1000
+
     item_ids = [reading.id for reading in recommended_readings]
     study_sessions = study_session_services.create_batch(session, user.id, item_ids)
 
@@ -52,6 +71,12 @@ def recommend_api(username: str, batch_size: int = settings.recommend_batch_size
                 item=item
             )
         )
+    
+    # ---- Tổng độ trễ backend ----
+    total_ms = (time.time() - start) * 1000
+
+    logger.info(f"total={total_ms:.2f} ms | inference={infer_ms:.2f} ms | db={db_ms:.2f} ms")
+
     return recommended_items
 
 

@@ -1,5 +1,6 @@
 fastapi dev app/main.py  
 fastapi dev app/main.py --host 0.0.0.0  
+fastapi run app/main.py --host 0.0.0.0  
 tensorboard --logdir training_output_continuous
 uv run python -m spacy download en_core_web_sm
 

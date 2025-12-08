@@ -16,3 +16,10 @@ def update_event_api(id: int, even_update: EventUpdate, session: Session = Depen
 def submmit_answer_api(id: int, subbmition: Submition, session: Session = Depends(get_session)):
     return study_session_services.submit_answer(session, id, user_answers=subbmition.user_answer)
 
+@router.get("/users/{user_id}/submitted")
+def get_user_submited_session_api(user_id: int, session: Session = Depends(get_session)):
+    return study_session_services.get_all_submitted_sessions(session, user_id)
+
+@router.get("/by-id/{session_id}")
+def get_session_by_id(session_id: int, session: Session = Depends(get_session)):
+    return study_session_services.get_by_id(session, session_id)
