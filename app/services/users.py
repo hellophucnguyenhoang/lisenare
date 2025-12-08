@@ -30,3 +30,6 @@ def get_user_by_username(session: Session, username: str):
 
 def get_user_by_id(session: Session, user_id: int):
     return session.exec(select(User).where(User.id == user_id)).first()
+
+def get_id_by_username(session: Session, username: str):
+    return session.exec(select(User.id).where(User.username == username)).first()

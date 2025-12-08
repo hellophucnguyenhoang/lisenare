@@ -42,6 +42,8 @@ class User(SQLModel, table=True):
     study_sessions: list["StudySession"] = Relationship(back_populates="user")
     paragraphs: list["ParagraphAuthor"] = Relationship(back_populates="users")
     history_generate_question : list["HistoryGenerateQuestion"] = Relationship(back_populates="users")
+
+    
 class Reading(SQLModel, table=True):
     __tablename__ = "readings"
 

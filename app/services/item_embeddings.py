@@ -247,7 +247,7 @@ def init_user_embedding(session: Session, noise_scale: float = 0.2) -> Optional[
     final = (arr + noise)
     return final
 
-def init_user_embedding_by_level(session: Session, user_level: int, noise_scale: float = 0.2) -> Optional[np.ndarray]:
+def init_user_embedding_by_level(session: Session, user_level: int, noise_scale: float = 0.01) -> Optional[np.ndarray]:
     """Retrieve the embedding for a reading_id as a NumPy array (dtype float32)."""
     # Try to find embeddings for this level or lower levels
     while user_level >= 0:
