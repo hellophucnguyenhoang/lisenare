@@ -1,5 +1,6 @@
 from fastapi import FastAPI, HTTPException, Query, Depends
 from pydantic import BaseModel
+from sqlalchemy import func
 from typing import List, Optional, Dict, Any
 import numpy as np
 import redis
@@ -23,7 +24,7 @@ from sentence_transformers import SentenceTransformer
 from app.services.readmepp import predict_cefr 
 from app.config import settings
 from app.services.history_generate_question import insert_history_generate_question
-
+from redis_client import r
 MAX_CANDIDATES = 8 
 Q_DIM = 384
 TOP_K = 5
@@ -32,13 +33,13 @@ ppo_model = PPO.load(MODEL_PATH, device="cpu")
 embedder = SentenceTransformer("all-MiniLM-L6-v2")
 # khởi tạo model llama
 model = llama_cpp.Llama(
-    model_path="ai_models/llama-3.2-3B-Instruct-f8.gguf",
+    model_path="d:/Nam4-hk1/TieuLuanChuyenNganh/Code/lisenare/ai_models/llama-3.2-3B-Instruct-f8.gguf",
     #seed = -1,
     n_ctx=5000,
     chat_fomat = "llama-3"
 )
 # Tạo và lưu session
-r = redis.Redis(host="localhost", port=6379, db=0)
+# r = redis.Redis(host="localhost", port=6379, db=0)
 
 def get_session(session_id: str):
     raw = r.get(f"session:{session_id}")
@@ -441,7 +442,6 @@ def generate_question_from_passage(req: RecommendRequest, session: Session):
         for i in range(len(final_question_object)):
             history_generate_question = HistoryGenerateQuestion(
                 user_id=user_info[0][3],
-                reading_id=reading.id,
                 lession_id=req.session_id,
                 object_question_id=object_question_ids[i]
             )
@@ -453,7 +453,7 @@ def generate_question_from_passage(req: RecommendRequest, session: Session):
             "user_name": req.user_name,
             "passage_text": req.passage_text,
             "reject_list": [],
-            "recommend_so_far": [q["question_text"] for q in final_question_object_norm],
+            "recommend_so_far": [q.get("question_text") for q in final_question_object_norm],
             "candidate_list":[]
         }
         save_session(req.session_id, s)
@@ -515,7 +515,6 @@ def generate_question_from_passage(req: RecommendRequest, session: Session):
             for i in range(len(final_question_object)):
                 history_generate_question = HistoryGenerateQuestion(
                     user_id=user_info[0][3],
-                    reading_id=reading_id,
                     lession_id=req.session_id,
                     object_question_id=object_question_ids[i]
                 )
@@ -556,7 +555,6 @@ def generate_question_from_passage(req: RecommendRequest, session: Session):
             for i in range(len(list_question_chonsen)):
                 history_candidate_question = HistoryGenerateQuestion(
                     user_id=user_info[0][3],
-                    reading_id=reading_id,
                     lession_id=req.session_id,
                     object_question_id=list_question_chonsen[i].id
                 )
@@ -615,7 +613,6 @@ def generate_question_from_passage(req: RecommendRequest, session: Session):
                 for i in range(len(add_question_norm)):
                     history_generate_question = HistoryGenerateQuestion(
                         user_id=user_info[0][3],
-                        reading_id=reading_id,
                         lession_id=req.session_id,
                         object_question_id=object_question_ids[i]
                     )
@@ -635,8 +632,8 @@ def generate_question_from_passage(req: RecommendRequest, session: Session):
                 text = question_candidates[0].get("question_text")
                 print(f"Kiem tra xem out ra cai gi: {text}")
                 print(f"dinh dang cua 1 phan tu trong danh sach cau hoi ung vien la:{type(question_candidates[0])}")
-                # s["candidate_list"].extend([q.get("question_text") for q in question_candidates])
-                # save_session(req.session_id, s)
+                s["candidate_list"].extend([q.get("question_text") for q in question_candidates])
+                save_session(req.session_id, s)
                 print(f"Danh sach cau hoi mang di goi y la: {question_candidates}, /n dinh dang la: {type(question_candidates[0])}")
                 test = [q.get("question_text") for q in question_candidates]
                 print(f"dinh dang cua test la:{test}")

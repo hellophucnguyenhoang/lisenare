@@ -60,7 +60,6 @@ class Reading(SQLModel, table=True):
     questions: list["ObjectiveQuestion"] = Relationship(back_populates="reading")
     study_sessions: list["StudySession"] = Relationship(back_populates="reading")
     reading_embedding: "ReadingEmbedding" = Relationship(back_populates="reading")
-    history_generate_questions : list["HistoryGenerateQuestion"] = Relationship(back_populates="reading")
 
     @property
     def num_words(self) -> int:
@@ -140,7 +139,7 @@ class FeedBack(SQLModel, table = True):
     user_name: str
     reading_text: str
     question_text: str
-    score: int
+    score: float
 
 class ParagraphAuthor(SQLModel, table = True):
     __tablename__ = "paragraph_author"
@@ -153,10 +152,8 @@ class HistoryGenerateQuestion(SQLModel, table = True):
     __tablename__ = "history_generate_question"
     id: int | None = Field(default=None, primary_key=True)
     user_id: int = Field(foreign_key="users.id")
-    reading_id: int = Field(foreign_key="readings.id")
     lession_id: str
     object_question_id: int = Field(foreign_key="objective_questions.id")
 
     users: User = Relationship(back_populates="history_generate_question")
-    reading: Reading = Relationship(back_populates="history_generate_questions")
     object_question: ObjectiveQuestion = Relationship(back_populates="history_generate_question")

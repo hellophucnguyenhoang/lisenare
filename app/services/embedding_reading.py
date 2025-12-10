@@ -49,8 +49,8 @@ with Session(engine) as session:
         existing = session.exec(
             select(ReadingEmbedding).where(ReadingEmbedding.reading_id == reading.id)
         ).first()
-
-        existing.optional_vector = vector_blob
+        if existing != None:
+            existing.optional_vector = vector_blob
 
     # Commit tất cả thay đổi
     session.commit()
