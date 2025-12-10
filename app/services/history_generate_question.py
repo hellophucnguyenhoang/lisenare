@@ -46,19 +46,19 @@ def insert_history_generate_question(histories: list[HistoryGenerateQuestion]):
             raise e
 def get_reading_question_history_by_user_id(user_id: int):
     with Session(engine) as session:
-        statement = (select(HistoryGenerateQuestion, Reading.content_text, ObjectiveQuestion)
+        statement = (select(HistoryGenerateQuestion, Reading.content_text, Reading.title,ObjectiveQuestion)
                      .where(HistoryGenerateQuestion.user_id == user_id)
-                     .join(Reading, Reading.id == HistoryGenerateQuestion.reading_id)
                      .join(ObjectiveQuestion, ObjectiveQuestion.id == HistoryGenerateQuestion.object_question_id)
+                     .join(Reading, Reading.id == ObjectiveQuestion.reading_id)
                      )
         result = session.exec(statement).all()
         return result
 def group_history_output(raw_data):
     grouped = {}
 
-    for history, passage, question in raw_data:
+    for history, passage, title, question in raw_data:
         lession_id = history.lession_id
-        reading_id = history.reading_id
+        reading_id = question.reading_id
 
         # Tạo nhóm lesson nếu chưa có
         if lession_id not in grouped:
@@ -71,6 +71,7 @@ def group_history_output(raw_data):
                 "reading_id": reading_id,
                 "lession_id": lession_id,
                 "passage": passage,
+                "title": title,
                 "list_question": []
             }
 
@@ -96,8 +97,7 @@ def group_history_output(raw_data):
 
 # history = get_reading_question_history_by_user_id(2)[:20]
 # data = group_history_output(history)
-# # print(type(history))
-# print(history[0][1])
+# print(type(history))
 # print(f"data sau khi chuan hoa: {data}")
 # with open("history_log.txt", "w", encoding="utf-8") as f:
 #     f.write(f"{history}")

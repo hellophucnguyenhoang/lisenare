@@ -2,6 +2,7 @@ from sqlmodel import SQLModel
 import re
 from pydantic import BaseModel
 from typing import List, Any
+from typing import Optional, Dict
 
 # ---- User and Auth/Token ----
 class UserBase(SQLModel):
@@ -126,3 +127,10 @@ class RecommendRequest(BaseModel):
 
 class RecommendResponse(BaseModel):
     items: List[Any]
+
+class EventCreate(BaseModel):
+    username: str
+    event_type: str
+    reading_text: str
+    question_text: Optional[str]
+    metadata: Optional[Dict] = None
