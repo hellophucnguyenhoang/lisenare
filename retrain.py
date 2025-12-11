@@ -138,8 +138,4 @@ vec_env = DummyVecEnv([lambda: env])
 model = PPO("MlpPolicy", vec_env, verbose=1, batch_size=16, n_steps=64, learning_rate=2.5e-4)
 model.learn(total_timesteps=10000)
 
-# ------------------ 9) Test ------------------
-obs = env.reset().reshape(1,-1)
-action, _ = model.predict(obs)
-chosen_question = question_texts[dataset_env[env.ptr]['candidate_idxs'][action[0]]]
-print("Predicted question:", chosen_question)
+model.save("ai_model/ppo_question_rec2")

@@ -25,6 +25,7 @@ from app.services.readmepp import predict_cefr
 from app.config import settings
 from app.services.history_generate_question import insert_history_generate_question
 from redis_client import r
+from app.services.item_embeddings import create_embedding_from_reading
 MAX_CANDIDATES = 8 
 Q_DIM = 384
 TOP_K = 5
@@ -38,8 +39,6 @@ model = llama_cpp.Llama(
     n_ctx=5000,
     chat_fomat = "llama-3"
 )
-# Tạo và lưu session
-# r = redis.Redis(host="localhost", port=6379, db=0)
 
 def get_session(session_id: str):
     raw = r.get(f"session:{session_id}")
@@ -398,10 +397,12 @@ def generate_question_from_passage(req: RecommendRequest, session: Session):
         )
         reading = insert_reading(new_reading, session)
         print(f"Them doan van moi thanh cong")
-        # new_reading_embedding = ReadingEmbedding(
-        #     reading_id=reading.id,
-                
-        # )
+        new_reading_embedding = ReadingEmbedding(
+            reading_id=reading.id,
+            vector_blob=create_embedding_from_reading(reading),
+            optional_vector=encode_with_overlap(req.passage_text)
+        )
+        insert_reading_embedding(new_reading_embedding)
         new_paragraph_author = ParagraphAuthor(
             passage_text=req.passage_text,
             user_id=user_info[0][3]
