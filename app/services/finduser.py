@@ -68,11 +68,4 @@ def format_reading_data(raw_data):
             "explanation": q.explanation
         })
     return list(formatted.values())
-username = "trungky"
-user_id = find_user_by_user_name(username)[0][3]
-reading_list = find_reading_by_user_id(user_id)
-reading_list_id = [reading[0][0] for reading in reading_list]
-result = find_reading_question(reading_list_id)
-clean_results = format_reading_data(result)
-print(clean_results)
 

@@ -16,8 +16,8 @@ def get_user_history(user_name: str, session: Session = Depends(get_session)):
         results = get_reading_question_history_by_user_id(user_id)
         print(f"history raw thanh cong")
         grouped_output = group_history_output(results)
-        print(f"Data gui len be history la:{group_history_output}")
-        return {"message": "success", "data": grouped_output}
+        print(f"Data gui len be history la:{grouped_output}")
+        return grouped_output
     except Exception as e:
         print(f"truy cap history loi")
         raise HTTPException(status_code=500, detail=str(e))
