@@ -8,6 +8,7 @@ uv run python -m spacy download en_core_web_sm
 rm database.db  
 uv run create_fast.py  
 uv run refresh_embeddings.py  
+v run t_chromadb_create.py  
 uv run -m app.services.embedding_reading   
 uv run kmean_elbow.py   
 uv run collect_feedback.py

@@ -400,7 +400,7 @@ def generate_question_from_passage(req: RecommendRequest, session: Session):
         new_reading_embedding = ReadingEmbedding(
             reading_id=reading.id,
             vector_blob=create_embedding_from_reading(reading),
-            optional_vector=json.dumps(encode_with_overlap(req.passage_text))
+            optional_vector=pickle.dumps(encode_with_overlap(req.passage_text))
         )
         insert_reading_embedding(new_reading_embedding)
         new_paragraph_author = ParagraphAuthor(

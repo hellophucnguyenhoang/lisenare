@@ -8,7 +8,8 @@ BATCH_SIZE = 500
 conn = sqlite3.connect(settings.ytb_subtitles_db_url)
 c = conn.cursor()
 
-sentence_transformer_ef = embedding_functions.SentenceTransformerEmbeddingFunction(model_name="all-mpnet-base-v2")
+# sentence_transformer_ef = embedding_functions.SentenceTransformerEmbeddingFunction(model_name="all-mpnet-base-v2")
+sentence_transformer_ef = embedding_functions.SentenceTransformerEmbeddingFunction()
 chroma_client = chromadb.PersistentClient(settings.chroma_subtitles_url2)
 collection = chroma_client.get_or_create_collection(name="subtitles", embedding_function=sentence_transformer_ef)
 
