@@ -362,3 +362,43 @@ def get_candidate_embeddings(
     item_embeddings = [id_to_vec[id] for id in final_ids]
 
     return item_embeddings, final_ids
+
+def create_embedding_from_reading(
+    reading: Reading,
+    model_name: str = "sentence-transformers/all-MiniLM-L6-v2",
+    batch_size: int = 64,
+    include_questions: bool = True
+) -> np.ndarray:
+    """
+    Tạo embedding cho 1 Reading, giống hệt giá trị vector_blob trong DB.
+    """
+    # 1️⃣ Chuẩn hóa text từ Reading
+    text = _reading_to_text(reading, include_questions=include_questions)
+
+    # 2️⃣ Encode text
+    model = SentenceTransformer(model_name)
+    text_emb = embed_long_text_by_sentences(model, text, batch_size)
+
+    # 3️⃣ Thêm metadata
+    diff_onehot = np.zeros(6, dtype=np.float32)
+    if 0 <= getattr(reading, "difficulty", 0) <= 5:
+        diff_onehot[reading.difficulty] = 1.0
+
+    numeric_features = np.array([
+        getattr(reading, "num_words", 0),
+        getattr(reading, "num_questions", 0)
+    ], dtype=np.float32)
+
+    combined_emb = np.concatenate([text_emb, diff_onehot, numeric_features], axis=0).reshape(1, -1)
+
+    # 4️⃣ Load các scaler và PCA đã fit trên toàn bộ dataset
+    scaler_raw = joblib.load("scaler_raw.pkl")
+    pca = joblib.load("pca.pkl")
+    scaler_pca = joblib.load("scaler_pca.pkl")
+
+    # 5️⃣ Chuẩn hóa và giảm chiều giống DB
+    emb_std = scaler_raw.transform(combined_emb)
+    emb_reduced = pca.transform(emb_std)
+    emb_final = scaler_pca.transform(emb_reduced)
+
+    return emb_final[0]  # trả về 1D vector
