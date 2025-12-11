@@ -49,7 +49,7 @@ def embed_long_text_by_sentences(model: SentenceTransformer, text: str, batch_si
     sau đó mean-pool các sentence embeddings.
     """
     model_max_length = model.max_seq_length
-    print(f"Max SEQ LENG: {model.max_seq_length}")
+    # print(f"Max SEQ LENG: {model.max_seq_length}")
 
     doc = nlp(text)
 
