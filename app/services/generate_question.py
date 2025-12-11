@@ -34,7 +34,7 @@ ppo_model = PPO.load(MODEL_PATH, device="cpu")
 embedder = SentenceTransformer("all-MiniLM-L6-v2")
 # khởi tạo model llama
 model = llama_cpp.Llama(
-    model_path="d:/Nam4-hk1/TieuLuanChuyenNganh/Code/lisenare/ai_models/llama-3.2-3B-Instruct-f8.gguf",
+    model_path="ai_models/llama-3.2-3B-Instruct-f8.gguf",
     #seed = -1,
     n_ctx=5000,
     chat_fomat = "llama-3"
@@ -400,7 +400,7 @@ def generate_question_from_passage(req: RecommendRequest, session: Session):
         new_reading_embedding = ReadingEmbedding(
             reading_id=reading.id,
             vector_blob=create_embedding_from_reading(reading),
-            optional_vector=encode_with_overlap(req.passage_text)
+            optional_vector=json.dumps(encode_with_overlap(req.passage_text))
         )
         insert_reading_embedding(new_reading_embedding)
         new_paragraph_author = ParagraphAuthor(

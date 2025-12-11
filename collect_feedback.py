@@ -5,8 +5,9 @@ from app.models import FeedBack, ObjectiveQuestion
 from sqlmodel import Session, select, func
 from app.database import engine
 import subprocess
+
 session_buffer = defaultdict(list)
-FEEDBACK_BATCH_SIZE = 5
+FEEDBACK_BATCH_SIZE = 1000
 feedback_counter = 0        
 def save_session_to_db(username, reading_text, question_text, session_events):
     global feedback_counter
@@ -33,7 +34,7 @@ def save_session_to_db(username, reading_text, question_text, session_events):
     if feedback_counter >= FEEDBACK_BATCH_SIZE:
         feedback_counter = 0  # reset counter
         print(">>> Bắt đầu retrain PPO model vì đủ 1000 feedback")
-        subprocess.Popen(["python", "D:/Nam4-hk1/TieuLuanChuyenNganh/Code4/lisenare/retrain.py"])
+        subprocess.Popen(["python", "retrain.py"])
 
 def find_corect_option(question: str):
     with Session(engine) as session:
