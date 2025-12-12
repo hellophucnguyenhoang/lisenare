@@ -138,3 +138,5 @@
 2025-12-11 19:33:36,303 - INFO - total=551.38 ms | inference=183.10 ms | db=117.56 ms
 2025-12-11 19:34:10,192 - INFO - total=59.47 ms | inference=1.00 ms | db=22.89 ms
 2025-12-12 09:16:21,005 - INFO - total=246.64 ms | inference=32.98 ms | db=74.00 ms
+2025-12-12 17:23:30,649 - INFO - total=192.43 ms | inference=27.34 ms | db=48.29 ms
+2025-12-12 17:24:27,898 - INFO - total=67.55 ms | inference=0.95 ms | db=28.15 ms
