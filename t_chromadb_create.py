@@ -10,7 +10,7 @@ c = conn.cursor()
 
 # sentence_transformer_ef = embedding_functions.SentenceTransformerEmbeddingFunction(model_name="all-mpnet-base-v2")
 sentence_transformer_ef = embedding_functions.SentenceTransformerEmbeddingFunction()
-chroma_client = chromadb.PersistentClient(settings.chroma_subtitles_url2)
+chroma_client = chromadb.PersistentClient(settings.chroma_subtitles_url)
 collection = chroma_client.get_or_create_collection(name="subtitles", embedding_function=sentence_transformer_ef)
 
 q = "SELECT * FROM clean_subtitles"
