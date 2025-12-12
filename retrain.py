@@ -67,11 +67,6 @@ for _, hist in df_feedback.iterrows():
     candidates = passage2qidxs[passage].copy()
     if len(candidates) > MAX_CAND:
         candidates = random.sample(candidates, MAX_CAND)
-    else:
-        while len(candidates) < MAX_CAND:
-            random_q = random.randrange(len(question_texts))
-            if random_q not in candidates:
-                candidates.append(random_q)
     random.shuffle(candidates)
 
     # Logged outcomes
@@ -89,6 +84,29 @@ for _, hist in df_feedback.iterrows():
     })
 
 print("Built dataset_env with", len(dataset_env), "episodes")
+
+
+# ------------------ 6.1) ADD THIS FUNCTION ------------------
+def build_observation(user_emb: np.ndarray, passage_emb: np.ndarray, cand_embs: np.ndarray):
+    MAX_CANDIDATES = MAX_CAND
+    Q_DIM = cand_embs.shape[1]
+
+    # Trim if too many
+    if cand_embs.shape[0] > MAX_CANDIDATES:
+        cand_embs = cand_embs[:MAX_CANDIDATES, :]
+
+    # Pad if too few
+    if cand_embs.shape[0] < MAX_CANDIDATES:
+        padded = np.zeros((MAX_CANDIDATES, Q_DIM), dtype=np.float32)
+        padded[:cand_embs.shape[0]] = cand_embs
+        cand_embs = padded
+
+    return np.concatenate([
+        user_emb,
+        passage_emb,
+        cand_embs.flatten()
+    ]).astype(np.float32)
+
 
 # ------------------ 7) Define Gym environment ------------------
 class QRecommendEnv(gym.Env):
@@ -113,23 +131,52 @@ class QRecommendEnv(gym.Env):
         user = rec["user_emb"]
         passage = rec["passage_emb"]
         cand_embs = question_embs[rec["candidate_idxs"]]
-        obs = np.concatenate([user, passage, cand_embs.flatten()]).astype(np.float32)
+
+        # ---------- FIX here ----------
+        obs = build_observation(user, passage, cand_embs)
         return obs
 
     def step(self, action):
         rec = self.current
+        cand_idxs = rec["candidate_idxs"]
+        real_cand_count = len(cand_idxs)
+
+        # ---------------- FIX CÁCH 2 ----------------
+        # Nếu agent chọn action trỏ vào vị trí padding
+        if action >= real_cand_count:
+            reward = -1.0    # phạt vì chọn chỗ trống
+            done = True
+            info = {"error": "invalid_action_padding"}
+
+            next_obs = np.zeros(self.observation_space.shape, dtype=np.float32)
+            return next_obs, reward, done, info
+        # --------------------------------------------
+
+        # ----- Nếu action hợp lệ -----
+        # Action map sang question index thật
+        real_q_idx = cand_idxs[action]
+        qv = question_embs[real_q_idx]
+
+        # 1) Nếu action đã có logged outcome (feedback thật)
         if action in rec["logged_outcomes"]:
             reward = float(rec["logged_outcomes"][action])
+
         else:
+            # 2) Reward heuristic
             up = rec["user_emb"] + rec["passage_emb"]
-            qv = question_embs[rec["candidate_idxs"][action]]
-            cos = float(np.dot(up, qv) / ((np.linalg.norm(up)+1e-8)*(np.linalg.norm(qv)+1e-8)))
+            cos = float(np.dot(up, qv) /
+                        ((np.linalg.norm(up) + 1e-8) *
+                        (np.linalg.norm(qv) + 1e-8)))
+
             reward = 0.2 if cos > 0.6 else (0.05 if cos > 0.4 else -0.05)
 
         done = True
         info = {"score_if_logged": rec["logged_outcomes"].get(action, None)}
+
         next_obs = np.zeros(self.observation_space.shape, dtype=np.float32)
         return next_obs, reward, done, info
+
+
 
 # ------------------ 8) Train PPO ------------------
 env = QRecommendEnv(dataset_env)
@@ -137,5 +184,5 @@ vec_env = DummyVecEnv([lambda: env])
 
 model = PPO("MlpPolicy", vec_env, verbose=1, batch_size=16, n_steps=64, learning_rate=2.5e-4)
 model.learn(total_timesteps=10000)
-
-model.save("ai_model/ppo_question_rec2")
+model.save("ai_models/ppo_question_rec")
+print("Cập nhập model PPO recommendation thành công")

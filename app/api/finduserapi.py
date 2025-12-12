@@ -13,8 +13,6 @@ router = APIRouter(prefix="/finduser", tags=["Question Recommendation"])
 def find_user(username: str, session: Session = Depends(get_session)):
     try:
         user_id = user_service.get_id_by_username(session, username)
-        print(user_id)
-        # user_id = find_user_by_user_name(username)[0][3]
         reading_list = find_reading_by_user_id(user_id)
         print(reading_list)
         reading_list_id = [reading[0][0] for reading in reading_list]

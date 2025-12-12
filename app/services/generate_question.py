@@ -51,16 +51,21 @@ def save_session(session_id:str, data: dict):
 
 # Hàm tạo input đầu vào cho model PPO
 def build_observation(user_emb: np.ndarray, passage_emb: np.ndarray, cand_embs: np.ndarray):
-    """
-    Concatenate into observation vector shape (OBS_DIM,)
-    cand_embs should be shape (k, Q_DIM) where k == MAX_CANDIDATES (padded if needed)
-    """
-    if cand_embs.shape[0] != MAX_CANDIDATES:
-        # pad with zeros
+
+    if cand_embs.shape[0] > MAX_CANDIDATES:
+        cand_embs = cand_embs[:MAX_CANDIDATES, :]
+
+    if cand_embs.shape[0] < MAX_CANDIDATES:
         padded = np.zeros((MAX_CANDIDATES, Q_DIM), dtype=np.float32)
-        padded[:cand_embs.shape[0], :] = cand_embs
+        padded[:cand_embs.shape[0]] = cand_embs
         cand_embs = padded
-    return np.concatenate([user_emb, passage_emb, cand_embs.flatten()]).astype(np.float32)
+
+    return np.concatenate([
+        user_emb,
+        passage_emb,
+        cand_embs.flatten()
+    ]).astype(np.float32)
+
 
 # Hàm generate question bằng llama
 def generate_question_by_llama(passage: str, num_questions: int):

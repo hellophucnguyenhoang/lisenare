@@ -19,7 +19,7 @@ router = APIRouter(prefix="/context-search", tags=["Context Search"])
 
 
 # Load ChromaDB once at startup (faster)
-chroma_client = chromadb.PersistentClient(settings.chroma_subtitles_url)
+chroma_client = chromadb.PersistentClient(settings.chroma_subtitles_url2)
 collection = chroma_client.get_or_create_collection("subtitles")
 
 
