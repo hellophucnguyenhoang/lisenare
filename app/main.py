@@ -1,34 +1,24 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from app.api import auth, recommendations, users, study_sessions, readings, coedit, readmepp, context_search, topics, generate_question_api, history_generate_question_api, feedbackapi, finduserapi
+from .database import create_db_and_tables
+from .config import settings
+import os
 
-app = FastAPI(title="Learning Platform API")
+if not os.path.exists(settings.db_url):
+    print(f"{settings.db_url} not found, create a new one.")
+    create_db_and_tables()
 
-# Allow requests from the frontend (Vite default port 5173)
+app = FastAPI(title="Lisenare API")
+
+# Allow requests from the frontend
 origins = [
-    "http://localhost:5173",
-    "http://127.0.0.1:5173",  # in case of using 127.0.0.1 instead of localhost
+    "http://localhost:5173" # Vite default port 5173
 ]
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],          # list of allowed origins
+    allow_origins=origins,
     allow_credentials=True,
     allow_methods=["*"],            # allow all HTTP methods (GET, POST, etc.)
     allow_headers=["*"],            # allow all headers
 )
-
-# Include routers
-app.include_router(auth.router)
-app.include_router(users.router)
-app.include_router(recommendations.router)
-app.include_router(study_sessions.router)
-app.include_router(readings.router)
-app.include_router(coedit.router)
-app.include_router(readmepp.router)
-app.include_router(context_search.router)
-app.include_router(topics.router)
-app.include_router(generate_question_api.router)
-app.include_router(history_generate_question_api.router)
-app.include_router(feedbackapi.router)
-app.include_router(finduserapi.router)
