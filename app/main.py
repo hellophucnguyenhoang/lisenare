@@ -1,14 +1,20 @@
+from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from .database import create_db_and_tables
+from pathlib import Path
+from .database import init_db, delete_db
+from .api import bricks
 from .config import settings
-import os
 
-if not os.path.exists(settings.db_url):
-    print(f"{settings.db_url} not found, create a new one.")
-    create_db_and_tables()
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Startup code
+    init_db()
+    yield
+    # Shutdown code
+    delete_db()
 
-app = FastAPI(title="Lisenare API")
+app = FastAPI(title="Lisenare API", lifespan=lifespan)
 
 # Allow requests from the frontend
 origins = [
@@ -22,3 +28,5 @@ app.add_middleware(
     allow_methods=["*"],            # allow all HTTP methods (GET, POST, etc.)
     allow_headers=["*"],            # allow all headers
 )
+
+app.include_router(bricks.router)

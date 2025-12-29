@@ -11,6 +11,9 @@ class Settings(BaseSettings):
     secret_key: str
     google_app_email_address: str
     google_app_password: str
+
+    # Audio
+    brick_folder: str = "bricks"
     class Config:
         env_file = ".env"  # load values from .env file
         env_file_encoding = "utf-8"
