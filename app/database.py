@@ -6,21 +6,23 @@ from pathlib import Path
 import os
 import pandas as pd
 from .config import settings
+import numpy as np
 
 class Account(SQLModel, table=True):
     id: int | None = Field(default=None, primary_key=True)
-    learner_id: int = Field(foreign_key="learner.id", unique=True)
     username: str = Field(index=True, unique=True)
     hashed_password: str
     email: EmailStr = Field(index=True, unique=True)
     last_login_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    learner_id: int = Field(foreign_key="learner.id", unique=True)
     learner: "Learner" = Relationship(back_populates="account")
 
 class Learner(SQLModel, table=True):
     id: int | None = Field(default=None, primary_key=True)
     full_name: str
-    bricks: list["Brick"] = Relationship(back_populates="creator")
-    study_sessions: list["StudySession"] = Relationship(back_populates="learner")
+    collections: list["Collection"] | None = Relationship(back_populates="creator")
+    bricks: list["Brick"] | None = Relationship(back_populates="creator")
+    study_sessions: list["StudySession"] | None = Relationship(back_populates="learner")
     account: Account | None = Relationship(back_populates="learner") # Allow null in runtime
 
 class CollectionBrick(SQLModel, table=True):
@@ -31,27 +33,30 @@ class Collection(SQLModel, table=True):
     id: int | None = Field(default=None, primary_key=True)
     name: str
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    creator_id: int = Field(foreign_key="learner.id")
+    creator: Learner = Relationship(back_populates="collections")
     bricks: list["Brick"] | None = Relationship(back_populates="collections", link_model=CollectionBrick)
 
 class Brick(SQLModel, table=True):
     id: int | None = Field(default=None, primary_key=True)
-    creator_id: int | None = Field(default=None, foreign_key="learner.id")
     native_text: str
     target_text: str
     target_audio_url: str
     is_public: bool = True
-    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
-    creator: Learner | None = Relationship(back_populates="bricks")
+    last_edit_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    creator_id: int = Field(foreign_key="learner.id")
+    creator: Learner = Relationship(back_populates="bricks")
     collections: list[Collection] = Relationship(back_populates="bricks", link_model=CollectionBrick)
-    study_sessions: list["StudySession"] = Relationship(back_populates="brick")
+    study_sessions: list["StudySession"] | None = Relationship(back_populates="brick")
 
 class StudySession(SQLModel, table=True):
     id: int | None = Field(default=None, primary_key=True)
-    learner_id: int = Field(foreign_key="learner.id")
-    brick_id: int = Field(foreign_key="brick.id")
     user_target_text: str | None = None
     user_target_audio_url: str | None = None
     enrolled_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    score: float | None = None
+    learner_id: int = Field(foreign_key="learner.id")
+    brick_id: int = Field(foreign_key="brick.id")
     learner: Learner = Relationship(back_populates="study_sessions")
     brick: Brick = Relationship(back_populates="study_sessions")
 
@@ -87,15 +92,25 @@ def delete_db():
         print(f"WARNING: Trying to delete a non existing {db_url}.")
 
 def init_bricks(session: Session):
-    collection = Collection(name="Essential 3000 Words")
-    session.add(collection)
+    admin_learner = Learner(full_name="Sam Nguyen")
+    session.add(admin_learner)
+    session.commit()
+    session.refresh(admin_learner)
+    collection1 = Collection(name="First Essential 1500 Words", creator=admin_learner)
+    collection2 = Collection(name="Second Essential 1500 Words", creator=admin_learner)
+    session.add(collection1)
     brick_metadata_df = pd.read_csv(os.path.join(settings.brick_folder, "metadata.csv"))
     for _, row in brick_metadata_df.iterrows():
         brick = Brick(
             native_text=row['vi_translation'], 
             target_text=row['en_source_text'],
             target_audio_url=row['source_audio_path'],
-            collections=[collection]
+            collections=[],
+            creator=admin_learner,
         )
+        if np.random.random() > 0.5:
+            brick.collections.append(collection1)
+        else:
+            brick.collections.append(collection2)
         session.add(brick)
     session.commit()

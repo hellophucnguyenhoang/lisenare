@@ -1,14 +1,15 @@
 ## 1. Đặc tả bài toán
-Người học có thể tham gia bài học cũng như tạo bài học, xem lịch sử học tập của mình cũng như chia sẻ bài học của mình với những người học khác.  
+Người học có thể tham gia bài học cũng như tạo bài học được sắp xếp trong các bộ sưu tập, xem lịch sử học tập của mình cũng như chia sẻ bài học của mình với những người học khác.  
 
-Một **người học** (learner) sẽ có mã người học, tên người học và trình độ hiện tại(1). Một **bài học** (được gọi là một brick) sẽ có một mã bài học, câu ngôn ngữ mẹ đẻ (native language), câu ngôn ngữ mục tiêu (target language), đường dẫn audio của ngôn ngữ mục tiêu, và public hay không. Một **collection** là một nhóm các brick sẽ có mã collection, tên collection, và ngày được tạo.  
+Một **người học** (learner) sẽ có mã người học và tên người học. Một **bài học** (brick) sẽ có một mã bài học, câu ngôn ngữ mẹ đẻ (native language), câu ngôn ngữ mục tiêu (target language), đường dẫn audio của ngôn ngữ mục tiêu, công khai hay không, và thời gian chỉnh sửa cuối cùng. Một **bộ sưu tập** (collection) là một nhóm các brick sẽ có mã collection, tên collection, và ngày được tạo.  
 
-Một người học sẽ có thể **tham gia** vào từ 0, một hoặc nhiều bài học và ngược lại. Thông tin khi tham gia bài học của người dùng sẽ có các thông tin tùy chọn được cung cấp bởi người dùng là văn bản mục tiêu, audio ghi âm văn bản mục tiêu; ngoài ra còn có các thông tin bắt buộc khác như ngày giờ tham gia.  
+Một learner có thể  **tạo collection**. Một learner có thể  tạo 0 hoặc nhiều collection và một collection phải chỉ có một người tạo ra nó.  
 
-Một người học cũng có thể **tạo bài học**, miễn là bài học đó không trùng với một bài học khác. Một bài học được gọi là trùng nếu như giống nhau hoàn toàn về ngôn ngữ mẹ đẻ và ngôn ngữ mục tiêu. Một người dùng có thể tạo nhiều bài học và một bài học chỉ được tạo ra bởi một người dùng. Một bài học cần **thuộc về ít nhất  một** collection, và một collection không cần phải có bài học.  
+Một learner có thể **tạo brick**, miễn là *không được trùng với bất kỳ brick nào khác đã có trong toàn bộ hệ thống*. Hai brick được gọi là trùng nhau nếu như chúng giống nhau hoàn toàn về ngôn ngữ mẹ đẻ và ngôn ngữ mục tiêu không phân biệt hoa thường và kí tự, ví dụ "I'm Phuc." trùng với "im phuc". Một learner có thể tạo 0 hoặc nhiều brick và một brick phải chỉ được tạo ra bởi một learner.     
 
-Mỗi người dùng sẽ có một **tài khoản** người học, tài khoản người học sẽ có mã tài khoản, username, mật khẩu, email, lần đăng nhập cuối. Mỗi người học **chỉ có một và chỉ một tài khoản** học tập.  
+Một learner có thể thêm brick bất kỳ vào collection. Một brick cần **thuộc về  ít nhất một hoặc nhiều** collection nhưng một collection có thể có 0 hoặc nhiều brick.  
 
-Note:  
-(1): Trình độ hiện tại này hơi khó xác định nếu như không có một chuẩn chung. Cân nhắc xác định thông qua một bài test nhỏ. Chắc sẽ lấy chuẩn 6 mức CEFR (A1 - C2). Hoặc là không cần xác định luôn.
+Một learner sẽ có thể **học** 0 hoặc nhiều brick và ngược lại. Thông tin khi tham gia brick của learner sẽ có các thông tin tùy chọn được cung cấp bởi người dùng là văn bản mục tiêu, audio ghi âm văn bản mục tiêu, điểm thể hiện mức độ tương tự, và còn có thông tin bắt buộc là ngày giờ tham gia.  
 
+
+Mỗi learner sẽ có một **tài khoản** (account), account sẽ có mã tài khoản, username, mật khẩu, email, thời điểm đăng nhập cuối cùng. Mỗi learner **chỉ có một và chỉ một account**.  
