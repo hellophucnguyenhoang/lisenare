@@ -19,10 +19,19 @@ class Account(SQLModel, table=True):
 class Learner(SQLModel, table=True):
     id: int | None = Field(default=None, primary_key=True)
     full_name: str
-    cerf_level: str
     bricks: list["Brick"] = Relationship(back_populates="creator")
     study_sessions: list["StudySession"] = Relationship(back_populates="learner")
     account: Account | None = Relationship(back_populates="learner") # Allow null in runtime
+
+class CollectionBrick(SQLModel, table=True):
+    collection_id: int | None = Field(default=None, foreign_key="collection.id", primary_key=True)
+    brick_id: int | None = Field(default=None, foreign_key="brick.id", primary_key=True)
+
+class Collection(SQLModel, table=True):
+    id: int | None = Field(default=None, primary_key=True)
+    name: str
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    bricks: list["Brick"] | None = Relationship(back_populates="collections", link_model=CollectionBrick)
 
 class Brick(SQLModel, table=True):
     id: int | None = Field(default=None, primary_key=True)
@@ -33,6 +42,7 @@ class Brick(SQLModel, table=True):
     is_public: bool = True
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     creator: Learner | None = Relationship(back_populates="bricks")
+    collections: list[Collection] = Relationship(back_populates="bricks", link_model=CollectionBrick)
     study_sessions: list["StudySession"] = Relationship(back_populates="brick")
 
 class StudySession(SQLModel, table=True):
@@ -65,7 +75,8 @@ def init_db():
         with Session(engine) as session:
             init_bricks(session)
         print("Done initialize table data.")
-    print(f"{settings.db_url} already exits, skip initialization.")
+    else:
+        print(f"{settings.db_url} already exits, skip initialization.")
 
 def delete_db():
     db_url = Path(settings.db_url)
@@ -76,12 +87,15 @@ def delete_db():
         print(f"WARNING: Trying to delete a non existing {db_url}.")
 
 def init_bricks(session: Session):
+    collection = Collection(name="Essential 3000 Words")
+    session.add(collection)
     brick_metadata_df = pd.read_csv(os.path.join(settings.brick_folder, "metadata.csv"))
     for _, row in brick_metadata_df.iterrows():
         brick = Brick(
             native_text=row['vi_translation'], 
             target_text=row['en_source_text'],
-            target_audio_url=row['source_audio_path']
+            target_audio_url=row['source_audio_path'],
+            collections=[collection]
         )
         session.add(brick)
     session.commit()
