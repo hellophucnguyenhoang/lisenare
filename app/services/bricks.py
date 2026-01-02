@@ -1,11 +1,11 @@
-from sqlmodel import Session, select
+from sqlmodel import Session, select, delete
 from sqlalchemy.sql import func
 from app.database import Brick, CollectionBrick, Collection
 from app.config import settings
 from app.schemas import BrickUpdate
 from pathlib import Path
 from datetime import datetime, timezone
-from fastapi import HTTPException
+from fastapi import HTTPException, status
 
 def get_brick(session: Session, id: int):
     """
@@ -19,11 +19,11 @@ def iter_audio_file(filename: str):
     with open(file_path, "rb") as audio_file:
         yield from audio_file
 
-def get_random_brick(session: Session, collection_id: int):
+def get_random_brick(session: Session, learner_id: int, collection_id: int):
     statement = (
         select(Brick)
         .join(CollectionBrick)
-        .where(CollectionBrick.collection_id == collection_id)
+        .where(CollectionBrick.collection_id == collection_id and Brick.creator_id == learner_id)
         .order_by(func.random())
         .limit(1)
     )
@@ -43,21 +43,28 @@ def update_brick(
     user_id: int,
 ) -> Brick:
     brick = session.get(Brick, brick_id)
-
     if not brick:
-        raise HTTPException(status_code=404, detail="Brick not found")
-
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Brick not found")
     if brick.creator_id != user_id:
-        raise HTTPException(status_code=403, detail="Not allowed to edit this brick")
-
-    data = brick_update.model_dump(exclude_unset=True)
-
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="User are not allowed to edit this brick")
+    
+    data = brick_update.model_dump(exclude_unset=True, exclude={"collection_ids"})
     for key, value in data.items():
         setattr(brick, key, value)
-    brick.last_edit_at = datetime.now(timezone.utc)
 
+    if brick_update.collection_ids:
+        session.exec(
+            delete(CollectionBrick)
+            .where(CollectionBrick.brick_id == brick_id)
+        )
+        for collection_id in brick_update.collection_ids:
+            link = CollectionBrick(collection_id=collection_id, brick_id=brick_id)
+            session.add(link)
+    elif len(brick_update.collection_ids) == 0:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Collection is empty")
+
+    brick.last_edit_at = datetime.now(timezone.utc)
     session.add(brick)
     session.commit()
     session.refresh(brick)
-
     return brick
