@@ -1,18 +1,20 @@
+import os
+import pandas as pd
+import numpy as np
 from typing import Iterator
 from sqlmodel import SQLModel, Field, Relationship, create_engine, Session
 from datetime import datetime, timezone
 from pydantic import EmailStr
 from pathlib import Path
-import os
-import pandas as pd
 from .config import settings
-import numpy as np
+from .schemas import LearnerAccountCreate
+from . import security
 
 class Account(SQLModel, table=True):
     id: int | None = Field(default=None, primary_key=True)
     username: str = Field(index=True, unique=True)
     hashed_password: str
-    email: EmailStr = Field(index=True, unique=True)
+    email: EmailStr | None = Field(default=None, index=True, unique=True)
     last_login_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     learner_id: int = Field(foreign_key="learner.id", unique=True)
     learner: "Learner" = Relationship(back_populates="account")
@@ -92,12 +94,35 @@ def delete_db():
         print(f"WARNING: Trying to delete a non existing {db_url}.")
 
 def init_bricks(session: Session):
-    admin_learner = Learner(full_name="Sam Nguyen")
-    session.add(admin_learner)
-    session.commit()
-    session.refresh(admin_learner)
-    collection1 = Collection(name="First Essential 1500 Words", creator=admin_learner)
-    collection2 = Collection(name="Second Essential 1500 Words", creator=admin_learner)
+    def create_learner_account(session: Session, learner_account_create: LearnerAccountCreate) -> Account:
+        """
+        This function is duplicated in the same function name
+        in the accounts service to solve the circular import.
+        """
+        learner = Learner(full_name=learner_account_create.full_name)
+
+        hashed_password = security.get_password_hash(learner_account_create.password)
+        account = Account(
+            username=learner_account_create.username,
+            hashed_password=hashed_password,
+            email=learner_account_create.email,
+            learner=learner
+        )
+
+        session.add(account)
+        session.commit()
+        session.refresh(account)
+        return account
+    
+    initial_learner_account_create = LearnerAccountCreate(
+        full_name="Sam Nguyen", 
+        username="qwer",
+        password="1234"
+    )
+    initial_account = create_learner_account(session, initial_learner_account_create)
+
+    collection1 = Collection(name="First Essential 1500 Words", creator=initial_account.learner)
+    collection2 = Collection(name="Second Essential 1500 Words", creator=initial_account.learner)
     session.add(collection1)
     brick_metadata_df = pd.read_csv(os.path.join(settings.brick_folder, "metadata.csv"))
     for _, row in brick_metadata_df.iterrows():
@@ -106,7 +131,7 @@ def init_bricks(session: Session):
             target_text=row['en_source_text'],
             target_audio_url=row['source_audio_path'],
             collections=[],
-            creator=admin_learner,
+            creator=initial_account.learner,
         )
         if np.random.random() > 0.5:
             brick.collections.append(collection1)

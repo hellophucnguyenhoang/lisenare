@@ -1,10 +1,8 @@
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from pathlib import Path
 from .database import init_db, delete_db
-from .api import bricks
-from .config import settings
+from .api import accounts, auth, bricks, collections, learners
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -29,4 +27,8 @@ app.add_middleware(
     allow_headers=["*"],            # allow all headers
 )
 
+app.include_router(accounts.router)
+app.include_router(auth.router)
 app.include_router(bricks.router)
+app.include_router(collections.router)
+app.include_router(learners.router)
