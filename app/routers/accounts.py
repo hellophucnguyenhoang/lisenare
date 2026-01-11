@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from app.schemas import Token
 from sqlmodel import Session
 from app.database import get_session
-from app.services import accounts
+from app.services import account_service
 from app import security
 from app.schemas import LearnerAccountCreate
 
@@ -13,7 +13,7 @@ async def register_for_access_token(
     learner_account_create: LearnerAccountCreate, 
     session: Session = Depends(get_session)
 ) -> Token:
-    account = accounts.create_learner_account(session, learner_account_create)
+    account = account_service.create_learner_account(session, learner_account_create)
     data = {
         "sub": str(account.learner_id),
         "username": account.username

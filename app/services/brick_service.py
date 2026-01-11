@@ -1,6 +1,6 @@
 from sqlmodel import Session, select, delete
 from sqlalchemy.sql import func
-from app.database import Brick, CollectionBrick, Collection
+from app.database import Brick, CollectionBrick
 from app.config import settings
 from app.schemas import BrickUpdate
 from pathlib import Path
@@ -29,13 +29,6 @@ def get_random_brick(session: Session, learner_id: int, collection_id: int):
     )
     return session.exec(statement).first()
 
-def get_user_collections(session: Session, user_id: int):
-    statement = (
-        select(Collection)
-        .where(Collection.creator_id == user_id)
-    )
-    return session.exec(statement).all()
-
 def update_brick(
     session: Session,
     brick_id: int,
@@ -60,8 +53,6 @@ def update_brick(
         for collection_id in brick_update.collection_ids:
             link = CollectionBrick(collection_id=collection_id, brick_id=brick_id)
             session.add(link)
-    elif len(brick_update.collection_ids) == 0:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Collection is empty")
 
     brick.last_edit_at = datetime.now(timezone.utc)
     session.add(brick)
