@@ -1,4 +1,4 @@
-from . import accounts, learners
+from . import account_service, learner_service
 from app import security
 from sqlmodel import Session
 from fastapi import Depends, HTTPException, status
@@ -9,7 +9,7 @@ from jwt import InvalidTokenError
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login")
 
 def authenticate_account(session: Session, username: str, password: str) -> Account:
-    account = accounts.get_account_by_username(session, username)
+    account = account_service.get_account_by_username(session, username)
     if not account or not security.verify_password(password, account.hashed_password):
         return None
     return account
@@ -30,7 +30,7 @@ async def decode_token_to_get_learner(
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Not found learner_id in the sub of the token")
     except InvalidTokenError:
         raise credentials_exception
-    learner = learners.get_learner_by_id(session, learner_id)
+    learner = learner_service.get_learner_by_id(session, learner_id)
     if not learner:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Learner not found for learner_id")
     return learner
