@@ -14,7 +14,7 @@ router = APIRouter(prefix="/bricks", tags=["Bricks"])
 def get_brick_audio(filename: str):
     return StreamingResponse(brick_service.iter_audio_file(filename), media_type="audio/wav")
 
-@router.get("/{brick_id}")
+@router.get("/{brick_id}", response_model=BrickRead)
 async def get_brick(brick_id: int, session: Session = Depends(get_session)):
     return brick_service.get_brick(session, brick_id)
 
@@ -24,7 +24,7 @@ async def append_broke_audio_file(filename: str):
         f.write(f"{filename}|{datetime.now(timezone.utc)}\n")
     return {"status": "success", "message": f"File '{filename}' reported."}
 
-@router.get("/random/{collection_id}")
+@router.get("/random/{collection_id}", response_model=BrickRead)
 async def get_random_brick(
     collection_id: int,
     current_learner: Learner = Depends(auth_service.decode_token_to_get_learner), 
