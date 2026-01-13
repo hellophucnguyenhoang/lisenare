@@ -7,7 +7,7 @@ from pathlib import Path
 from datetime import datetime, timezone
 from fastapi import HTTPException, status
 
-def get_brick(session: Session, id: int):
+def get_brick(session: Session, id: int) -> Brick:
     """
     Return a Brick or None.
     """
@@ -19,7 +19,7 @@ def iter_audio_file(filename: str):
     with open(file_path, "rb") as audio_file:
         yield from audio_file
 
-def get_random_brick(session: Session, learner_id: int, collection_id: int):
+def get_random_brick(session: Session, learner_id: int, collection_id: int) -> Brick:
     statement = (
         select(Brick)
         .join(CollectionBrick)

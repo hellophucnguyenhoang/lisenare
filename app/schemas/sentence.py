@@ -1,0 +1,23 @@
+from sqlmodel import SQLModel
+from enum import Enum
+
+class SentenceCompareRequest(SQLModel):
+    sentence1: str
+    sentence2: str
+
+class SentenceCompareResponse(SQLModel):
+    score: float
+    correct: bool | None = None
+    threshold: float = 0.7
+
+class Language(str, Enum):
+    vi = "vi"
+    en = "en"
+
+class SentenceTranslateRequest(SQLModel):
+    text: str
+    target_lang: Language = Language.vi
+
+class SentenceTranslateResponse(SQLModel):
+    text: str
+    lang: Language = Language.en

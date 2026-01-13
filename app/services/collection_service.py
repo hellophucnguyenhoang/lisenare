@@ -2,7 +2,7 @@ from app.database import Collection, CollectionBrick
 from sqlmodel import Session, select
 from sqlalchemy import func
 
-def get_user_collections(session: Session, learner_id: int):
+def get_user_collections(session: Session, learner_id: int) -> list[dict]:
     statement = (
         select(Collection, func.count(CollectionBrick.brick_id).label("brick_count"))
         .outerjoin(CollectionBrick, Collection.id == CollectionBrick.collection_id)
