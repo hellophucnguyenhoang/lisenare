@@ -4,6 +4,7 @@
 from .account import *
 from .audio import *
 from .brick import *
+from .chat import *
 from .collection import *
 from .learner import *
 from .sentence import *

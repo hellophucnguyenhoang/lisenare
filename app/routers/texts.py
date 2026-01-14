@@ -1,9 +1,13 @@
 from app.services.text_service import text_service
+from app.services import chat_service
 from fastapi import APIRouter
+from fastapi.responses import StreamingResponse
 from app.schemas import (SentenceCompareRequest, 
                          SentenceCompareResponse, 
                          SentenceTranslateRequest, 
-                         SentenceTranslateResponse)
+                         SentenceTranslateResponse,
+                         Message,
+                         ChatRequest)
 
 router = APIRouter(prefix="/text", tags=["Text Features"])
 
@@ -22,3 +26,13 @@ async def translate(sentence_translate_req: SentenceTranslateRequest):
         lang=target_lang
     )
     return sentence_translate_res
+
+@router.post("/chat")
+async def chat_endpoint(request: ChatRequest):
+    print(f"request:{request}")
+    # Convert Pydantic models back to dictionaries for the Ollama client
+    history_as_dicts = [m.model_dump() for m in request.messages]
+    return StreamingResponse(
+        chat_service.generate_ollama_stream(history_as_dicts), 
+        media_type="text/plain"
+    )
