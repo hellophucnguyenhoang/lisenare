@@ -43,7 +43,7 @@ class Brick(SQLModel, table=True):
     id: int | None = Field(default=None, primary_key=True)
     native_text: str
     target_text: str
-    target_audio_url: str
+    target_audio_uri: str
     is_public: bool = True
     last_edit_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     creator_id: int = Field(foreign_key="learner.id")
@@ -54,7 +54,7 @@ class Brick(SQLModel, table=True):
 class StudySession(SQLModel, table=True):
     id: int | None = Field(default=None, primary_key=True)
     user_target_text: str | None = None
-    user_target_audio_url: str | None = None
+    user_target_audio_uri: str | None = None
     enrolled_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     score: float | None = None
     learner_id: int = Field(foreign_key="learner.id")
@@ -129,7 +129,7 @@ def init_bricks(session: Session):
         brick = Brick(
             native_text=row['vi_translation'], 
             target_text=row['en_source_text'],
-            target_audio_url=row['source_audio_path'],
+            target_audio_uri=row['source_audio_path'],
             collections=[],
             creator=initial_account.learner,
         )

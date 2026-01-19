@@ -4,7 +4,6 @@ from fastapi import UploadFile
 import ffmpeg
 import numpy as np
 
-
 class TranscriptionService:
     def __init__(self):
         self.device = "cuda:0" if torch.cuda.is_available() else "cpu"

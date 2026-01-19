@@ -2,16 +2,16 @@ from sqlmodel import Session, select, delete
 from sqlalchemy.sql import func
 from app.database import Brick, CollectionBrick
 from app.config import settings
-from app.schemas import BrickUpdate
+from app.schemas import BrickUpdate, BrickCreate
 from pathlib import Path
 from datetime import datetime, timezone
-from fastapi import HTTPException, status
+from fastapi import HTTPException, status, UploadFile
 
 def get_brick(session: Session, id: int) -> Brick:
-    """
-    Return a Brick or None.
-    """
-    return session.exec(select(Brick).where(Brick.id == id)).first()
+    brick = session.exec(select(Brick).where(Brick.id == id)).first()
+    if not brick:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Brick not found")
+    return brick
 
 def iter_audio_file(filename: str):
     base_dir = Path(settings.brick_folder)
@@ -59,3 +59,10 @@ def update_brick(
     session.commit()
     session.refresh(brick)
     return brick
+
+def create_brick(session: Session, brick_create: BrickCreate) -> Brick:
+    db_brick = Brick.model_validate(brick_create)
+    session.add(db_brick)
+    session.commit()
+    session.refresh(db_brick)
+    return db_brick

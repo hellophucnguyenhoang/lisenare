@@ -1,12 +1,15 @@
 from app.database import get_session
 from app.services import auth_service, brick_service
-from app.schemas import BrickUpdate, BrickRead
+from app.schemas import BrickUpdate, BrickRead, BrickCreate
 from app.database import Learner
+from app.config import settings
 from fastapi.responses import StreamingResponse
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Form, UploadFile, File
 from sqlmodel import Session
-
+from typing import Annotated
+from pathlib import Path
 from datetime import datetime, timezone
+import shutil
 
 router = APIRouter(prefix="/bricks", tags=["Bricks"])
 
@@ -45,3 +48,27 @@ async def update_brick(
         brick_update=brick_update,
         user_id=current_learner.id,
     )
+
+@router.post("/", response_model=BrickRead)
+async def create_brick(
+    audio_file: Annotated[UploadFile, File()],
+    native_text: Annotated[str, Form()],
+    target_text: Annotated[str, Form()],
+    is_public: Annotated[bool, Form()] = True,
+    current_learner: Learner = Depends(auth_service.decode_token_to_get_learner),
+    session: Session = Depends(get_session)
+):
+    UPLOAD_DIR = Path(settings.brick_folder)
+    creator_id = current_learner.id
+    target_audio_uri = f"user_{creator_id}_{audio_file.filename}"
+    file_path = UPLOAD_DIR / target_audio_uri
+    with file_path.open("wb") as buffer:
+        shutil.copyfileobj(audio_file.file, buffer)
+    brick_create = BrickCreate(
+        native_text=native_text,
+        target_text=target_text,
+        creator_id=creator_id,
+        is_public=is_public,
+        target_audio_uri=target_audio_uri # e.g. "user_1_audio.wav"
+    )
+    return brick_service.create_brick(session, brick_create)
