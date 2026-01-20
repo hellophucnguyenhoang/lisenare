@@ -1,5 +1,5 @@
 from fastapi import APIRouter, UploadFile
-from fastapi.responses import StreamingResponse, Response
+from fastapi.responses import StreamingResponse, FileResponse
 from app.services.transcription_service import transcription_service
 from app.schemas import STTResponse, TTSRequest
 from app.services.tts_service import tts_service
@@ -19,4 +19,13 @@ def synthesize_text_stream(text: str):
     return StreamingResponse(
         tts_service.tts_stream(text),
         media_type="audio/wav"
+    )
+
+@router.post("/synthesize")
+async def synthesize_text(request: TTSRequest):
+    file_path = await tts_service.synthesize_to_file(request.text)
+    return FileResponse(
+        path=file_path, 
+        media_type="audio/wav", 
+        filename="speech.wav"
     )
