@@ -9,6 +9,13 @@ class BrickUpdate(SQLModel):
     is_public: bool | None = None
     collection_ids: list[int] | None = None
 
+class BrickContextSearch(SQLModel):
+    native_text: str
+    target_text: str
+    target_audio_uri: str
+    cefr_level: CEFRLevel
+    is_public: bool = True
+
 class BrickBase(SQLModel):
     native_text: str
     target_text: str
