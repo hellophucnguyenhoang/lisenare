@@ -9,7 +9,7 @@ from app.schemas import LearnerAccountCreate
 router = APIRouter(prefix="/accounts", tags=["Accounts"])
 
 @router.post("/register", response_model=Token)
-async def register_for_access_token(
+def register_for_access_token(
     learner_account_create: LearnerAccountCreate, 
     session: Session = Depends(get_session)
 ) -> Token:

@@ -7,14 +7,14 @@ from sqlmodel import Session
 router = APIRouter(prefix="/collections", tags=["Collections"])
 
 @router.get("", response_model=list[CollectionRead])
-async def get_learner_collections(
+def get_learner_collections(
     current_learner: Learner = Depends(auth_service.decode_token_to_get_learner), 
     session: Session = Depends(get_session)
 ):
     return collection_service.get_user_collections(session, current_learner.id)
 
 @router.post("", response_model=CollectionRead)
-async def create_learner_collection(
+def create_learner_collection(
     collection_create: CollectionCreate,
     current_learner: Learner = Depends(auth_service.decode_token_to_get_learner), 
     session: Session = Depends(get_session)

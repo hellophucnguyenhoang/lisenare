@@ -6,5 +6,5 @@ from app.schemas import LearnerRead
 router = APIRouter(prefix="/learners", tags=["Learners"])
 
 @router.get("/me", response_model=LearnerRead)
-async def get_learner_me(learner: Learner = Depends(auth_service.decode_token_to_get_learner)):
+def get_learner_me(learner: Learner = Depends(auth_service.decode_token_to_get_learner)):
     return learner

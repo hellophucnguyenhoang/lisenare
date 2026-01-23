@@ -15,7 +15,7 @@ from app import security
 router = APIRouter(prefix="/auth", tags=["Authentication"])
 
 @router.post("/login", response_model=Token)
-async def login_for_access_token(
+def login_for_access_token(
     form_data: OAuth2PasswordRequestForm = Depends(), 
     session: Session = Depends(get_session)
 ) -> Token:
