@@ -8,6 +8,7 @@ from .routers import (
     auth,
     bricks, 
     collections, 
+    context_search,
     learners,
     texts
 )
@@ -39,6 +40,7 @@ app.include_router(accounts.router)
 app.include_router(auth.router)
 app.include_router(bricks.router)
 app.include_router(collections.router)
+app.include_router(context_search.router)
 app.include_router(learners.router)
 app.include_router(audios.router)
 app.include_router(texts.router)

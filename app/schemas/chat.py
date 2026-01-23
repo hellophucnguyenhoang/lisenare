@@ -9,7 +9,7 @@ class ChatRole(str, Enum):
 
 class Message(SQLModel):
     role: ChatRole = ChatRole.user
-    content: str
+    content: str = "Why is the sky blue?"
 
 class ChatRequest(SQLModel):
     messages: list[Message]

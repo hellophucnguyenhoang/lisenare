@@ -1,14 +1,15 @@
 import os
 import pandas as pd
 import numpy as np
-from typing import Iterator
+from collections.abc import Iterator
 from sqlmodel import SQLModel, Field, Relationship, create_engine, Session
 from datetime import datetime, timezone
 from pydantic import EmailStr
 from pathlib import Path
 from .config import settings
-from .schemas import LearnerAccountCreate
+from .schemas import LearnerAccountCreate, CEFRLevel
 from . import security
+
 
 class Account(SQLModel, table=True):
     id: int | None = Field(default=None, primary_key=True)
@@ -44,6 +45,7 @@ class Brick(SQLModel, table=True):
     native_text: str
     target_text: str
     target_audio_uri: str
+    cefr_level: CEFRLevel
     is_public: bool = True
     last_edit_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     creator_id: int = Field(foreign_key="learner.id")
@@ -121,21 +123,39 @@ def init_bricks(session: Session):
     )
     initial_account = create_learner_account(session, initial_learner_account_create)
 
-    collection1 = Collection(name="First Essential 1500 Words", creator=initial_account.learner)
-    collection2 = Collection(name="Second Essential 1500 Words", creator=initial_account.learner)
-    session.add(collection1)
+    a1_collection = Collection(name="A1 Sentences", creator=initial_account.learner)
+    a2_collection = Collection(name="A2 Sentences", creator=initial_account.learner)
+    b1_collection = Collection(name="B1 Sentences", creator=initial_account.learner)
+    b2_collection = Collection(name="B2 Sentences", creator=initial_account.learner)
+    c1_collection = Collection(name="C1 Sentences", creator=initial_account.learner)
+    c2_collection = Collection(name="C2 Sentences", creator=initial_account.learner)
+
+    session.add(a1_collection)
+    session.add(a2_collection)
+    session.add(b1_collection)
+    session.add(b2_collection)
+    session.add(c1_collection)
+    session.add(c2_collection)
+
+    level_to_collection = {
+        CEFRLevel.A1: a1_collection,
+        CEFRLevel.A2: a2_collection,
+        CEFRLevel.B1: b1_collection,
+        CEFRLevel.B2: b2_collection,
+        CEFRLevel.C1: c1_collection,
+        CEFRLevel.C2: c2_collection,
+    }
+
     brick_metadata_df = pd.read_csv(os.path.join(settings.brick_folder, "metadata.csv"))
     for _, row in brick_metadata_df.iterrows():
         brick = Brick(
             native_text=row['vi_translation'], 
             target_text=row['en_source_text'],
             target_audio_uri=row['source_audio_path'],
+            cefr_level=CEFRLevel(row['cefr_level']),
             collections=[],
             creator=initial_account.learner,
         )
-        if np.random.random() > 0.5:
-            brick.collections.append(collection1)
-        else:
-            brick.collections.append(collection2)
+        brick.collections.append(level_to_collection[brick.cefr_level])
         session.add(brick)
     session.commit()
