@@ -13,6 +13,6 @@ wheels/
 .venv
 
 # embedding database
-chroma_subtitles*/
+chroma*/
 
 llama-3.2-3B-Instruct-f8.gguf
