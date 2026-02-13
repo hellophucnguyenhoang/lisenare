@@ -2,9 +2,10 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from .database import init_db, delete_db
+from .http_client import init_client, close_client
 from .routers import (
     accounts,
-    audios, 
+    audios,
     auth,
     bricks, 
     collections, 
@@ -17,9 +18,11 @@ from .routers import (
 async def lifespan(app: FastAPI):
     # Startup code
     init_db()
+    await init_client()
     yield
     # Shutdown code
-    delete_db()
+    # delete_db()
+    await close_client()
 
 app = FastAPI(title="Lisenare API", lifespan=lifespan)
 
@@ -37,10 +40,10 @@ app.add_middleware(
 )
 
 app.include_router(accounts.router)
+app.include_router(audios.router)
 app.include_router(auth.router)
 app.include_router(bricks.router)
 app.include_router(collections.router)
 app.include_router(context_search.router)
 app.include_router(learners.router)
-app.include_router(audios.router)
 app.include_router(texts.router)

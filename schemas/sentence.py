@@ -2,8 +2,8 @@ from sqlmodel import SQLModel
 from enum import Enum
 
 class SentenceCompareRequest(SQLModel):
-    sentence1: str
-    sentence2: str
+    sentence1: str = "How are you?"
+    sentence2: str = "What's up?"
 
 class SentenceCompareResponse(SQLModel):
     score: float

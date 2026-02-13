@@ -15,4 +15,3 @@ def search_context_videos(
     context_search_request: ContextSearchRequest,
 ):
     return context_search_service.search_context_bricks(context_search_request.query)
-

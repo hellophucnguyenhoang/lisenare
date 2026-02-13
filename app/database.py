@@ -7,9 +7,34 @@ from datetime import datetime, timezone
 from pydantic import EmailStr
 from pathlib import Path
 from .config import settings
-from .schemas import LearnerAccountCreate, CEFRLevel
+from .schemas import (
+    LearnerAccountCreate, 
+    CEFRLevel, UnitType, 
+    SentenceStructure, 
+    SentenceFunction,
+    GrammarPoint
+)
 from . import security
+import textstat
+import string
 
+class BrickMetadataGrammarPoint(SQLModel, table=True):
+    id: int | None = Field(default=None, primary_key=True)
+    brick_metadata_id: int | None = Field(default=None, foreign_key="brickmetadata.id")
+    grammar_point: GrammarPoint
+
+class BrickMetadata(SQLModel, table=True):
+    id: int | None = Field(default=None, primary_key=True)
+    unit_type: UnitType = Field(description="Type of brick unit: word, phrase, or sentence.")
+    structure: SentenceStructure | None = Field(
+        default=None,
+        description="Sentence structure (only for unit_type=sentence)."
+    )
+    function: SentenceFunction | None = Field(
+        default=None,
+        description="Communicative function (only for unit_type=sentence)."
+    )
+    grammar_points: list[BrickMetadataGrammarPoint] = Relationship()
 
 class Account(SQLModel, table=True):
     id: int | None = Field(default=None, primary_key=True)
@@ -35,6 +60,8 @@ class CollectionBrick(SQLModel, table=True):
 class Collection(SQLModel, table=True):
     id: int | None = Field(default=None, primary_key=True)
     name: str
+    group_name: str = Field(default="my group", description="Used for grouping Collections into a group.")
+    difficulty_score: float
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     creator_id: int = Field(foreign_key="learner.id")
     creator: Learner = Relationship(back_populates="collections")
@@ -50,6 +77,8 @@ class Brick(SQLModel, table=True):
     last_edit_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     creator_id: int = Field(foreign_key="learner.id")
     creator: Learner = Relationship(back_populates="bricks")
+    brick_metadata_id: int | None = Field(default=None, foreign_key="brickmetadata.id", unique=True)
+    brick_metadata: BrickMetadata = Relationship()
     collections: list[Collection] = Relationship(back_populates="bricks", link_model=CollectionBrick)
     study_sessions: list["StudySession"] | None = Relationship(back_populates="brick")
 
@@ -116,6 +145,48 @@ def init_bricks(session: Session):
         session.refresh(account)
         return account
     
+    def parse_enum(enum_cls, value):
+        if pd.isna(value):
+            return None
+        return enum_cls(value)
+    
+    def parse_grammar_points(value):
+        if pd.isna(value) or not value:
+            return []
+        return [
+            BrickMetadataGrammarPoint(
+                grammar_point=GrammarPoint(v)
+            )
+            for v in str(value).split("|")
+        ]
+    
+    def compute_flesch_kincaid_grade(text: str):
+        translator = str.maketrans('', '', string.punctuation)
+        no_punct_text = text.translate(translator)
+        score = textstat.flesch_kincaid_grade(no_punct_text)
+        return round(score, 3)
+    
+    def extract_collection_data(collection_data: pd.DataFrame):
+        # collection Name (Shortest text)
+        shortest_text_idx = collection_data['en_source_text'].str.len().idxmin()
+        collection_name = collection_data.loc[shortest_text_idx, 'en_source_text']
+
+        # group Name (Highest CEFR)
+        ordered_levels = [level.value for level in CEFRLevel]
+        
+        # We find the maximum based on the order defined in the list above
+        group_name = pd.Categorical(
+            collection_data['cefr_level'], 
+            categories=ordered_levels, 
+            ordered=True
+        ).max()
+
+        # difficulty score: Concat all text then calculate
+        full_text = " ".join(collection_data['en_source_text'].astype(str))
+        difficulty_score = compute_flesch_kincaid_grade(full_text)
+
+        return collection_name, group_name, difficulty_score
+
     initial_learner_account_create = LearnerAccountCreate(
         full_name="Sam Nguyen", 
         username="qwer",
@@ -123,39 +194,36 @@ def init_bricks(session: Session):
     )
     initial_account = create_learner_account(session, initial_learner_account_create)
 
-    a1_collection = Collection(name="A1 Sentences", creator=initial_account.learner)
-    a2_collection = Collection(name="A2 Sentences", creator=initial_account.learner)
-    b1_collection = Collection(name="B1 Sentences", creator=initial_account.learner)
-    b2_collection = Collection(name="B2 Sentences", creator=initial_account.learner)
-    c1_collection = Collection(name="C1 Sentences", creator=initial_account.learner)
-    c2_collection = Collection(name="C2 Sentences", creator=initial_account.learner)
-
-    session.add(a1_collection)
-    session.add(a2_collection)
-    session.add(b1_collection)
-    session.add(b2_collection)
-    session.add(c1_collection)
-    session.add(c2_collection)
-
-    level_to_collection = {
-        CEFRLevel.A1: a1_collection,
-        CEFRLevel.A2: a2_collection,
-        CEFRLevel.B1: b1_collection,
-        CEFRLevel.B2: b2_collection,
-        CEFRLevel.C1: c1_collection,
-        CEFRLevel.C2: c2_collection,
-    }
-
     brick_metadata_df = pd.read_csv(os.path.join(settings.brick_folder, "metadata.csv"))
-    for _, row in brick_metadata_df.iterrows():
-        brick = Brick(
-            native_text=row['vi_translation'], 
-            target_text=row['en_source_text'],
-            target_audio_uri=row['source_audio_path'],
-            cefr_level=CEFRLevel(row['cefr_level']),
-            collections=[],
-            creator=initial_account.learner,
+    for collection_id, collection_data in brick_metadata_df.groupby("collection_id"):
+        # Create collection
+        collection_name, group_name, difficulty_score = extract_collection_data(collection_data)
+        collection = Collection(
+            name=collection_name, 
+            group_name=group_name, 
+            difficulty_score=difficulty_score,
+            creator=initial_account.learner
         )
-        brick.collections.append(level_to_collection[brick.cefr_level])
-        session.add(brick)
+
+        # Create brick and add to collection
+        for _, row in collection_data.iterrows():
+            brick_metadata = BrickMetadata(
+                unit_type=parse_enum(UnitType, row["unit_type"]),
+                structure=parse_enum(SentenceStructure, row["structure"]),
+                function=parse_enum(SentenceFunction, row["function"]),
+                grammar_points=parse_grammar_points(row["grammar_points"])
+            )
+            brick = Brick(
+                native_text=row['vi_translation'], 
+                target_text=row['en_source_text'],
+                target_audio_uri=row['source_audio_path'],
+                cefr_level=CEFRLevel(row['cefr_level']),
+                collections=[],
+                creator=initial_account.learner,
+                brick_metadata=brick_metadata
+            )
+            collection.bricks.append(brick)
+        
+        session.add(collection)
+    
     session.commit()

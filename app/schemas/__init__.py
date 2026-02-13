@@ -2,12 +2,8 @@
 # make them available directly from the app.schemas package instead of
 # always specify e.g. app.schemas.brick
 from .account import *
-from .audio import *
 from .brick import *
-from .cefr import *
-from .chat import *
 from .collection import *
 from .context_search import *
 from .learner import *
-from .sentence import *
 from .token import *

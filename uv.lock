@@ -2058,6 +2058,7 @@ dependencies = [
     { name = "chromadb" },
     { name = "fastapi", extra = ["standard"] },
     { name = "ffmpeg-python" },
+    { name = "httpx" },
     { name = "jupyter" },
     { name = "kokoro" },
     { name = "langchain-chroma" },
@@ -2079,6 +2080,7 @@ dependencies = [
     { name = "spacy" },
     { name = "sqlmodel" },
     { name = "stable-baselines3", extra = ["extra"] },
+    { name = "textstat" },
     { name = "youtube-transcript-api" },
     { name = "yt-dlp" },
     { name = "yt-dlp-ejs" },
@@ -2089,6 +2091,7 @@ requires-dist = [
     { name = "chromadb", specifier = ">=1.3.5" },
     { name = "fastapi", extras = ["standard"], specifier = ">=0.120.1" },
     { name = "ffmpeg-python", specifier = ">=0.2.0" },
+    { name = "httpx", specifier = ">=0.28.1" },
     { name = "jupyter", specifier = ">=1.1.1" },
     { name = "kokoro", specifier = ">=0.9.4" },
     { name = "langchain-chroma", specifier = ">=1.1.0" },
@@ -2110,6 +2113,7 @@ requires-dist = [
     { name = "spacy", specifier = ">=3.8.9" },
     { name = "sqlmodel", specifier = ">=0.0.27" },
     { name = "stable-baselines3", extras = ["extra"], specifier = ">=2.7.0" },
+    { name = "textstat", specifier = ">=0.7.12" },
     { name = "youtube-transcript-api", specifier = ">=1.2.3" },
     { name = "yt-dlp", specifier = ">=2025.11.12" },
     { name = "yt-dlp-ejs", specifier = ">=0.3.1" },
@@ -2602,6 +2606,21 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/6c/4f/ccdb8ad3a38e583f214547fd2f7ff1fc160c43a75af88e6aec213404b96a/networkx-3.5.tar.gz", hash = "sha256:d4c6f9cf81f52d69230866796b82afbccdec3db7ae4fbd1b65ea750feed50037", size = 2471065, upload-time = "2025-05-29T11:35:07.804Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/eb/8d/776adee7bbf76365fdd7f2552710282c79a4ead5d2a46408c9043a2b70ba/networkx-3.5-py3-none-any.whl", hash = "sha256:0030d386a9a06dee3565298b4a734b68589749a544acbb6c412dc9e2489ec6ec", size = 2034406, upload-time = "2025-05-29T11:35:04.961Z" },
+]
+
+[[package]]
+name = "nltk"
+version = "3.9.2"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "click" },
+    { name = "joblib" },
+    { name = "regex" },
+    { name = "tqdm" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/f9/76/3a5e4312c19a028770f86fd7c058cf9f4ec4321c6cf7526bab998a5b683c/nltk-3.9.2.tar.gz", hash = "sha256:0f409e9b069ca4177c1903c3e843eef90c7e92992fa4931ae607da6de49e1419", size = 2887629, upload-time = "2025-10-01T07:19:23.764Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/60/90/81ac364ef94209c100e12579629dc92bf7a709a84af32f8c551b02c07e94/nltk-3.9.2-py3-none-any.whl", hash = "sha256:1e209d2b3009110635ed9709a67a1a3e33a10f799490fa71cf4bec218c11c88a", size = 1513404, upload-time = "2025-10-01T07:19:21.648Z" },
 ]
 
 [[package]]
@@ -3732,6 +3751,15 @@ wheels = [
 ]
 
 [[package]]
+name = "pyphen"
+version = "0.17.2"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/69/56/e4d7e1bd70d997713649c5ce530b2d15a5fc2245a74ca820fc2d51d89d4d/pyphen-0.17.2.tar.gz", hash = "sha256:f60647a9c9b30ec6c59910097af82bc5dd2d36576b918e44148d8b07ef3b4aa3", size = 2079470, upload-time = "2025-01-20T13:18:36.296Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/7b/1f/c2142d2edf833a90728e5cdeb10bdbdc094dde8dbac078cee0cf33f5e11b/pyphen-0.17.2-py3-none-any.whl", hash = "sha256:3a07fb017cb2341e1d9ff31b8634efb1ae4dc4b130468c7c39dd3d32e7c3affd", size = 2079358, upload-time = "2025-01-20T13:18:29.629Z" },
+]
+
+[[package]]
 name = "pypika"
 version = "0.48.9"
 source = { registry = "https://pypi.org/simple" }
@@ -4858,6 +4886,20 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/8a/11/965c6fd8e5cc254f1fe142d547387da17a8ebfd75a3455f637c663fb38a0/terminado-0.18.1.tar.gz", hash = "sha256:de09f2c4b85de4765f7714688fff57d3e75bad1f909b589fde880460c753fd2e", size = 32701, upload-time = "2024-03-12T14:34:39.026Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/6a/9e/2064975477fdc887e47ad42157e214526dcad8f317a948dee17e1659a62f/terminado-0.18.1-py3-none-any.whl", hash = "sha256:a4468e1b37bb318f8a86514f65814e1afc977cf29b3992a4500d9dd305dcceb0", size = 14154, upload-time = "2024-03-12T14:34:36.569Z" },
+]
+
+[[package]]
+name = "textstat"
+version = "0.7.12"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "nltk" },
+    { name = "pyphen" },
+    { name = "setuptools" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/ac/6e/e25631df948ed3f02bfbeaffe1ea0db12fb1a5c0142da9e366a4ee262354/textstat-0.7.12.tar.gz", hash = "sha256:b257a1e837dc7e999f5854c5704d5293f3de540bc02a9014cb4bf767456fc522", size = 138436, upload-time = "2025-12-13T12:39:29.63Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/2c/06/584363cbd7cbd64bc309d6ebc6deeb526f2d54319a96a4bd680e52083ff0/textstat-0.7.12-py3-none-any.whl", hash = "sha256:a86bcc7f8ac9ad40ff5e8d38579fa3cc66165ea166f925b7823b7a71c1b27016", size = 176588, upload-time = "2025-12-13T12:39:27.943Z" },
 ]
 
 [[package]]
