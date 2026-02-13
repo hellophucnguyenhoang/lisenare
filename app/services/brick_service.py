@@ -1,8 +1,8 @@
 from sqlmodel import Session, select, delete
-from sqlalchemy.sql import func
-from app.database import Brick, CollectionBrick
+from sqlalchemy import func
+from app.database import Brick, CollectionBrick, BrickMetadata
 from app.config import settings
-from app.schemas import BrickUpdate, BrickCreate
+from app.schemas import BrickUpdate, BrickCreate, UnitType
 from pathlib import Path
 from datetime import datetime, timezone
 from fastapi import HTTPException, status, UploadFile
@@ -19,15 +19,65 @@ def iter_audio_file(filename: str):
     with open(file_path, "rb") as audio_file:
         yield from audio_file
 
-def get_random_brick(session: Session, learner_id: int, collection_id: int) -> Brick:
+def get_random_brick(
+    session: Session,
+    learner_id: int,
+    collection_ids: list[int] | None = None,
+) -> Brick | None:
+
     statement = (
         select(Brick)
         .join(CollectionBrick)
-        .where(CollectionBrick.collection_id == collection_id and Brick.creator_id == learner_id)
+        .join(BrickMetadata)
+        .where(
+            Brick.creator_id == learner_id, 
+            BrickMetadata.unit_type == UnitType.sentence
+        )
+    )
+
+    if collection_ids:
+        statement = statement.where(
+            CollectionBrick.collection_id.in_(collection_ids)
+        )
+
+    statement = (
+        statement
         .order_by(func.random())
         .limit(1)
     )
+
     return session.exec(statement).first()
+
+def get_brick_learn(
+    session: Session,
+    learner_id: int,
+    collection_id: int,
+    brick_order: int = 1,  # Assuming 1-based index (1st, 2nd...)
+) -> Brick | None:
+    brick_statement = (
+        select(Brick)
+        .join(CollectionBrick)
+        .where(
+            Brick.creator_id == learner_id, 
+            CollectionBrick.collection_id == collection_id
+        )
+        .order_by(func.length(Brick.target_text))
+        .offset(brick_order - 1)
+        .limit(1)
+    )
+    brick = session.exec(brick_statement).first()
+
+    count_statement = (
+        select(func.count())
+        .select_from(CollectionBrick)
+        .where(CollectionBrick.collection_id == collection_id)
+    )
+    total_count = session.exec(count_statement).one()
+
+    return {
+        "brick": brick,
+        "total_bricks": total_count
+    }
 
 def update_brick(
     session: Session,

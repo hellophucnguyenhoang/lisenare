@@ -1,10 +1,10 @@
 from app.database import get_session
 from app.services import auth_service, brick_service
-from app.schemas import BrickUpdate, BrickRead, BrickCreate
+from app.schemas import BrickUpdate, BrickRead, BrickCreate, BrickLearnRead
 from app.database import Learner
 from app.config import settings
 from fastapi.responses import StreamingResponse
-from fastapi import APIRouter, Depends, Form, UploadFile, File
+from fastapi import APIRouter, Depends, Form, UploadFile, File, Query
 from sqlmodel import Session
 from typing import Annotated
 from pathlib import Path
@@ -17,17 +17,36 @@ router = APIRouter(prefix="/bricks", tags=["Bricks"])
 def get_brick_audio(filename: str):
     return StreamingResponse(brick_service.iter_audio_file(filename), media_type="audio/wav")
 
-@router.get("/{brick_id}", response_model=BrickRead)
+@router.get("/by-id/{brick_id}", response_model=BrickRead)
 def get_brick(brick_id: int, session: Session = Depends(get_session)):
     return brick_service.get_brick(session, brick_id)
 
-@router.get("/random/{collection_id}", response_model=BrickRead)
+@router.get("/random", response_model=BrickRead)
 def get_random_brick(
-    collection_id: int,
-    current_learner: Learner = Depends(auth_service.decode_token_to_get_learner), 
-    session: Session = Depends(get_session)
+    collection_ids: list[int] | None = Query(default=None),
+    current_learner: Learner = Depends(auth_service.decode_token_to_get_learner),
+    session: Session = Depends(get_session),
 ):
-    return brick_service.get_random_brick(session, current_learner.id, collection_id)
+    print(f"collection_ids: {collection_ids}")
+    return brick_service.get_random_brick(
+        session=session,
+        learner_id=current_learner.id,
+        collection_ids=collection_ids,
+    )
+
+@router.get("/learn/{collection_id}", response_model=BrickLearnRead)
+def get_brick_learn(
+    collection_id: int,
+    brick_order: int = Query(default=1, ge=1),
+    current_learner: Learner = Depends(auth_service.decode_token_to_get_learner),
+    session: Session = Depends(get_session),
+):
+    return brick_service.get_brick_learn(
+        session=session,
+        learner_id=current_learner.id,
+        collection_id=collection_id,
+        brick_order=brick_order
+    )
 
 @router.patch("/{brick_id}", response_model=BrickRead)
 def update_brick(

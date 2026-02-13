@@ -1,7 +1,7 @@
 import torch
 from sentence_transformers import SentenceTransformer, util
 from transformers import AutoTokenizer, AutoModelForSeq2SeqLM
-from app.schemas import Language
+from schemas.sentence import Language
 
 class TextService:
     def __init__(self):

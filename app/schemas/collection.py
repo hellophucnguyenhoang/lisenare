@@ -3,6 +3,7 @@ from datetime import datetime
 
 class CollectionBase(SQLModel):
     name: str
+    group_name: str = "custom"
 
 class CollectionRead(CollectionBase):
     id: int

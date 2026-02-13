@@ -10,9 +10,10 @@ class Settings(BaseSettings):
     db_url: str = "lisenare.db"
     secret_key: str
     jwt_algorithm: str
-    access_token_expire_minutes: int = 30
+    access_token_expire_minutes: int = 60 * 24 # 24 hours
     google_app_email_address: str
     google_app_password: str
+    ai_model_server_url: str
 
     # Audio
     brick_folder: str = "bricks"
