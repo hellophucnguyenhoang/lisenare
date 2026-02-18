@@ -14,6 +14,7 @@ class Settings(BaseSettings):
     google_app_email_address: str
     google_app_password: str
     ai_model_server_url: str
+    broken_report_file: str = "broken_audio.txt"
 
     # Audio
     brick_folder: str = "bricks"

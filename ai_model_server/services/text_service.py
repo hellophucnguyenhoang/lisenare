@@ -2,6 +2,7 @@ import torch
 from sentence_transformers import SentenceTransformer, util
 from transformers import AutoTokenizer, AutoModelForSeq2SeqLM
 from schemas.sentence import Language
+import string
 
 class TextService:
     def __init__(self):
@@ -18,9 +19,18 @@ class TextService:
 
     def get_similarity(self, s1: str, s2: str) -> float:
         """Computes semantic similarity score between two sentences."""
-        embeddings = self.similarity_model.encode([s1, s2], convert_to_tensor=True)
+        # Create a translation table that maps all punctuation to None
+        translator = str.maketrans('', '', string.punctuation)
+        
+        # Remove punctuation from both strings
+        s1_clean = s1.translate(translator)
+        s2_clean = s2.translate(translator)
+        
+        # Process cleaned strings
+        embeddings = self.similarity_model.encode([s1_clean, s2_clean], convert_to_tensor=True)
         score = util.cos_sim(embeddings[0], embeddings[1])
         return float(score.item())
+
 
     def translate(self, text: str, target_lang: Language) -> str:
         """

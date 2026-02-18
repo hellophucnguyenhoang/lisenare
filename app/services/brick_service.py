@@ -1,6 +1,5 @@
-from sqlmodel import Session, select, delete
-from sqlalchemy import func
-from app.database import Brick, CollectionBrick, BrickMetadata
+from sqlmodel import Session, select, delete, func
+from app.database import Brick, CollectionBrick, BrickMetadata, LearningCard
 from app.config import settings
 from app.schemas import BrickUpdate, BrickCreate, UnitType
 from pathlib import Path
@@ -48,6 +47,66 @@ def get_random_brick(
 
     return session.exec(statement).first()
 
+def get_broken_filenames() -> set[str]:
+    REPORT_FILE = Path(settings.broken_report_file)
+    if not REPORT_FILE.exists():
+        return set()
+    # Read and split by '|', taking the first part (filename)
+    with REPORT_FILE.open("r") as f:
+        return {line.split("|")[0] for line in f if "|" in line}
+    
+def get_brick_fsrs(
+    session: Session,
+    learner_id: int,
+    collection_ids: list[int] | None = None,
+) -> Brick | None:
+    now = datetime.now(timezone.utc)
+    broken_files = get_broken_filenames()
+    
+    # helper to apply common filters
+    def apply_filters(stmt):
+        if collection_ids:
+            stmt = stmt.where(CollectionBrick.collection_id.in_(collection_ids))
+        # Exclude broken audio URIs
+        if broken_files:
+            stmt = stmt.where(~Brick.target_audio_uri.in_(broken_files))
+        return stmt
+
+    # 1. get due review cards
+    due_stmt = (
+        select(Brick)
+        .join(LearningCard, LearningCard.brick_id == Brick.id)
+        .join(CollectionBrick, CollectionBrick.brick_id == Brick.id)
+        .join(BrickMetadata)
+        .where(
+            LearningCard.learner_id == learner_id,
+            LearningCard.due <= now,
+            BrickMetadata.unit_type == UnitType.sentence,
+        )
+    )
+    due_stmt = apply_filters(due_stmt).order_by(LearningCard.due).limit(1)
+    
+    due_brick = session.exec(due_stmt).first()
+    if due_brick:
+        return due_brick
+
+    # 2. get NEW unseen bricks
+    new_stmt = (
+        select(Brick)
+        .join(CollectionBrick)
+        .join(BrickMetadata)
+        .where(
+            Brick.creator_id == learner_id,
+            BrickMetadata.unit_type == UnitType.sentence,
+            ~Brick.id.in_(
+                select(LearningCard.brick_id).where(LearningCard.learner_id == learner_id)
+            )
+        )
+    )
+    new_stmt = apply_filters(new_stmt).order_by(func.length(Brick.target_text)).limit(1)
+    
+    return session.exec(new_stmt).first()
+
 def get_brick_learn(
     session: Session,
     learner_id: int,
@@ -72,11 +131,11 @@ def get_brick_learn(
         .select_from(CollectionBrick)
         .where(CollectionBrick.collection_id == collection_id)
     )
-    total_count = session.exec(count_statement).one()
+    total_bricks = session.exec(count_statement).one()
 
     return {
         "brick": brick,
-        "total_bricks": total_count
+        "total_bricks": total_bricks
     }
 
 def update_brick(

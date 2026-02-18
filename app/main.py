@@ -11,6 +11,7 @@ from .routers import (
     collections, 
     context_search,
     learners,
+    learning_card,
     texts
 )
 
@@ -46,4 +47,5 @@ app.include_router(bricks.router)
 app.include_router(collections.router)
 app.include_router(context_search.router)
 app.include_router(learners.router)
+app.include_router(learning_card.router)
 app.include_router(texts.router)

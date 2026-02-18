@@ -34,6 +34,19 @@ def get_random_brick(
         collection_ids=collection_ids,
     )
 
+@router.get("/fsrs", response_model=BrickRead)
+def get_brick_fsrs(
+    collection_ids: list[int] | None = Query(default=None),
+    current_learner: Learner = Depends(auth_service.decode_token_to_get_learner),
+    session: Session = Depends(get_session),
+):
+    print(f"collection_ids: {collection_ids}")
+    return brick_service.get_brick_fsrs(
+        session=session,
+        learner_id=current_learner.id,
+        collection_ids=collection_ids,
+    )
+
 @router.get("/learn/{collection_id}", response_model=BrickLearnRead)
 def get_brick_learn(
     collection_id: int,
@@ -87,7 +100,11 @@ def create_brick(
     return brick_service.create_brick(session, brick_create)
 
 @router.post("/report/{filename}")
-def append_broke_audio_file(filename: str):
-    with open("reported_broken_audio_files.txt", "a") as f:
+def append_broken_audio_file(filename: str):
+    REPORT_FILE = Path(settings.broken_report_file)
+    if REPORT_FILE.exists():
+        if filename in REPORT_FILE.read_text():
+            return {"status": "exists", "message": "Already reported."}
+    with REPORT_FILE.open("a") as f:
         f.write(f"{filename}|{datetime.now(timezone.utc)}\n")
-    return {"status": "success", "message": f"File '{filename}' reported."}
+    return {"status": "success", "message": f"Reported {filename}"}

@@ -1,6 +1,5 @@
 from app.database import Collection, CollectionBrick
-from sqlmodel import Session, select
-from sqlalchemy import func
+from sqlmodel import Session, select, func
 from app.schemas import CollectionCreate
 
 def get_user_collections(session: Session, learner_id: int, group_name: str, limit: int, offset: int) -> list[dict]:
