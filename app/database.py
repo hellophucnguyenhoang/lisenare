@@ -50,7 +50,7 @@ class Learner(SQLModel, table=True):
     full_name: str
     collections: list["Collection"] | None = Relationship(back_populates="creator")
     bricks: list["Brick"] | None = Relationship(back_populates="creator")
-    study_sessions: list["StudySession"] | None = Relationship(back_populates="learner")
+    reviews: list["Review"] | None = Relationship(back_populates="learner")
     account: Account | None = Relationship(back_populates="learner") # Allow null in runtime
 
 class CollectionBrick(SQLModel, table=True):
@@ -80,18 +80,27 @@ class Brick(SQLModel, table=True):
     brick_metadata_id: int | None = Field(default=None, foreign_key="brickmetadata.id", unique=True)
     brick_metadata: BrickMetadata = Relationship()
     collections: list[Collection] = Relationship(back_populates="bricks", link_model=CollectionBrick)
-    study_sessions: list["StudySession"] | None = Relationship(back_populates="brick")
+    reviews: list["Review"] | None = Relationship(back_populates="brick")
 
-class StudySession(SQLModel, table=True):
+class Review(SQLModel, table=True):
     id: int | None = Field(default=None, primary_key=True)
-    user_target_text: str | None = None
-    user_target_audio_uri: str | None = None
-    enrolled_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
-    score: float | None = None
     learner_id: int = Field(foreign_key="learner.id")
     brick_id: int = Field(foreign_key="brick.id")
-    learner: Learner = Relationship(back_populates="study_sessions")
-    brick: Brick = Relationship(back_populates="study_sessions")
+    first_score: float
+    is_answer_revealed: bool = False
+    fsrs_rating: int = Field(ge=1, le=4)
+    reviewed_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    user_target_text: str | None = None
+    user_target_audio_uri: str | None = None
+    brick: Brick = Relationship(back_populates="reviews")
+    learner: Learner = Relationship(back_populates="reviews")
+
+class LearningCard(SQLModel, table=True):
+    learner_id: int = Field(foreign_key="learner.id", primary_key=True)
+    brick_id: int = Field(foreign_key="brick.id", primary_key=True)
+    fsrs_card_json: str
+    due: datetime # let due here for quick access
+
 
 sqlite_url = f"sqlite:///{settings.db_url}"
 connect_args = {"check_same_thread": False}
@@ -109,7 +118,7 @@ def init_db():
     if not os.path.exists(settings.db_url):
         print(f"{settings.db_url} not found, create a new one.")
         SQLModel.metadata.create_all(engine)
-        print("Done creating tables.")
+        print("Done creating table schema.")
         with Session(engine) as session:
             init_bricks(session)
         print("Done initialize table data.")

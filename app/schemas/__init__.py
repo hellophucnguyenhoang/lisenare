@@ -7,3 +7,5 @@ from .collection import *
 from .context_search import *
 from .learner import *
 from .token import *
+from .learning_card import *
+from .review import *

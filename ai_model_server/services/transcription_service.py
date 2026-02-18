@@ -14,6 +14,8 @@ class TranscriptionService:
         self.model = AutoModelForSpeechSeq2Seq.from_pretrained(
             self.model_id, dtype=self.torch_dtype, low_cpu_mem_usage=True, use_safetensors=True
         ).to(self.device)
+        # Clear the old setting to stop the warning
+        self.model.generation_config.forced_decoder_ids = None 
         self.processor = AutoProcessor.from_pretrained(self.model_id)
         
         self.pipe = pipeline(
