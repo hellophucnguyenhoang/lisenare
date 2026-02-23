@@ -13,3 +13,7 @@ class CollectionRead(CollectionBase):
 
 class CollectionCreate(CollectionBase):
     pass
+
+class GroupStats(SQLModel):
+    group_name: str
+    collection_count: int

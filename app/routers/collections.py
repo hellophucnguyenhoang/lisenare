@@ -1,6 +1,6 @@
 from app.database import get_session, Learner
 from app.services import auth_service, collection_service
-from app.schemas import CollectionCreate, CollectionRead
+from app.schemas import CollectionCreate, CollectionRead, GroupStats
 from schemas.cefr import CEFRLevel
 from fastapi import APIRouter, Depends
 from sqlmodel import Session
@@ -10,7 +10,7 @@ router = APIRouter(prefix="/collections", tags=["Collections"])
 @router.get("", response_model=list[CollectionRead])
 def get_learner_collections(
     group_name: str = CEFRLevel.A1,
-    limit: int = 20, 
+    limit: int = 20,
     page: int = 1,
     current_learner: Learner = Depends(auth_service.decode_token_to_get_learner), 
     session: Session = Depends(get_session)
@@ -30,3 +30,11 @@ def create_learner_collection(
         learner_id=current_learner.id, 
         collection_create=collection_create
     )
+
+@router.get("/stats", response_model=list[GroupStats])
+def get_group_stats(
+    current_learner: Learner = Depends(auth_service.decode_token_to_get_learner), 
+    session: Session = Depends(get_session)
+):
+    return collection_service.get_collection_group_stats(session, current_learner.id)
+

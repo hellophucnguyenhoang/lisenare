@@ -13,6 +13,44 @@ import shutil
 
 router = APIRouter(prefix="/bricks", tags=["Bricks"])
 
+@router.patch("/{brick_id}", response_model=BrickRead)
+def update_brick(
+    brick_id: int,
+    brick_update: BrickUpdate,
+    current_learner: Learner = Depends(auth_service.decode_token_to_get_learner),
+    session: Session = Depends(get_session),
+):
+    return brick_service.update_brick(
+        session=session,
+        brick_id=brick_id,
+        brick_update=brick_update,
+        user_id=current_learner.id,
+    )
+
+@router.post("/", response_model=BrickRead)
+def create_brick(
+    audio_file: Annotated[UploadFile, File()],
+    native_text: Annotated[str, Form()],
+    target_text: Annotated[str, Form()],
+    is_public: Annotated[bool, Form()] = True,
+    current_learner: Learner = Depends(auth_service.decode_token_to_get_learner),
+    session: Session = Depends(get_session)
+):
+    UPLOAD_DIR = Path(settings.brick_folder)
+    creator_id = current_learner.id
+    target_audio_uri = f"user_{creator_id}_{audio_file.filename}"
+    file_path = UPLOAD_DIR / target_audio_uri
+    with file_path.open("wb") as buffer:
+        shutil.copyfileobj(audio_file.file, buffer)
+    brick_create = BrickCreate(
+        native_text=native_text,
+        target_text=target_text,
+        creator_id=creator_id,
+        is_public=is_public,
+        target_audio_uri=target_audio_uri # e.g. "user_1_audio.wav"
+    )
+    return brick_service.create_brick(session, brick_create)
+
 @router.get("/audio/{filename}")
 def get_brick_audio(filename: str):
     return StreamingResponse(brick_service.iter_audio_file(filename), media_type="audio/wav")
@@ -60,44 +98,6 @@ def get_brick_learn(
         collection_id=collection_id,
         brick_order=brick_order
     )
-
-@router.patch("/{brick_id}", response_model=BrickRead)
-def update_brick(
-    brick_id: int,
-    brick_update: BrickUpdate,
-    current_learner: Learner = Depends(auth_service.decode_token_to_get_learner),
-    session: Session = Depends(get_session),
-):
-    return brick_service.update_brick(
-        session=session,
-        brick_id=brick_id,
-        brick_update=brick_update,
-        user_id=current_learner.id,
-    )
-
-@router.post("/", response_model=BrickRead)
-def create_brick(
-    audio_file: Annotated[UploadFile, File()],
-    native_text: Annotated[str, Form()],
-    target_text: Annotated[str, Form()],
-    is_public: Annotated[bool, Form()] = True,
-    current_learner: Learner = Depends(auth_service.decode_token_to_get_learner),
-    session: Session = Depends(get_session)
-):
-    UPLOAD_DIR = Path(settings.brick_folder)
-    creator_id = current_learner.id
-    target_audio_uri = f"user_{creator_id}_{audio_file.filename}"
-    file_path = UPLOAD_DIR / target_audio_uri
-    with file_path.open("wb") as buffer:
-        shutil.copyfileobj(audio_file.file, buffer)
-    brick_create = BrickCreate(
-        native_text=native_text,
-        target_text=target_text,
-        creator_id=creator_id,
-        is_public=is_public,
-        target_audio_uri=target_audio_uri # e.g. "user_1_audio.wav"
-    )
-    return brick_service.create_brick(session, brick_create)
 
 @router.post("/report/{filename}")
 def append_broken_audio_file(filename: str):

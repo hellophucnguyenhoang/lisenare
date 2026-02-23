@@ -34,7 +34,11 @@ def count_user_collections(
     )
     return session.exec(statement).one()
 
-def create_collection(session: Session, learner_id: int, collection_create: CollectionCreate) -> Collection:
+def create_collection(
+    session: Session, 
+    learner_id: int, 
+    collection_create: CollectionCreate
+) -> Collection:
     collection = Collection(
         name=collection_create.name, 
         group_name=collection_create.group_name,
@@ -44,3 +48,23 @@ def create_collection(session: Session, learner_id: int, collection_create: Coll
     session.commit()
     session.refresh(collection)
     return collection
+
+def get_collection_group_stats(session: Session, learner_id: int):
+    statement = (
+        select(
+            Collection.group_name,
+            func.count(Collection.id).label("collection_count")
+        )
+        .where(Collection.creator_id == learner_id)
+        .group_by(Collection.group_name)
+    )
+
+    results = session.exec(statement).all()
+
+    return [
+        {
+            "group_name": group_name,
+            "collection_count": collection_count
+        }
+        for group_name, collection_count in results
+    ]
