@@ -1,9 +1,9 @@
 from . import account_service, learner_service
 from app import security
-from sqlmodel import Session
+from sqlmodel import Session, select
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
-from app.database import get_session, Account, Learner
+from app.database import get_session, Account, Learner, OTP
 from jwt import InvalidTokenError
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login")
@@ -34,3 +34,11 @@ async def decode_token_to_get_learner(
     if not learner:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Learner not found for learner_id")
     return learner
+
+def get_most_recent_unused_otp(session: Session, email: str) -> OTP:
+    otp_db = session.exec(
+        select(OTP)
+        .where(OTP.email == email, OTP.used == False)
+        .order_by(OTP.expires_at.desc())
+    ).first()
+    return otp_db

@@ -10,17 +10,15 @@ class Settings(BaseSettings):
     db_url: str = "lisenare.db"
     secret_key: str
     jwt_algorithm: str
-    access_token_expire_minutes: int = 60 * 24 # 24 hours
+    access_token_expire_minutes: int = 60 * 24
+    otp_expire_minutes: int = 5
     google_app_email_address: str
     google_app_password: str
     ai_model_server_url: str
     broken_report_file: str = "broken_audio.txt"
-
-    # Audio
     brick_folder: str = "bricks"
     class Config:
         env_file = ".env"  # load values from .env file
         env_file_encoding = "utf-8"
-        
 
 settings = Settings()

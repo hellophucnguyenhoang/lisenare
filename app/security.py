@@ -36,7 +36,7 @@ def generate_otp() -> str:
     """Return a 6-digits string number."""
     return f"{random.randint(100000, 999999)}"
 
-def hash_otp(code: str) -> str:
+def hash_code(code: str) -> str:
     return password_hasher.hash(code)
 
 def verify_otp(code: str, hashed_code: str) -> bool:
