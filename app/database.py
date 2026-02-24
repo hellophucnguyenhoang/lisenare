@@ -3,7 +3,7 @@ import pandas as pd
 import numpy as np
 from collections.abc import Iterator
 from sqlmodel import SQLModel, Field, Relationship, create_engine, Session
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from pydantic import EmailStr
 from pathlib import Path
 from .config import settings
@@ -101,6 +101,14 @@ class LearningCard(SQLModel, table=True):
     fsrs_card_json: str
     due: datetime # let due here for quick access
 
+class OTP(SQLModel, table=True):
+    id: int | None = Field(default=None, primary_key=True)
+    email: str
+    hashed_code: str
+    expires_at: datetime = Field(
+        default_factory=lambda: datetime.now(timezone.utc) + timedelta(minutes=settings.otp_expire_minutes)
+    )
+    used: bool = False
 
 sqlite_url = f"sqlite:///{settings.db_url}"
 connect_args = {"check_same_thread": False}
@@ -199,7 +207,8 @@ def init_bricks(session: Session):
     initial_learner_account_create = LearnerAccountCreate(
         full_name="Sam Nguyen", 
         username="qwer",
-        password="1234"
+        password="1234",
+        email="nguyenphuc1234sonhoapy@gmail.com"
     )
     initial_account = create_learner_account(session, initial_learner_account_create)
 
