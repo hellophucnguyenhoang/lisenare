@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends
 from schemas.sentence import (
     SentenceCompareRequest, 
-    SentenceCompareResponse
+    SentenceCompareResponse,
 )
 from sqlmodel import Session
 from app.schemas import ReviewCreate
@@ -11,13 +11,13 @@ from app.database import get_session, Learner
 
 router = APIRouter(prefix="/text", tags=["Text Features"])
 
-@router.post("/comparisons", response_model=SentenceCompareResponse)
+@router.post("/semantic-comparison", response_model=SentenceCompareResponse)
 async def compare(
     sentence_compare_request: SentenceCompareRequest,
     current_learner: Learner = Depends(auth_service.decode_token_to_get_learner),
     session: Session = Depends(get_session)):
     r = await http_client.client.post(
-        "/text/comparisons",
+        "/text/semantic-comparison",
         json=sentence_compare_request.model_dump(mode="json"),
     )
     sentence_compare_response = SentenceCompareResponse.model_validate(r.json())

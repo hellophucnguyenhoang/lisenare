@@ -52,6 +52,7 @@ class Learner(SQLModel, table=True):
     bricks: list["Brick"] | None = Relationship(back_populates="creator")
     reviews: list["Review"] | None = Relationship(back_populates="learner")
     account: Account | None = Relationship(back_populates="learner") # Allow null in runtime
+    brick_overrides: list["BrickOverride"] = Relationship(back_populates="learner")
 
 class CollectionBrick(SQLModel, table=True):
     collection_id: int | None = Field(default=None, foreign_key="collection.id", primary_key=True)
@@ -70,7 +71,7 @@ class Collection(SQLModel, table=True):
 class Brick(SQLModel, table=True):
     id: int | None = Field(default=None, primary_key=True)
     native_text: str
-    target_text: str
+    target_text: str = Field(unique=True)
     target_audio_uri: str
     cefr_level: CEFRLevel
     is_public: bool = True
@@ -81,6 +82,16 @@ class Brick(SQLModel, table=True):
     brick_metadata: BrickMetadata = Relationship()
     collections: list[Collection] = Relationship(back_populates="bricks", link_model=CollectionBrick)
     reviews: list["Review"] | None = Relationship(back_populates="brick")
+    overrides: list["BrickOverride"] = Relationship(back_populates="brick")
+
+class BrickOverride(SQLModel, table=True):
+    learner_id: int = Field(foreign_key="learner.id", primary_key=True)
+    brick_id: int = Field(foreign_key="brick.id", primary_key=True)
+    native_text: str | None = None
+    target_audio_uri: str | None = None
+    last_edit_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    learner: Learner = Relationship(back_populates="brick_overrides")
+    brick: Brick = Relationship(back_populates="overrides")
 
 class Review(SQLModel, table=True):
     id: int | None = Field(default=None, primary_key=True)
