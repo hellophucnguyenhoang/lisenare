@@ -31,7 +31,6 @@ class TextService:
         score = util.cos_sim(embeddings[0], embeddings[1])
         return float(score.item())
 
-
     def translate(self, text: str, target_lang: Language) -> str:
         """
         Translates a single sentence.

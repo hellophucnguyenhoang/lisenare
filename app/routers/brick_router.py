@@ -13,7 +13,18 @@ import shutil
 
 router = APIRouter(prefix="/bricks", tags=["Bricks"])
 
-@router.patch("/{brick_id}", response_model=BrickRead)
+@router.patch(
+    "/{brick_id}",
+    response_model=BrickRead,
+    summary="Update a brick or create/update a personal override",
+    description="""
+If the learner is the creator, the original brick is updated and returned.
+
+If not, a personal override is created or updated instead.
+The original brick remains unchanged, 
+and a brick with the edited native_text if requested is return instead.
+""",
+)
 def update_brick(
     brick_id: int,
     brick_update: BrickUpdate,
@@ -24,7 +35,7 @@ def update_brick(
         session=session,
         brick_id=brick_id,
         brick_update=brick_update,
-        user_id=current_learner.id,
+        learner_id=current_learner.id,
     )
 
 @router.post("/", response_model=BrickRead)
@@ -86,13 +97,13 @@ def get_brick_fsrs(
     )
 
 @router.get("/learn/{collection_id}", response_model=BrickLearnRead)
-def get_brick_learn(
+def get_brick_in_collection_learn(
     collection_id: int,
     brick_order: int = Query(default=1, ge=1),
     current_learner: Learner = Depends(auth_service.decode_token_to_get_learner),
     session: Session = Depends(get_session),
 ):
-    return brick_service.get_brick_learn(
+    return brick_service.get_brick_in_collection_learn(
         session=session,
         learner_id=current_learner.id,
         collection_id=collection_id,

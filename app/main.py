@@ -4,15 +4,15 @@ from fastapi.middleware.cors import CORSMiddleware
 from .database import init_db, delete_db
 from .http_client import init_client, close_client
 from .routers import (
-    accounts,
-    audios,
-    auth,
-    bricks, 
-    collections, 
-    context_search,
-    learners,
-    learning_card,
-    texts
+    account_router,
+    audio_router,
+    auth_router,
+    brick_router,
+    collection_router,
+    context_search_router,
+    learner_router,
+    learning_card_router,
+    text_router
 )
 
 @asynccontextmanager
@@ -40,12 +40,12 @@ app.add_middleware(
     allow_headers=["*"],            # allow all headers
 )
 
-app.include_router(accounts.router)
-app.include_router(audios.router)
-app.include_router(auth.router)
-app.include_router(bricks.router)
-app.include_router(collections.router)
-app.include_router(context_search.router)
-app.include_router(learners.router)
-app.include_router(learning_card.router)
-app.include_router(texts.router)
+app.include_router(account_router.router)
+app.include_router(audio_router.router)
+app.include_router(auth_router.router)
+app.include_router(brick_router.router)
+app.include_router(collection_router.router)
+app.include_router(context_search_router.router)
+app.include_router(learner_router.router)
+app.include_router(learning_card_router.router)
+app.include_router(text_router.router)

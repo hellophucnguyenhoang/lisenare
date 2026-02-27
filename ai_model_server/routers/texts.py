@@ -18,7 +18,7 @@ from schemas.chat import ChatRequest
 
 router = APIRouter(prefix="/text", tags=["Text Features"])
 
-@router.post("/comparisons", response_model=SentenceCompareResponse)
+@router.post("/semantic-comparison", response_model=SentenceCompareResponse)
 def compare(sentence_compare_req: SentenceCompareRequest):
     score = text_service.get_similarity(sentence_compare_req.sentence1, sentence_compare_req.sentence2)
     sentence_compare_res = SentenceCompareResponse(score=score)
