@@ -1,15 +1,11 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from .routers import (
-    audios,
-    texts
-)
+
+from .routers import audios, texts
 
 app = FastAPI(title="Lisenare API")
 
-origins = [
-    "http://127.0.0.1:8000" # API Gateway default port
-]
+origins = ["http://127.0.0.1:8000"]  # API Gateway default port
 
 app.add_middleware(
     CORSMiddleware,

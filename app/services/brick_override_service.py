@@ -1,15 +1,16 @@
 from sqlmodel import Session, select
 from sqlalchemy.orm import selectinload
-from app.database import Brick, Collection, BrickOverride
 from datetime import datetime, timezone
-from app.schemas import BrickUpdate
 from fastapi import HTTPException, status
+
+from app.database import Brick, Collection, BrickOverride
+
 
 def save_override_for_brick(
     session: Session,
     learner_id: int,
     brick_id: int,
-    native_text: str | None = None
+    native_text: str | None = None,
 ) -> BrickOverride:
     brick = session.get(Brick, brick_id)
     if not brick:
@@ -36,11 +37,12 @@ def save_override_for_brick(
     session.refresh(override)
     return override
 
+
 def create_overrides_for_group(
     session: Session,
     learner_id: int,
     group_name: str,
-    group_creator_id: int = 1, # 1 is the hard coded default system creator
+    group_creator_id: int = 1,  # 1 is the hard coded default system creator
 ) -> int:
     statement = (
         select(Collection)
@@ -64,12 +66,9 @@ def create_overrides_for_group(
         return 0
 
     # Find existing overrides for learner_id
-    existing_statement = (
-        select(BrickOverride.brick_id)
-        .where(
-            BrickOverride.learner_id == learner_id,
-            BrickOverride.brick_id.in_(bricks.keys())
-        )
+    existing_statement = select(BrickOverride.brick_id).where(
+        BrickOverride.learner_id == learner_id,
+        BrickOverride.brick_id.in_(bricks.keys()),
     )
     existing_overridden_brick_ids = set(session.exec(existing_statement).all())
 
@@ -81,7 +80,7 @@ def create_overrides_for_group(
                 learner_id=learner_id,
                 brick_id=brick_id,
                 native_text=bricks[brick_id].native_text,
-                target_audio_uri=bricks[brick_id].target_audio_uri
+                target_audio_uri=bricks[brick_id].target_audio_uri,
             )
             session.add(override)
             created_count += 1
