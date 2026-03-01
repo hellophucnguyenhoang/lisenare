@@ -1,6 +1,7 @@
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+
 from .database import init_db, delete_db
 from .http_client import init_client, close_client
 from .routers import (
@@ -12,8 +13,9 @@ from .routers import (
     context_search_router,
     learner_router,
     learning_card_router,
-    text_router
+    text_router,
 )
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -25,19 +27,18 @@ async def lifespan(app: FastAPI):
     # delete_db()
     await close_client()
 
+
 app = FastAPI(title="Lisenare API", lifespan=lifespan)
 
 # Allow requests from the frontend
-origins = [
-    "http://localhost:5173" # Vite default port 5173
-]
+origins = ["http://localhost:5173"]  # Vite default port 5173
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
     allow_credentials=True,
-    allow_methods=["*"],            # allow all HTTP methods (GET, POST, etc.)
-    allow_headers=["*"],            # allow all headers
+    allow_methods=["*"],  # allow all HTTP methods (GET, POST, etc.)
+    allow_headers=["*"],  # allow all headers
 )
 
 app.include_router(account_router.router)

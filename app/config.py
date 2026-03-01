@@ -1,5 +1,6 @@
 from pydantic_settings import BaseSettings
 
+
 class Settings(BaseSettings):
     """
     When you instantiate Settings(), Pydantic will:
@@ -7,6 +8,7 @@ class Settings(BaseSettings):
     - If not set, read them from the .env file
     - If not in .env, fallback to default values
     """
+
     db_url: str = "lisenare.db"
     secret_key: str
     jwt_algorithm: str
@@ -17,8 +19,10 @@ class Settings(BaseSettings):
     ai_model_server_url: str
     broken_report_file: str = "broken_audio.txt"
     brick_folder: str = "bricks"
+
     class Config:
         env_file = ".env"  # load values from .env file
         env_file_encoding = "utf-8"
+
 
 settings = Settings()

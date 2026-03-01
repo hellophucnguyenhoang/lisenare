@@ -1,12 +1,15 @@
-from sqlmodel import SQLModel, Field
+from sqlmodel import SQLModel
 from datetime import datetime
-from schemas.cefr import CEFRLevel
 from enum import Enum
+
+from schemas.cefr import CEFRLevel
+
 
 class UnitType(str, Enum):
     word = "word"
     phrase = "phrase"
     sentence = "sentence"
+
 
 # ---------- Enums ----------
 class SentenceStructure(str, Enum):
@@ -21,6 +24,7 @@ class SentenceFunction(str, Enum):
     interrogative = "interrogative"
     imperative = "imperative"
     exclamatory = "exclamatory"
+
 
 class GrammarPoint(str, Enum):
     # ---- sentence-level ----
@@ -42,7 +46,7 @@ class GrammarPoint(str, Enum):
     question_form = "question_form"
     reason_result = "reason_result"
     time_sequence = "time_sequence"
-    
+
     # ---- word-level ----
     noun = "noun"
     verb = "verb"
@@ -60,6 +64,7 @@ class GrammarPoint(str, Enum):
     adverb_phrase = "adverb_phrase"
     prepositional_phrase = "prepositional_phrase"
 
+
 class BrickUpdate(SQLModel):
     native_text: str | None = None
     target_text: str | None = None
@@ -67,12 +72,14 @@ class BrickUpdate(SQLModel):
     is_public: bool | None = None
     collection_ids: list[int] | None = None
 
+
 class BrickContextSearch(SQLModel):
     native_text: str
     target_text: str
     target_audio_uri: str
     cefr_level: CEFRLevel
     is_public: bool = True
+
 
 class BrickBase(SQLModel):
     native_text: str
@@ -82,12 +89,15 @@ class BrickBase(SQLModel):
     is_public: bool = True
     creator_id: int
 
+
 class BrickRead(BrickBase):
     id: int
     last_edit_at: datetime
 
+
 class BrickCreate(BrickBase):
     pass
+
 
 class BrickLearnRead(SQLModel):
     brick: BrickRead

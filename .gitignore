@@ -12,7 +12,8 @@ wheels/
 # Virtual environments
 .venv
 
-# embedding database
+# databases
 chroma*/
+*.db
 
 llama-3.2-3B-Instruct-f8.gguf
