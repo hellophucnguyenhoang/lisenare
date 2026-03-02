@@ -1,9 +1,9 @@
-from pydantic_settings import BaseSettings
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
     """
-    When you instantiate Settings(), Pydantic will:
+    When create a Settings() object, Pydantic will:
     - Look for environment variables first
     - If not set, read them from the .env file
     - If not in .env, fallback to default values
@@ -20,9 +20,8 @@ class Settings(BaseSettings):
     broken_report_file: str = "broken_audio.txt"
     brick_folder: str = "bricks"
 
-    class Config:
-        env_file = ".env"  # load values from .env file
-        env_file_encoding = "utf-8"
+    # load value from the .env file
+    model_config = SettingsConfigDict(env_file=".env")
 
 
 settings = Settings()

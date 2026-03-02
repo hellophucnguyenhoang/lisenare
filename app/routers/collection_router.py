@@ -31,7 +31,7 @@ def get_learner_collections(
 ):
     # Calculate offset: (page 1 - 1) * 20 = 0; (page 2 - 1) * 20 = 20
     offset = (page - 1) * limit
-    return collection_service.get_user_learning_collections(
+    return collection_service.get_user_pending_collections(
         session, current_learner.id, group_name, limit, offset
     )
 

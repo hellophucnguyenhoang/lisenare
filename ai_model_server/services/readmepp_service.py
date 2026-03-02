@@ -20,7 +20,7 @@ class ReadMePPService:
 
     def predict(self, english_sentence: str, return_index: bool = True):
         # pred will be a list of dicts like:
-        # [{'label': 'LABEL_0', 'score': 0.9}, ...]
+        # [{"label": "LABEL_0", "score": 0.9}, ...]
         # only get the result of the first (only one) sample
         # and the first (only) label prediction
         pred = self.pipe(english_sentence)[0][0]
