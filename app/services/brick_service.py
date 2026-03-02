@@ -68,7 +68,7 @@ def get_broken_filenames() -> set[str]:
     REPORT_FILE = Path(settings.broken_report_file)
     if not REPORT_FILE.exists():
         return set()
-    # Read and split by '|', taking the first part (filename)
+    # Read and split by "|", taking the first part (filename)
     with REPORT_FILE.open("r") as f:
         return {line.split("|")[0] for line in f if "|" in line}
 
@@ -126,13 +126,13 @@ def get_brick_fsrs(
         return brick
 
     # 2. New unseen bricks
-    learning_bricks_subq = collection_service.get_learning_bricks_subquery(
+    pending_bricks_subq = collection_service.get_pending_bricks_subquery(
         learner_id
     )
 
     new_stmt = (
         select(Brick, BrickOverride.native_text)
-        .join(learning_bricks_subq, learning_bricks_subq.c.id == Brick.id)
+        .join(pending_bricks_subq, pending_bricks_subq.c.id == Brick.id)
         .join(CollectionBrick)
         .join(BrickMetadata)
         .outerjoin(BrickOverride, override_join)
@@ -160,7 +160,7 @@ def get_brick_in_collection_learn(
     brick_order: int = 1,
 ) -> dict | None:
 
-    learning_bricks_subq = collection_service.get_learning_bricks_subquery(
+    pending_bricks_subq = collection_service.get_pending_bricks_subquery(
         learner_id
     )
 
@@ -170,7 +170,7 @@ def get_brick_in_collection_learn(
 
     stmt = (
         select(Brick, BrickOverride.native_text)
-        .join(learning_bricks_subq, learning_bricks_subq.c.id == Brick.id)
+        .join(pending_bricks_subq, pending_bricks_subq.c.id == Brick.id)
         .join(CollectionBrick, CollectionBrick.brick_id == Brick.id)
         .outerjoin(BrickOverride, override_join)
         .where(CollectionBrick.collection_id == collection_id)
@@ -191,8 +191,8 @@ def get_brick_in_collection_learn(
         select(func.count())
         .select_from(CollectionBrick)
         .join(
-            learning_bricks_subq,
-            learning_bricks_subq.c.id == CollectionBrick.brick_id,
+            pending_bricks_subq,
+            pending_bricks_subq.c.id == CollectionBrick.brick_id,
         )
         .where(CollectionBrick.collection_id == collection_id)
     )

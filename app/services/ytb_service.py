@@ -1,19 +1,53 @@
-import re
-from youtube_transcript_api import YouTubeTranscriptApi
 import yt_dlp
+import json
 from typing import Any
+from pathlib import Path
+from youtube_transcript_api import YouTubeTranscriptApi
+
 
 ytt_api = YouTubeTranscriptApi()
+video_ids_file = Path("video_ids.json")
+transcripts_folder = Path("transcripts")
+transcripts_folder.mkdir(exist_ok=True)
 
 
-def get_video_ids(channel_url="https://www.youtube.com/@mrmememe777/videos"):
+def download_audio(video_ids_path, output_dir):
+    with open(video_ids_path, "r", encoding="utf-8") as f:
+        video_ids = json.load(f)
+
+    ydl_opts = {
+        "download_archive": "downloaded.txt",
+        "outtmpl": f"{output_dir}/%(id)s.%(ext)s",
+        "format": "bestaudio/best",
+        "cookiesfrombrowser": ("chrome",),
+    }
+
+    urls = [f"https://www.youtube.com/watch?v={vid}" for vid in video_ids]
+
+    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+        ydl.download(urls)
+
+
+def load_video_ids() -> list[str]:
+    with open(video_ids_file, "r", encoding="utf-8") as f:
+        video_ids = json.load(f)
+    return video_ids
+
+
+def save_transcript(raw_transcript, video_id):
+    file_path = transcripts_folder / f"transcript_{video_id}.json"
+    with open(file_path, "w", encoding="utf-8") as f:
+        json.dump(raw_transcript, f, indent=4)
+
+
+def get_video_ids(channel_url="https://www.youtube.com/@dudeperfect/videos"):
     ydl_opts = {
         "extract_flat": True,  # don't download video, just metadata
         "skip_download": True,
     }
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
         info = ydl.extract_info(channel_url, download=False)
-        # info['entries'] is a list of videos
+        # info["entries"] is a list of videos
         video_ids = [entry["id"] for entry in info["entries"] if "id" in entry]
     return video_ids
 
@@ -28,17 +62,17 @@ def get_raw_transcripts(video_id):
     return raw_transcript
 
 
-# ============================================================
-# 1) Convert chunks → flat word list + per-word start time + per-word duration
-# ============================================================
-def flatten_transcript(chunks: list[dict[str, Any]]):
+def flatten_transcript(
+    chunks: list[dict[str, Any]],
+) -> tuple[list[str], list[float], list[float]]:
     """
     Input:
         chunks = [{text, start, duration}, ...]
     Output:
+        flat word list + per-word start time + per-word duration:
         words = ["hello", "world", ...]
-        word_times = [1.23, 1.40, ...]        # per-word start times
-        word_durations = [0.12, 0.12, ...]   # per-word durations (evenly split from chunk)
+        word_times = [1.23, 1.40, ...]
+        word_durations = [0.12, 0.12, ...]
     """
     words: list[str] = []
     word_times: list[float] = []
@@ -67,25 +101,21 @@ def flatten_transcript(chunks: list[dict[str, Any]]):
     return words, word_times, word_durations
 
 
-# ============================================================
-# 2) Try to find a sentence boundary in a window of text
-# ============================================================
-def find_sentence_end(words_slice: list[str]):
+def find_sentence_end(word_slices: list[str]) -> int | None:
     """
-    Input:  words_slice - list of words (short window)
-    Output: number of words up to and including the first word that ends with . ! or ?
-            returns None if none of the words end with punctuation
-    Purpose: extremely simple rule — avoids regex complexity.
+    Input:
+        word_slices - list of words (short window)
+    Output:
+        number of words up to and including
+            the first word that ends with . ! or ? (sentence-ends)
+        returns None if none of the words end with punctuation
     """
-    for i, w in enumerate(words_slice):
+    for i, w in enumerate(word_slices):
         if w.endswith((".", "!", "?")):
             return i + 1
     return None
 
 
-# -----------------------------
-# 3) Make segments (sentence-first, fallback to max_words)
-# -----------------------------
 def make_segments(
     words: list[str],
     word_times: list[float],
@@ -99,7 +129,8 @@ def make_segments(
       - max_words: fallback chunk size when no sentence-end found
       - overlap: how many words to overlap between segments
     Output:
-      - list of {'text': str, 'start': float, 'duration': float}
+      - list of segments, each segment is:
+            {"text": str, "start": float, "duration": float}
     Behavior:
       - Try to end segments at a sentence end within max_words.
       - If no sentence end found or the sentence end is farther than max_words,
@@ -164,15 +195,16 @@ def make_segments(
     return segments
 
 
-# -----------------------------
-# 4) Public wrapper
-# -----------------------------
 def create_hybrid_searchable_segments(
-    chunks: list[dict[str, Any]], max_words: int = 25, overlap: int = 8
+    chunks: list[dict[str, Any]], max_words: int = 25, overlap: int = 10
 ) -> list[dict[str, Any]]:
     """
-    Input: raw chunks from YouTubeTranscriptApi, chunks = [{text, start, duration}, ...]
-    Output: final searchable segments: [{'text': ..., 'start': ..., 'duration': ...}, ...]
+    Input:
+        raw chunks from YouTubeTranscriptApi:
+            chunks = [{text, start, duration}, ...]
+    Output:
+        final searchable segments.
+            [{"text": ..., "start": ..., "duration": ...}, ...]
     """
     words, word_times, word_durations = flatten_transcript(chunks)
     return make_segments(
@@ -180,9 +212,8 @@ def create_hybrid_searchable_segments(
     )
 
 
-# ------------------ Example quick test ------------------
+# ------------------ Usage example ------------------
 if __name__ == "__main__":
-    # tiny simulated chunks for quick local test
     sample_chunks = [
         {
             "text": "Hello world. This is a test transcript chunk",
@@ -190,13 +221,16 @@ if __name__ == "__main__":
             "duration": 5.0,
         },
         {
-            "text": "It continues here and might have more sentences. Another sentence here!",
+            "text": "it continues here and might \
+                have more sentences the sentence can go so long \
+                without a period despite the fact that \
+                they are not a sentence. Another sentence here!",
             "start": 5.0,
             "duration": 6.0,
         },
         {"text": "Short end", "start": 11.0, "duration": 1.5},
     ]
 
-    segs = create_hybrid_searchable_segments(sample_chunks)
-    for s in segs:
-        print(f"[{s['start']:>6.2f}s → +{s['duration']:.2f}s] {s['text']}")
+    segments = create_hybrid_searchable_segments(sample_chunks)
+    for s in segments:
+        print(f"[{s['start']:>6.2f}s -> +{s['duration']:.2f}s] {s['text']}")

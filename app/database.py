@@ -47,7 +47,7 @@ class BrickMetadata(SQLModel, table=True):
 class Account(SQLModel, table=True):
     id: int | None = Field(default=None, primary_key=True)
     username: str = Field(index=True, unique=True)
-    hashed_password: str
+    hashed_password: str = Field(unique=True)
     email: EmailStr | None = Field(default=None, index=True, unique=True)
     last_login_at: datetime = Field(
         default_factory=lambda: datetime.now(timezone.utc)

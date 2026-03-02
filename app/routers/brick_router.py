@@ -8,7 +8,13 @@ import shutil
 
 from app.database import get_session
 from app.services import auth_service, brick_service
-from app.schemas import BrickUpdate, BrickRead, BrickCreate, BrickLearnRead
+from app.schemas import (
+    BrickUpdate,
+    BrickRead,
+    BrickCreate,
+    BrickLearnRead,
+    StatusResponse,
+)
 from app.database import Learner
 from app.config import settings
 
@@ -132,7 +138,7 @@ def get_brick_in_collection_learn(
     )
 
 
-@router.post("/report/{filename}")
+@router.post("/report/{filename}", response_model=StatusResponse)
 def append_broken_audio_file(filename: str):
     REPORT_FILE = Path(settings.broken_report_file)
     if REPORT_FILE.exists():

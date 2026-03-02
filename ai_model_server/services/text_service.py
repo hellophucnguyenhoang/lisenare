@@ -44,7 +44,7 @@ class TextService:
     def translate(self, text: str, target_lang: Language) -> str:
         """
         Translates a single sentence.
-        target_lang: 'vi' for En->Vi, 'en' for Vi->En
+        target_lang: "vi" for En->Vi, "en" for Vi->En
         """
         # Prefix is required by EnViT5: "en: " or "vi: "
         prefix = "en: " if target_lang is Language.vi else "vi: "

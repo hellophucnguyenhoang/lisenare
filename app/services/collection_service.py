@@ -4,14 +4,42 @@ from app.database import Collection, CollectionBrick, BrickOverride, Brick
 from app.schemas import CollectionCreate, CollectionRead
 
 
-def get_learning_bricks_subquery(learner_id: int):
+def temp_get_data(session: Session, learner_id=2, group_name="A1"):
+    pending_bricks = get_pending_bricks_subquery(learner_id)
+
+    pending_collection_bricks = (
+        select(CollectionBrick)
+        .join(
+            pending_bricks,
+            CollectionBrick.brick_id == pending_bricks.columns.id,
+        )
+        .subquery()
+    )
+
+    pending_collections = (
+        select(
+            Collection.id,
+            func.count(pending_collection_bricks.columns.brick_id).label(
+                "brick_count"
+            ),
+        )
+        .join(
+            pending_collection_bricks,
+            Collection.id == pending_collection_bricks.columns.collection_id,
+        )
+        .where(Collection.group_name == group_name)
+        .group_by(Collection.id)
+    )
+
+    result = session.exec(pending_collections).all()
+    return result
+
+
+def get_pending_bricks_subquery(learner_id: int):
     return (
         select(Brick.id)
-        .outerjoin(
-            BrickOverride,
-            (BrickOverride.brick_id == Brick.id)
-            & (BrickOverride.learner_id == learner_id),
-        )
+        .distinct()
+        .join(BrickOverride, isouter=True)
         .where(
             or_(
                 Brick.creator_id == learner_id,
@@ -22,29 +50,23 @@ def get_learning_bricks_subquery(learner_id: int):
     )
 
 
-def get_user_learning_collections(
+def get_user_pending_collections(
     session: Session,
     learner_id: int,
     group_name: str,
     limit: int,
     offset: int,
 ) -> list[CollectionRead]:
-    # Subquery: bricks learner is learning
-    learning_bricks_subq = get_learning_bricks_subquery(learner_id)
-
-    # Main query
+    pending_bricks_subq = get_pending_bricks_subquery(learner_id)
     statement = (
         select(
             Collection,
             func.count(CollectionBrick.brick_id).label("brick_count"),
         )
+        .join(CollectionBrick)
         .join(
-            CollectionBrick,
-            Collection.id == CollectionBrick.collection_id,
-        )
-        .join(
-            learning_bricks_subq,
-            CollectionBrick.brick_id == learning_bricks_subq.c.id,
+            pending_bricks_subq,
+            CollectionBrick.brick_id == pending_bricks_subq.c.id,
         )
         .where(Collection.group_name == group_name)
         .group_by(Collection.id)
@@ -73,9 +95,7 @@ def get_user_collections(
             Collection,
             func.count(CollectionBrick.brick_id).label("brick_count"),
         )
-        .outerjoin(
-            CollectionBrick, Collection.id == CollectionBrick.collection_id
-        )
+        .outerjoin(CollectionBrick)
         .where(
             Collection.creator_id == learner_id,
             Collection.group_name == group_name,
@@ -124,7 +144,7 @@ def get_learning_collection_group_stats(
     session: Session,
     learner_id: int,
 ) -> list[dict]:
-    learning_bricks_subq = get_learning_bricks_subquery(learner_id)
+    pending_bricks_subq = get_pending_bricks_subquery(learner_id)
     statement = (
         select(
             Collection.group_name,
@@ -132,8 +152,8 @@ def get_learning_collection_group_stats(
         )
         .join(CollectionBrick, Collection.id == CollectionBrick.collection_id)
         .join(
-            learning_bricks_subq,
-            CollectionBrick.brick_id == learning_bricks_subq.c.id,
+            pending_bricks_subq,
+            CollectionBrick.brick_id == pending_bricks_subq.c.id,
         )
         .group_by(Collection.group_name)
     )

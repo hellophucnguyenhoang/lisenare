@@ -2,11 +2,17 @@ from fastapi import BackgroundTasks, HTTPException, status
 from sqlmodel import select, Session
 from email.message import EmailMessage
 import smtplib
+from datetime import datetime, timezone
 
-from app.database import Account, Learner
-from app.schemas import LearnerAccountCreate
 from app import security
 from app.config import settings
+from app.database import Account, Learner
+from app.schemas import (
+    LearnerAccountCreate,
+    PasswordResetRequest,
+    StatusResponse,
+)
+from app.services import auth_service
 
 
 def get_account_by_username(session: Session, username: str) -> Account:
@@ -74,3 +80,50 @@ def send_email_background(
     background_tasks: BackgroundTasks, to_email: str, subject: str, body: str
 ):
     background_tasks.add_task(send_email, to_email, subject, body)
+
+
+def reset_account_password(
+    session: Session, request: PasswordResetRequest
+) -> StatusResponse:
+    account = get_account_by_username(session, request.username)
+    if not account:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Account not found"
+        )
+
+    if not account.email:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Account does not have an email",
+        )
+
+    otp_entry = auth_service.get_most_recent_unused_otp(session, account.email)
+
+    if not otp_entry:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="No valid OTP found",
+        )
+
+    if otp_entry.expires_at.replace(tzinfo=timezone.utc) < datetime.now(
+        timezone.utc
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="OTP expired"
+        )
+
+    if not security.verify_otp(request.otp, otp_entry.hashed_code):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid OTP"
+        )
+
+    otp_entry.used = True
+    account.hashed_password = security.get_password_hash(request.new_password)
+
+    session.add(otp_entry)
+    session.add(account)
+    session.commit()
+    return {
+        "status": "success",
+        "message": "Password has been reset successfully.",
+    }
