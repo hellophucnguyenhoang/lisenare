@@ -20,7 +20,7 @@ router = APIRouter(prefix="/collections", tags=["Collections"])
 
 
 @router.get("", response_model=list[CollectionRead])
-def get_learner_collections(
+def get_learner_pending_collections(
     group_name: str = CEFRLevel.A1,
     limit: int = 20,
     page: int = 1,
@@ -31,7 +31,7 @@ def get_learner_collections(
 ):
     # Calculate offset: (page 1 - 1) * 20 = 0; (page 2 - 1) * 20 = 20
     offset = (page - 1) * limit
-    return collection_service.get_user_pending_collections(
+    return collection_service.get_learner_pending_collections(
         session, current_learner.id, group_name, limit, offset
     )
 

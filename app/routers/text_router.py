@@ -30,14 +30,14 @@ async def compare(
         r.json()
     )
     if sentence_compare_request.review_base:
-        review = ReviewCreate(
+        review_create = ReviewCreate(
             **sentence_compare_request.review_base.model_dump(),
             first_score=sentence_compare_response.score,
         )
         review_service.save_review(
             session=session,
             learner_id=current_learner.id,
-            review_create=review,
+            review_create=review_create,
         )
         learning_card_service.update_learning_card(
             session=session,

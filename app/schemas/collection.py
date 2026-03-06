@@ -12,6 +12,7 @@ class CollectionRead(CollectionBase):
     creator_id: int
     created_at: datetime
     brick_count: int | None = None
+    learned_count: int | None = None
 
 
 class CollectionCreate(CollectionBase):

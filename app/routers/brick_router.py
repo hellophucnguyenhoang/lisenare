@@ -63,7 +63,7 @@ def create_brick(
 ):
     UPLOAD_DIR = Path(settings.brick_folder)
     creator_id = current_learner.id
-    target_audio_uri = f"user_{creator_id}_{audio_file.filename}"
+    target_audio_uri = f"learner_{creator_id}_{audio_file.filename}"
     file_path = UPLOAD_DIR / target_audio_uri
     with file_path.open("wb") as buffer:
         shutil.copyfileobj(audio_file.file, buffer)
@@ -72,7 +72,7 @@ def create_brick(
         target_text=target_text,
         creator_id=creator_id,
         is_public=is_public,
-        target_audio_uri=target_audio_uri,  # e.g. "user_1_audio.wav"
+        target_audio_uri=target_audio_uri,  # e.g. "learner_1_audio.wav"
     )
     return brick_service.create_brick(session, brick_create)
 
