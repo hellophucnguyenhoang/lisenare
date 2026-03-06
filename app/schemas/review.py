@@ -1,11 +1,13 @@
-from datetime import datetime
-from sqlmodel import SQLModel
+from datetime import datetime, timezone
+from sqlmodel import SQLModel, Field
 from pydantic import field_validator
 
 
 class ReviewBase(SQLModel):
     brick_id: int
-    reviewed_at: datetime
+    reviewed_at: datetime = Field(
+        default_factory=lambda: datetime.now(timezone.utc)
+    )
     is_answer_revealed: bool = False
 
 

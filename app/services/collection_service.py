@@ -1,6 +1,12 @@
 from sqlmodel import Session, select, func, or_
 
-from app.database import Collection, CollectionBrick, BrickOverride, Brick
+from app.database import (
+    Collection,
+    CollectionBrick,
+    BrickOverride,
+    Brick,
+    Review,
+)
 from app.schemas import CollectionCreate, CollectionRead
 
 
@@ -50,23 +56,31 @@ def get_pending_bricks_subquery(learner_id: int):
     )
 
 
-def get_user_pending_collections(
+def get_learner_pending_collections(
     session: Session,
     learner_id: int,
     group_name: str,
     limit: int,
     offset: int,
 ) -> list[CollectionRead]:
+
     pending_bricks_subq = get_pending_bricks_subquery(learner_id)
+
     statement = (
         select(
             Collection,
             func.count(CollectionBrick.brick_id).label("brick_count"),
+            func.count(func.distinct(Review.brick_id)).label("learned_count"),
         )
         .join(CollectionBrick)
         .join(
             pending_bricks_subq,
             CollectionBrick.brick_id == pending_bricks_subq.c.id,
+        )
+        .outerjoin(
+            Review,
+            (Review.brick_id == CollectionBrick.brick_id)
+            & (Review.learner_id == learner_id),
         )
         .where(Collection.group_name == group_name)
         .group_by(Collection.id)
@@ -78,16 +92,21 @@ def get_user_pending_collections(
         .limit(limit)
         .offset(offset)
     )
+
     results = session.exec(statement).all()
+
     collections_with_count = []
-    for collection, brick_count in results:
+
+    for collection, brick_count, learned_count in results:
         data = collection.model_dump()
         data["brick_count"] = brick_count
+        data["learned_count"] = learned_count
         collections_with_count.append(data)
+
     return collections_with_count
 
 
-def get_user_collections(
+def get_learner_collections(
     session: Session, learner_id: int, group_name: str, limit: int, offset: int
 ) -> list[CollectionRead]:
     statement = (
@@ -114,7 +133,7 @@ def get_user_collections(
     return collections_with_count
 
 
-def count_user_collections(
+def count_learner_collections(
     session: Session,
     learner_id: int,
     group_name: str,

@@ -10,7 +10,7 @@ class ContextSearchService:
         subtitle_vector_store = Chroma(
             collection_name="subtitles",
             embedding_function=embeddings,
-            persist_directory="./chroma_subtitles",
+            persist_directory="./chroma_ytb_subtitles_db",
         )
         brick_vector_store = Chroma(
             collection_name="bricks",
@@ -18,10 +18,10 @@ class ContextSearchService:
             persist_directory="./chroma_bricks",
         )
         self.subtitle_retriever = subtitle_vector_store.as_retriever(
-            search_type="mmr", search_kwargs={"k": 6, "lambda_mult": 0.25}
+            search_type="mmr", search_kwargs={"k": 10, "lambda_mult": 0.25}
         )
         self.brick_retriever = brick_vector_store.as_retriever(
-            search_type="mmr", search_kwargs={"k": 6, "lambda_mult": 0.25}
+            search_type="mmr", search_kwargs={"k": 10, "lambda_mult": 0.25}
         )
 
     def search_context_videos(
