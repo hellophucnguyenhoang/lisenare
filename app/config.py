@@ -18,7 +18,14 @@ class Settings(BaseSettings):
     google_app_password: str
     ai_model_server_url: str
     broken_report_file: str = "broken_audio.txt"
-    brick_folder: str = "bricks"
+    brick_folder: str = "brick-audios"
+
+    # Recommendation
+    post_features_path: str = "models/post_features.pkl"
+    linucb_model_path: str = "models/linucb_weights.npz"
+    item_feature_dim: int = 387
+    item_content_emb_dim: int = 384
+    extra_feature_dim: int = 3
 
     # load value from the .env file
     model_config = SettingsConfigDict(env_file=".env")

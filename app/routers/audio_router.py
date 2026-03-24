@@ -1,5 +1,6 @@
 from fastapi import APIRouter, UploadFile, Depends
 from sqlmodel import Session
+from typing import Annotated
 from phonemizer import phonemize
 from phonemizer.separator import Separator
 
@@ -47,10 +48,12 @@ async def get_phonemes(file: UploadFile):
 
 @router.post("/ipa-evaluation", response_model=PronunciationAnalysisResponse)
 async def evaluate_audio(
+    session: Annotated[Session, Depends(get_session)],
+    learner: Annotated[
+        Learner, Depends(auth_service.decode_token_to_get_learner)
+    ],
     target_brick_id: int,
     learner_file: UploadFile,
-    learner: Learner = Depends(auth_service.decode_token_to_get_learner),
-    session: Session = Depends(get_session),
 ):
     """
     About this approach:\n

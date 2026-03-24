@@ -12,8 +12,15 @@ wheels/
 # Virtual environments
 .venv
 
-# databases
-chroma*/
-*.db
+# VSCode
+.vscode/
 
-llama-3.2-3B-Instruct-f8.gguf
+# Databases
+chroma_bricks/
+chroma_ytb_subtitles_db/
+lisenare.db
+
+# Audio files
+static/
+common-voice/
+brick-audios/

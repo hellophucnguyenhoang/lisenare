@@ -17,6 +17,7 @@ from schemas.cefr import (
 )
 from schemas.chat import ChatRequest
 
+
 router = APIRouter(prefix="/text", tags=["Text Features"])
 
 
