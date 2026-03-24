@@ -1,7 +1,9 @@
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 
+from app.config import settings
 from .database import init_db, delete_db
 from .http_client import init_client, close_client
 from .routers import (
@@ -13,6 +15,8 @@ from .routers import (
     context_search_router,
     learner_router,
     learning_card_router,
+    post_interaction_router,
+    post_router,
     text_router,
 )
 
@@ -24,7 +28,7 @@ async def lifespan(app: FastAPI):
     await init_client()
     yield
     # Shutdown code
-    # delete_db()
+    delete_db()
     await close_client()
 
 
@@ -49,4 +53,16 @@ app.include_router(collection_router.router)
 app.include_router(context_search_router.router)
 app.include_router(learner_router.router)
 app.include_router(learning_card_router.router)
+app.include_router(post_interaction_router.router)
+app.include_router(post_router.router)
 app.include_router(text_router.router)
+
+app.mount(
+    "/common-voice", StaticFiles(directory="common-voice"), name="common-voice"
+)
+
+app.mount(
+    f"/{settings.brick_folder}",
+    StaticFiles(directory=settings.brick_folder),
+    name=settings.brick_folder,
+)

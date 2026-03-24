@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Depends, BackgroundTasks, Body
 from sqlmodel import Session
+from typing import Annotated
 
 from app import security
 from app.schemas import (
@@ -13,13 +14,14 @@ from app.services import account_service, auth_service, otp_service
 from app.schemas import LearnerAccountCreate, PasswordRecoveryResponse
 from app.config import settings
 
+
 router = APIRouter(prefix="/accounts", tags=["Accounts"])
 
 
 @router.post("", response_model=Token)
 def create_account(
+    session: Annotated[Session, Depends(get_session)],
     learner_account_create: LearnerAccountCreate,
-    session: Session = Depends(get_session),
 ) -> Token:
     account = account_service.create_learner_account(
         session, learner_account_create
@@ -31,9 +33,11 @@ def create_account(
 
 @router.patch("/me/password", response_model=Token)
 def change_account_password(
+    session: Annotated[Session, Depends(get_session)],
+    learner: Annotated[
+        Learner, Depends(auth_service.decode_token_to_get_learner)
+    ],
     change_password_request: PasswordChangeRequest,
-    learner: Learner = Depends(auth_service.decode_token_to_get_learner),
-    session: Session = Depends(get_session),
 ) -> Token:
     account = account_service.change_learner_account_password(
         session,
@@ -48,9 +52,9 @@ def change_account_password(
 
 @router.post("/forgot-password", response_model=PasswordRecoveryResponse)
 def forgot_password(
+    session: Annotated[Session, Depends(get_session)],
     background_tasks: BackgroundTasks,
-    username: str = Body(embed=True),
-    session: Session = Depends(get_session),
+    username: Annotated[str, Body(embed=True)],
 ):
     account = account_service.get_account_by_username(session, username)
     if account and account.email:
@@ -74,8 +78,8 @@ def forgot_password(
 
 @router.post("/reset-password", response_model=StatusResponse)
 def reset_password(
+    session: Annotated[Session, Depends(get_session)],
     password_reset_request: PasswordResetRequest,
-    session: Session = Depends(get_session),
 ):
     return account_service.reset_account_password(
         session, password_reset_request

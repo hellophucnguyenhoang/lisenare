@@ -1,7 +1,10 @@
 import os
+import math
 import pandas as pd
 import textstat
 import string
+from wordfreq import word_frequency
+from mutagen import File as MutagenFile
 from collections.abc import Iterator
 from sqlmodel import SQLModel, Field, Relationship, create_engine, Session
 from datetime import datetime, timezone, timedelta
@@ -70,6 +73,7 @@ class Learner(SQLModel, table=True):
     brick_overrides: list["BrickOverride"] = Relationship(
         back_populates="learner"
     )
+    post_interactions: list["PostInteraction"] = Relationship()
 
 
 class CollectionBrick(SQLModel, table=True):
@@ -168,6 +172,41 @@ class OTP(SQLModel, table=True):
     used: bool = False
 
 
+class Post(SQLModel, table=True):
+    id: int | None = Field(default=None, primary_key=True)
+    content: str
+    translation: str
+    audio_uri: str
+    log_frequency: float
+    audio_duration: float
+    accent: str | None = None
+    creator_id: int = Field(default=None, foreign_key="learner.id")
+    creator: Learner = Relationship()
+    created_at: datetime = Field(
+        default_factory=lambda: datetime.now(timezone.utc)
+    )
+    is_public: bool = True
+    post_interactions: list["PostInteraction"] = Relationship()
+
+
+class PostInteraction(SQLModel, table=True):
+    learner_id: int = Field(foreign_key="learner.id", primary_key=True)
+    post_id: int = Field(foreign_key="post.id", primary_key=True)
+    """
+    {
+        "dislike": -1.0,
+        "view": -0.1,
+        "like": 0.8,
+        "save": 1.0,
+    }
+    """
+    arm_feature: str
+    reward: float | None = None
+    created_at: datetime = Field(
+        default_factory=lambda: datetime.now(timezone.utc)
+    )
+
+
 sqlite_url = f"sqlite:///{settings.db_url}"
 connect_args = {"check_same_thread": False}
 engine = create_engine(sqlite_url, echo=False, connect_args=connect_args)
@@ -188,6 +227,7 @@ def init_db():
         print("Done creating table schema.")
         with Session(engine) as session:
             init_bricks(session)
+            init_posts(session)
         print("Done initialize table data.")
     else:
         print(f"{settings.db_url} already exits, skip initialization.")
@@ -265,25 +305,38 @@ def init_bricks(session: Session):
             ordered=True,
         ).max()
 
+        group_names = [
+            "Vỡ lòng (A1)",
+            "Sơ cấp (A2)",
+            "Trung cấp (B1)",
+            "Cao trung cấp (B2)",
+            "Cao cấp (C1)",
+            "Thành thạo (C2)",
+        ]
+        group_name = next(
+            (g for g in group_names if f"({group_name})" in g), group_name
+        )
+
         # difficulty score: Concat all text then calculate
         full_text = " ".join(collection_data["en_source_text"].astype(str))
-        difficulty_score = compute_flesch_kincaid_grade(full_text)
+        difficulty_score = 1 - word_frequency(full_text, lang="en")
 
         return collection_name, group_name, difficulty_score
 
-    initial_learner_account_create = LearnerAccountCreate(
-        full_name="Sam Nguyen",
-        username="qwer",
-        password="1234",
-        email="nguyenphuc1234sonhoapy@gmail.com",
-    )
+    initial_learner_account_create = LearnerAccountCreate()
     initial_account = create_learner_account(
         session, initial_learner_account_create
     )
 
-    brick_metadata_df = pd.read_csv(
-        os.path.join(settings.brick_folder, "metadata.csv")
+    me_account = LearnerAccountCreate(
+        full_name="Nguyễn Hoàng Phúc",
+        username="prhrurcr09",
+        password="kcmtl5cM#",
+        email="nguyenphuc1234sonhoapy@gmail.com",
     )
+    create_learner_account(session, me_account)
+
+    brick_metadata_df = pd.read_csv("metadata.csv")
     for collection_id, collection_data in brick_metadata_df.groupby(
         "collection_id"
     ):
@@ -309,7 +362,9 @@ def init_bricks(session: Session):
             brick = Brick(
                 native_text=row["vi_translation"],
                 target_text=row["en_source_text"],
-                target_audio_uri=row["source_audio_path"],
+                target_audio_uri=str(
+                    Path("brick-audios") / row["source_audio_path"]
+                ),
                 cefr_level=CEFRLevel(row["cefr_level"]),
                 collections=[],
                 creator=initial_account.learner,
@@ -318,5 +373,39 @@ def init_bricks(session: Session):
             collection.bricks.append(brick)
 
         session.add(collection)
-
+    print("Bricks imported!")
     session.commit()
+
+
+def init_posts(session: Session):
+    COMMON_VOICE_DIR = Path("common-voice")
+
+    def import_common_voice(csv_name: str, creator_id: int = 1):
+        df = pd.read_csv(COMMON_VOICE_DIR / csv_name)
+        split = csv_name.replace(".csv", "")
+        posts = []
+
+        for row in df.to_dict("records"):
+            audio_path = COMMON_VOICE_DIR / split / row["filename"]
+            # Get duration in seconds
+            audio_info = MutagenFile(audio_path).info
+            duration_seconds = audio_info.length
+            content_freq = word_frequency(row["text"], lang="en")
+            posts.append(
+                Post(
+                    content=row["text"],
+                    translation="TODO translation",
+                    audio_uri=str(audio_path),
+                    log_frequency=math.log10(content_freq + 1e-9),
+                    audio_duration=duration_seconds,
+                    accent=row["accent"] if pd.notna(row["accent"]) else None,
+                    creator_id=creator_id,
+                )
+            )
+
+        session.add_all(posts)
+        session.commit()
+
+        print(f"{len(posts)} posts imported from {csv_name}")
+
+    import_common_voice("cv-valid-test.csv")

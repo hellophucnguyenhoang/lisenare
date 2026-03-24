@@ -2,6 +2,7 @@ from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from sqlmodel import Session, select
 from jwt import InvalidTokenError
+from typing import Annotated
 
 from app import security
 from app.database import get_session, Account, Learner, OTP
@@ -23,8 +24,8 @@ def authenticate_account(
 
 
 async def decode_token_to_get_learner(
-    token: str = Depends(oauth2_scheme),
-    session: Session = Depends(get_session),
+    session: Annotated[Session, Depends(get_session)],
+    token: Annotated[str, Depends(oauth2_scheme)],
 ) -> Learner:
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,

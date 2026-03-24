@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Depends
 from sqlmodel import Session
+from typing import Annotated
 
 from app.database import get_session, Learner
 from app.services import (
@@ -16,18 +17,19 @@ from app.schemas import (
 )
 from schemas.cefr import CEFRLevel
 
+
 router = APIRouter(prefix="/collections", tags=["Collections"])
 
 
 @router.get("", response_model=list[CollectionRead])
 def get_learner_pending_collections(
+    session: Annotated[Session, Depends(get_session)],
+    current_learner: Annotated[
+        Learner, Depends(auth_service.decode_token_to_get_learner)
+    ],
     group_name: str = CEFRLevel.A1,
     limit: int = 20,
     page: int = 1,
-    current_learner: Learner = Depends(
-        auth_service.decode_token_to_get_learner
-    ),
-    session: Session = Depends(get_session),
 ):
     # Calculate offset: (page 1 - 1) * 20 = 0; (page 2 - 1) * 20 = 20
     offset = (page - 1) * limit
@@ -38,10 +40,10 @@ def get_learner_pending_collections(
 
 @router.get("/stats", response_model=list[GroupStats])
 def get_group_stats(
-    current_learner: Learner = Depends(
-        auth_service.decode_token_to_get_learner
-    ),
-    session: Session = Depends(get_session),
+    session: Annotated[Session, Depends(get_session)],
+    current_learner: Annotated[
+        Learner, Depends(auth_service.decode_token_to_get_learner)
+    ],
 ):
     return collection_service.get_learning_collection_group_stats(
         session, current_learner.id
@@ -50,11 +52,11 @@ def get_group_stats(
 
 @router.post("", response_model=CollectionRead)
 def create_learner_collection(
+    session: Annotated[Session, Depends(get_session)],
+    current_learner: Annotated[
+        Learner, Depends(auth_service.decode_token_to_get_learner)
+    ],
     collection_create: CollectionCreate,
-    current_learner: Learner = Depends(
-        auth_service.decode_token_to_get_learner
-    ),
-    session: Session = Depends(get_session),
 ):
     return collection_service.create_collection(
         session=session,
@@ -65,11 +67,11 @@ def create_learner_collection(
 
 @router.post("/overrides", response_model=OverrideGroupsResponse)
 def create_group_overrides(
+    session: Annotated[Session, Depends(get_session)],
+    current_learner: Annotated[
+        Learner, Depends(auth_service.decode_token_to_get_learner)
+    ],
     payload: OverrideGroupsCreate,
-    current_learner: Learner = Depends(
-        auth_service.decode_token_to_get_learner
-    ),
-    session: Session = Depends(get_session),
 ):
     total_created = 0
     details = {}

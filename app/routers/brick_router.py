@@ -35,12 +35,12 @@ and a brick with the edited native_text if requested is return instead.
 """,
 )
 def update_brick(
+    session: Annotated[Session, Depends(get_session)],
+    current_learner: Annotated[
+        Learner, Depends(auth_service.decode_token_to_get_learner)
+    ],
     brick_id: int,
     brick_update: BrickUpdate,
-    current_learner: Learner = Depends(
-        auth_service.decode_token_to_get_learner
-    ),
-    session: Session = Depends(get_session),
 ):
     return brick_service.update_brick(
         session=session,
@@ -52,14 +52,14 @@ def update_brick(
 
 @router.post("/", response_model=BrickRead)
 def create_brick(
+    session: Annotated[Session, Depends(get_session)],
+    current_learner: Annotated[
+        Learner, Depends(auth_service.decode_token_to_get_learner)
+    ],
     audio_file: Annotated[UploadFile, File()],
     native_text: Annotated[str, Form()],
     target_text: Annotated[str, Form()],
     is_public: Annotated[bool, Form()] = True,
-    current_learner: Learner = Depends(
-        auth_service.decode_token_to_get_learner
-    ),
-    session: Session = Depends(get_session),
 ):
     UPLOAD_DIR = Path(settings.brick_folder)
     creator_id = current_learner.id
@@ -79,23 +79,28 @@ def create_brick(
 
 @router.get("/audio/{filename}")
 def get_brick_audio(filename: str):
+    """
+    DEPRECATED due to static files. See app/main.py
+    """
     return StreamingResponse(
         brick_service.iter_audio_file(filename), media_type="audio/wav"
     )
 
 
 @router.get("/by-id/{brick_id}", response_model=BrickRead)
-def get_brick(brick_id: int, session: Session = Depends(get_session)):
+def get_brick(
+    session: Annotated[Session, Depends(get_session)], brick_id: int
+):
     return brick_service.get_brick(session, brick_id)
 
 
 @router.get("/random", response_model=BrickRead)
 def get_random_brick(
-    collection_ids: list[int] | None = Query(default=None),
-    current_learner: Learner = Depends(
-        auth_service.decode_token_to_get_learner
-    ),
-    session: Session = Depends(get_session),
+    session: Annotated[Session, Depends(get_session)],
+    current_learner: Annotated[
+        Learner, Depends(auth_service.decode_token_to_get_learner)
+    ],
+    collection_ids: Annotated[list[int] | None, Query()] = None,
 ):
     print(f"collection_ids: {collection_ids}")
     return brick_service.get_random_brick(
@@ -107,11 +112,11 @@ def get_random_brick(
 
 @router.get("/fsrs", response_model=BrickRead)
 def get_brick_fsrs(
-    collection_ids: list[int] | None = Query(default=None),
-    current_learner: Learner = Depends(
-        auth_service.decode_token_to_get_learner
-    ),
-    session: Session = Depends(get_session),
+    session: Annotated[Session, Depends(get_session)],
+    current_learner: Annotated[
+        Learner, Depends(auth_service.decode_token_to_get_learner)
+    ],
+    collection_ids: Annotated[list[int] | None, Query()] = None,
 ):
     print(f"collection_ids: {collection_ids}")
     return brick_service.get_brick_fsrs(
@@ -123,12 +128,12 @@ def get_brick_fsrs(
 
 @router.get("/learn/{collection_id}", response_model=BrickLearnRead)
 def get_brick_in_collection_learn(
+    session: Annotated[Session, Depends(get_session)],
+    current_learner: Annotated[
+        Learner, Depends(auth_service.decode_token_to_get_learner)
+    ],
     collection_id: int,
-    brick_order: int = Query(default=1, ge=1),
-    current_learner: Learner = Depends(
-        auth_service.decode_token_to_get_learner
-    ),
-    session: Session = Depends(get_session),
+    brick_order: Annotated[int, Query(ge=1)] = 1,
 ):
     return brick_service.get_brick_in_collection_learn(
         session=session,

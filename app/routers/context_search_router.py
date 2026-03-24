@@ -7,6 +7,7 @@ from app.schemas import (
     BrickContextSearch,
 )
 
+
 router = APIRouter(prefix="/context-search", tags=["Context Search"])
 
 

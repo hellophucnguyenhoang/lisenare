@@ -7,19 +7,21 @@ this authentication can be a third-party application.
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlmodel import Session
+from typing import Annotated
 
 from app.schemas import Token
 from app.database import get_session
 from app.services import auth_service
 from app import security
 
+
 router = APIRouter(prefix="/auth", tags=["Authentication"])
 
 
 @router.post("/login", response_model=Token)
 def login_for_access_token(
-    form_data: OAuth2PasswordRequestForm = Depends(),
-    session: Session = Depends(get_session),
+    session: Annotated[Session, Depends(get_session)],
+    form_data: Annotated[OAuth2PasswordRequestForm, Depends()],
 ) -> Token:
     account = auth_service.authenticate_account(
         session, form_data.username, form_data.password
