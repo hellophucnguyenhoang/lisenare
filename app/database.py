@@ -11,6 +11,7 @@ from datetime import datetime, timezone, timedelta
 from pydantic import EmailStr
 from pathlib import Path
 
+from .services import text_service
 from .config import settings
 from .schemas import (
     LearnerAccountCreate,
@@ -108,7 +109,7 @@ class Brick(SQLModel, table=True):
     native_text: str
     target_text: str = Field(unique=True)
     target_audio_uri: str
-    cefr_level: CEFRLevel
+    cefr_level: CEFRLevel | None = None
     is_public: bool = True
     last_edit_at: datetime = Field(
         default_factory=lambda: datetime.now(timezone.utc)
@@ -319,9 +320,9 @@ def init_bricks(session: Session):
 
         # difficulty score: Concat all text then calculate
         full_text = " ".join(collection_data["en_source_text"].astype(str))
-        difficulty_score = 1 - word_frequency(full_text, lang="en")
+        log_frequency = text_service.log_frequency(full_text)
 
-        return collection_name, group_name, difficulty_score
+        return collection_name, group_name, log_frequency
 
     initial_learner_account_create = LearnerAccountCreate()
     initial_account = create_learner_account(
@@ -341,13 +342,13 @@ def init_bricks(session: Session):
         "collection_id"
     ):
         # Create collection
-        collection_name, group_name, difficulty_score = (
-            extract_collection_data(collection_data)
+        collection_name, group_name, log_frequency = extract_collection_data(
+            collection_data
         )
         collection = Collection(
             name=collection_name,
             group_name=group_name,
-            difficulty_score=difficulty_score,
+            difficulty_score=log_frequency,
             creator=initial_account.learner,
         )
 
@@ -390,13 +391,12 @@ def init_posts(session: Session):
             # Get duration in seconds
             audio_info = MutagenFile(audio_path).info
             duration_seconds = audio_info.length
-            content_freq = word_frequency(row["text"], lang="en")
             posts.append(
                 Post(
                     content=row["text"],
                     translation="TODO translation",
                     audio_uri=str(audio_path),
-                    log_frequency=math.log10(content_freq + 1e-9),
+                    log_frequency=text_service.log_frequency(row["text"]),
                     audio_duration=duration_seconds,
                     accent=row["accent"] if pd.notna(row["accent"]) else None,
                     creator_id=creator_id,

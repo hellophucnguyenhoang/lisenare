@@ -1,5 +1,14 @@
 from fastapi.responses import StreamingResponse
-from fastapi import APIRouter, Depends, Form, UploadFile, File, Query
+from fastapi import (
+    APIRouter,
+    Depends,
+    Form,
+    UploadFile,
+    File,
+    Query,
+    status,
+    HTTPException,
+)
 from sqlmodel import Session
 from typing import Annotated
 from pathlib import Path
@@ -50,7 +59,7 @@ def update_brick(
     )
 
 
-@router.post("/", response_model=BrickRead)
+@router.post("", response_model=BrickRead)
 def create_brick(
     session: Annotated[Session, Depends(get_session)],
     current_learner: Annotated[
@@ -60,21 +69,40 @@ def create_brick(
     native_text: Annotated[str, Form()],
     target_text: Annotated[str, Form()],
     is_public: Annotated[bool, Form()] = True,
+    collection_name: Annotated[str, Form()] = "my collection",
+    group_name: Annotated[str, Form()] = "my group",
 ):
     UPLOAD_DIR = Path(settings.brick_folder)
     creator_id = current_learner.id
     target_audio_uri = f"learner_{creator_id}_{audio_file.filename}"
     file_path = UPLOAD_DIR / target_audio_uri
-    with file_path.open("wb") as buffer:
-        shutil.copyfileobj(audio_file.file, buffer)
-    brick_create = BrickCreate(
-        native_text=native_text,
-        target_text=target_text,
-        creator_id=creator_id,
-        is_public=is_public,
-        target_audio_uri=target_audio_uri,  # e.g. "learner_1_audio.wav"
-    )
-    return brick_service.create_brick(session, brick_create)
+    try:
+
+        with file_path.open("wb") as buffer:
+            shutil.copyfileobj(audio_file.file, buffer)
+
+        brick_create = BrickCreate(
+            native_text=native_text,
+            target_text=target_text,
+            creator_id=creator_id,
+            is_public=is_public,
+            target_audio_uri=target_audio_uri,  # e.g. "learner_1_audio.wav"
+            collection_name=collection_name,
+            group_name=group_name,
+        )
+        return brick_service.create_brick(session, brick_create)
+    except Exception as e:
+
+        if "unique constraint" in str(e).lower():
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="A brick with this target text already exists.",
+            )
+
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=str(e),
+        )
 
 
 @router.get("/audio/{filename}")

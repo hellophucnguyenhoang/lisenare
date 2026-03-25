@@ -86,7 +86,6 @@ with open(settings.post_features_path, "rb") as f:
 def build_learner_vector(learner_history: list[tuple[int, float]]) -> NDArray:
     vec = np.zeros(settings.item_feature_dim)
     total_weight = 0.0
-
     for post_id, reward in learner_history:
         item_vec = post_features[post_id]
         vec += reward * item_vec
