@@ -17,6 +17,7 @@ from .routers import (
     learning_card_router,
     post_interaction_router,
     post_router,
+    test_router,
     text_router,
 )
 
@@ -45,6 +46,7 @@ app.add_middleware(
     allow_headers=["*"],  # allow all headers
 )
 
+app.include_router(test_router.router)
 app.include_router(account_router.router)
 app.include_router(audio_router.router)
 app.include_router(auth_router.router)

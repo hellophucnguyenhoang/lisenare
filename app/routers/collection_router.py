@@ -22,7 +22,7 @@ router = APIRouter(prefix="/collections", tags=["Collections"])
 
 
 @router.get("", response_model=list[CollectionRead])
-def get_learner_pending_collections(
+def get_pending_collections(
     session: Annotated[Session, Depends(get_session)],
     current_learner: Annotated[
         Learner, Depends(auth_service.decode_token_to_get_learner)
@@ -33,19 +33,19 @@ def get_learner_pending_collections(
 ):
     # Calculate offset: (page 1 - 1) * 20 = 0; (page 2 - 1) * 20 = 20
     offset = (page - 1) * limit
-    return collection_service.get_learner_pending_collections(
+    return collection_service.get_pending_collections(
         session, current_learner.id, group_name, limit, offset
     )
 
 
 @router.get("/stats", response_model=list[GroupStats])
-def get_group_stats(
+def get_pending_collection_group_stats(
     session: Annotated[Session, Depends(get_session)],
     current_learner: Annotated[
         Learner, Depends(auth_service.decode_token_to_get_learner)
     ],
 ):
-    return collection_service.get_learning_collection_group_stats(
+    return collection_service.get_pending_collection_group_stats(
         session, current_learner.id
     )
 

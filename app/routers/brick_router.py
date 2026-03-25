@@ -122,22 +122,6 @@ def get_brick(
     return brick_service.get_brick(session, brick_id)
 
 
-@router.get("/random", response_model=BrickRead)
-def get_random_brick(
-    session: Annotated[Session, Depends(get_session)],
-    current_learner: Annotated[
-        Learner, Depends(auth_service.decode_token_to_get_learner)
-    ],
-    collection_ids: Annotated[list[int] | None, Query()] = None,
-):
-    print(f"collection_ids: {collection_ids}")
-    return brick_service.get_random_brick(
-        session=session,
-        learner_id=current_learner.id,
-        collection_ids=collection_ids,
-    )
-
-
 @router.get("/fsrs", response_model=BrickRead)
 def get_brick_fsrs(
     session: Annotated[Session, Depends(get_session)],
@@ -146,7 +130,6 @@ def get_brick_fsrs(
     ],
     collection_ids: Annotated[list[int] | None, Query()] = None,
 ):
-    print(f"collection_ids: {collection_ids}")
     return brick_service.get_brick_fsrs(
         session=session,
         learner_id=current_learner.id,
@@ -163,12 +146,13 @@ def get_brick_in_collection_learn(
     collection_id: int,
     brick_order: Annotated[int, Query(ge=1)] = 1,
 ):
-    return brick_service.get_brick_in_collection_learn(
+    brick_learn = brick_service.get_brick_in_collection_learn(
         session=session,
         learner_id=current_learner.id,
         collection_id=collection_id,
         brick_order=brick_order,
     )
+    return brick_learn
 
 
 @router.post("/report/{filename}", response_model=StatusResponse)

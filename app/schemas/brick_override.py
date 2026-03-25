@@ -1,8 +1,9 @@
 from sqlmodel import SQLModel
+from . import CEFRLevel
 
 
 class OverrideGroupsCreate(SQLModel):
-    group_names: list[str] = ["A1", "A2"]
+    group_names: list[CEFRLevel] = [CEFRLevel.A1, CEFRLevel.A2]
     group_creator_id: int = 1
 
 
