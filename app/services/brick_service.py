@@ -1,11 +1,10 @@
 from fastapi import HTTPException, status
-from sqlmodel import Session, select, delete, func
+from sqlmodel import Session, select, func, or_
 from pathlib import Path
 from datetime import datetime, timezone
 
 from app.database import (
     Brick,
-    CollectionBrick,
     BrickMetadata,
     LearningCard,
     BrickOverride,
@@ -38,32 +37,6 @@ async def get_audio_file(filename: str):
         return audio_file.read()
 
 
-def get_random_brick(
-    session: Session,
-    learner_id: int,
-    collection_ids: list[int] | None = None,
-) -> Brick | None:
-
-    statement = (
-        select(Brick)
-        .join(CollectionBrick)
-        .join(BrickMetadata)
-        .where(
-            Brick.creator_id == learner_id,
-            BrickMetadata.unit_type == UnitType.sentence,
-        )
-    )
-
-    if collection_ids:
-        statement = statement.where(
-            CollectionBrick.collection_id.in_(collection_ids)
-        )
-
-    statement = statement.order_by(func.random()).limit(1)
-
-    return session.exec(statement).first()
-
-
 def get_broken_filenames() -> set[str]:
     REPORT_FILE = Path(settings.broken_report_file)
     if not REPORT_FILE.exists():
@@ -83,9 +56,7 @@ def get_brick_fsrs(
 
     def apply_filters(stmt):
         if collection_ids:
-            stmt = stmt.where(
-                CollectionBrick.collection_id.in_(collection_ids)
-            )
+            stmt = stmt.where(Brick.collection_id.in_(collection_ids))
         if broken_files:
             stmt = stmt.where(~Brick.target_audio_uri.in_(broken_files))
         return stmt
@@ -107,7 +78,6 @@ def get_brick_fsrs(
     due_stmt = (
         select(Brick, BrickOverride.native_text)
         .join(LearningCard, LearningCard.brick_id == Brick.id)
-        .join(CollectionBrick, CollectionBrick.brick_id == Brick.id)
         .join(BrickMetadata)
         .outerjoin(BrickOverride, override_join)
         .where(
@@ -133,7 +103,6 @@ def get_brick_fsrs(
     new_stmt = (
         select(Brick, BrickOverride.native_text)
         .join(pending_bricks_subq, pending_bricks_subq.c.id == Brick.id)
-        .join(CollectionBrick)
         .join(BrickMetadata)
         .outerjoin(BrickOverride, override_join)
         .where(
@@ -159,44 +128,28 @@ def get_brick_in_collection_learn(
     collection_id: int,
     brick_order: int = 1,
 ) -> dict | None:
-
-    pending_bricks_subq = collection_service.get_pending_bricks_subquery(
-        learner_id
-    )
-
-    override_join = (BrickOverride.brick_id == Brick.id) & (
-        BrickOverride.learner_id == learner_id
-    )
-
     stmt = (
         select(Brick, BrickOverride.native_text)
-        .join(pending_bricks_subq, pending_bricks_subq.c.id == Brick.id)
-        .join(CollectionBrick, CollectionBrick.brick_id == Brick.id)
-        .outerjoin(BrickOverride, override_join)
-        .where(CollectionBrick.collection_id == collection_id)
+        .distinct()
+        .join(BrickOverride, full=True)
+        .where(
+            Brick.collection_id == collection_id,
+            or_(
+                Brick.creator_id == learner_id,
+                BrickOverride.learner_id == learner_id,
+            ),
+        )
         .order_by(func.length(Brick.target_text))
-        .offset(brick_order - 1)
-        .limit(1)
     )
-    result = session.exec(stmt).first()
-    if not result:
+    bricks_overrides = session.exec(stmt).all()
+    if not bricks_overrides:
         return None
 
-    brick, override_native = result
+    brick, override_native = bricks_overrides[brick_order - 1]
     if override_native:
         brick.native_text = override_native
 
-    # Count only learning bricks inside this collection
-    count_stmt = (
-        select(func.count())
-        .select_from(CollectionBrick)
-        .join(
-            pending_bricks_subq,
-            pending_bricks_subq.c.id == CollectionBrick.brick_id,
-        )
-        .where(CollectionBrick.collection_id == collection_id)
-    )
-    total_bricks = session.exec(count_stmt).one()
+    total_bricks = len(bricks_overrides)
     return {
         "brick": brick,
         "total_bricks": total_bricks,
@@ -222,26 +175,10 @@ def update_brick(
 
         data = brick_update.model_dump(
             exclude_unset=True,
-            exclude={"collection_ids"},
         )
 
         for key, value in data.items():
             setattr(brick, key, value)
-
-        if brick_update.collection_ids is not None:
-            session.exec(
-                delete(CollectionBrick).where(
-                    CollectionBrick.brick_id == brick_id
-                )
-            )
-
-            for collection_id in brick_update.collection_ids:
-                session.add(
-                    CollectionBrick(
-                        collection_id=collection_id,
-                        brick_id=brick_id,
-                    )
-                )
 
         brick.last_edit_at = datetime.now(timezone.utc)
 

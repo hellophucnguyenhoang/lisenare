@@ -70,7 +70,7 @@ class BrickUpdate(SQLModel):
     target_text: str | None = None
     cefr_level: CEFRLevel | None = None
     is_public: bool | None = None
-    collection_ids: list[int] | None = None
+    collection_id: int | None = None
 
 
 class BrickContextSearch(SQLModel):
@@ -88,6 +88,7 @@ class BrickBase(SQLModel):
     cefr_level: CEFRLevel | None = None
     is_public: bool = True
     creator_id: int
+    collection_id: int | None = None
 
 
 class BrickRead(BrickBase):

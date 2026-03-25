@@ -1,9 +1,5 @@
 import os
-import math
 import pandas as pd
-import textstat
-import string
-from wordfreq import word_frequency
 from mutagen import File as MutagenFile
 from collections.abc import Iterator
 from sqlmodel import SQLModel, Field, Relationship, create_engine, Session
@@ -77,15 +73,6 @@ class Learner(SQLModel, table=True):
     post_interactions: list["PostInteraction"] = Relationship()
 
 
-class CollectionBrick(SQLModel, table=True):
-    collection_id: int | None = Field(
-        default=None, foreign_key="collection.id", primary_key=True
-    )
-    brick_id: int | None = Field(
-        default=None, foreign_key="brick.id", primary_key=True
-    )
-
-
 class Collection(SQLModel, table=True):
     id: int | None = Field(default=None, primary_key=True)
     name: str
@@ -99,9 +86,7 @@ class Collection(SQLModel, table=True):
     )
     creator_id: int = Field(foreign_key="learner.id")
     creator: Learner = Relationship(back_populates="collections")
-    bricks: list["Brick"] | None = Relationship(
-        back_populates="collections", link_model=CollectionBrick
-    )
+    bricks: list["Brick"] = Relationship(back_populates="collection")
 
 
 class Brick(SQLModel, table=True):
@@ -120,9 +105,10 @@ class Brick(SQLModel, table=True):
         default=None, foreign_key="brickmetadata.id", unique=True
     )
     brick_metadata: BrickMetadata = Relationship()
-    collections: list[Collection] = Relationship(
-        back_populates="bricks", link_model=CollectionBrick
+    collection_id: int | None = Field(
+        default=None, foreign_key="collection.id"
     )
+    collection: Collection | None = Relationship(back_populates="bricks")
     reviews: list["Review"] | None = Relationship(back_populates="brick")
     overrides: list["BrickOverride"] = Relationship(back_populates="brick")
 
@@ -225,7 +211,7 @@ def init_db():
     if not os.path.exists(settings.db_url):
         print(f"{settings.db_url} not found, create a new one.")
         SQLModel.metadata.create_all(engine)
-        print("Done creating table schema.")
+        print("Database schema created.")
         with Session(engine) as session:
             init_bricks(session)
             init_posts(session)
@@ -281,12 +267,6 @@ def init_bricks(session: Session):
             for v in str(value).split("|")
         ]
 
-    def compute_flesch_kincaid_grade(text: str):
-        translator = str.maketrans("", "", string.punctuation)
-        no_punct_text = text.translate(translator)
-        score = textstat.flesch_kincaid_grade(no_punct_text)
-        return round(score, 3)
-
     def extract_collection_data(collection_data: pd.DataFrame):
         # collection Name (Shortest text)
         shortest_text_idx = (
@@ -296,8 +276,7 @@ def init_bricks(session: Session):
             shortest_text_idx, "en_source_text"
         ]
 
-        # group Name (Highest CEFR)
-        ordered_levels = [level.value for level in CEFRLevel]
+        ordered_levels = [level.name for level in CEFRLevel]
 
         # We find the maximum based on the order defined in the list above
         group_name = pd.Categorical(
@@ -306,17 +285,8 @@ def init_bricks(session: Session):
             ordered=True,
         ).max()
 
-        group_names = [
-            "Vỡ lòng (A1)",
-            "Sơ cấp (A2)",
-            "Trung cấp (B1)",
-            "Cao trung cấp (B2)",
-            "Cao cấp (C1)",
-            "Thành thạo (C2)",
-        ]
-        group_name = next(
-            (g for g in group_names if f"({group_name})" in g), group_name
-        )
+        # Convert the group name "A2" into "Sơ cấp (A2)"
+        group_name = CEFRLevel[group_name]
 
         # difficulty score: Concat all text then calculate
         full_text = " ".join(collection_data["en_source_text"].astype(str))
@@ -351,7 +321,6 @@ def init_bricks(session: Session):
             difficulty_score=log_frequency,
             creator=initial_account.learner,
         )
-
         # Create brick and add to collection
         for _, row in collection_data.iterrows():
             brick_metadata = BrickMetadata(
@@ -366,7 +335,7 @@ def init_bricks(session: Session):
                 target_audio_uri=str(
                     Path("brick-audios") / row["source_audio_path"]
                 ),
-                cefr_level=CEFRLevel(row["cefr_level"]),
+                cefr_level=CEFRLevel[row["cefr_level"]],
                 collections=[],
                 creator=initial_account.learner,
                 brick_metadata=brick_metadata,
