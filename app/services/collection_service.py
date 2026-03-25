@@ -8,6 +8,7 @@ from app.database import (
     Review,
 )
 from app.schemas import CollectionCreate, CollectionRead
+from . import text_service
 
 
 def temp_get_data(session: Session, learner_id=2, group_name="A1"):
@@ -145,18 +146,45 @@ def count_learner_collections(
     return session.exec(statement).one()
 
 
-def create_collection(
-    session: Session, learner_id: int, collection_create: CollectionCreate
+def get_or_create_collection(
+    session: Session, collection_name: str, group_name: str, creator_id: str
 ) -> Collection:
-    collection = Collection(
-        name=collection_create.name,
-        group_name=collection_create.group_name,
-        creator_id=learner_id,
+    statement = select(Collection).where(
+        Collection.name == collection_name, Collection.creator_id == creator_id
     )
-    session.add(collection)
-    session.commit()
-    session.refresh(collection)
+    collection = session.exec(statement).first()
+
+    if not collection:
+        collection = Collection(
+            name=collection_name,
+            group_name=group_name,
+            creator_id=creator_id,
+            difficulty_score=0.0,
+        )
+        session.add(collection)
+        session.commit()
+        session.refresh(collection)
+
     return collection
+
+
+def update_collection_difficulty(session: Session, collection_id: int):
+    statement = (
+        select(Brick)
+        .join(CollectionBrick)
+        .where(CollectionBrick.collection_id == collection_id)
+    )
+    bricks = session.exec(statement).all()
+
+    if bricks:
+        sum_score = sum(
+            text_service.log_frequency(b.target_text) for b in bricks
+        )
+        collection = session.get(Collection, collection_id)
+        if collection:
+            collection.difficulty_score = sum_score
+            session.add(collection)
+            session.commit()
 
 
 def get_learning_collection_group_stats(

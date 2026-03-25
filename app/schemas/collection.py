@@ -4,7 +4,7 @@ from datetime import datetime
 
 class CollectionBase(SQLModel):
     name: str
-    group_name: str = "custom"
+    group_name: str = "my group"
 
 
 class CollectionRead(CollectionBase):

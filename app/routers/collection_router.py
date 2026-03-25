@@ -50,21 +50,6 @@ def get_group_stats(
     )
 
 
-@router.post("", response_model=CollectionRead)
-def create_learner_collection(
-    session: Annotated[Session, Depends(get_session)],
-    current_learner: Annotated[
-        Learner, Depends(auth_service.decode_token_to_get_learner)
-    ],
-    collection_create: CollectionCreate,
-):
-    return collection_service.create_collection(
-        session=session,
-        learner_id=current_learner.id,
-        collection_create=collection_create,
-    )
-
-
 @router.post("/overrides", response_model=OverrideGroupsResponse)
 def create_group_overrides(
     session: Annotated[Session, Depends(get_session)],

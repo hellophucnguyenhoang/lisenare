@@ -6,6 +6,8 @@ from wordfreq import word_frequency
 from schemas.sentence import (
     SentenceCompareRequest,
     SentenceCompareResponse,
+    SentenceTranslateRequest,
+    SentenceTranslateResponse,
 )
 from app.schemas import (
     ReviewCreate,
@@ -53,6 +55,20 @@ async def compare(
             is_answer_revealed=sentence_compare_request.review_base.is_answer_revealed,
         )
     return sentence_compare_response
+
+
+@router.post("/translations", response_model=SentenceTranslateResponse)
+async def translate(
+    sentence_translate_request: SentenceTranslateRequest,
+):
+    r = await http_client.client.post(
+        "/text/translations",
+        json=sentence_translate_request.model_dump(mode="json"),
+    )
+    sentence_translate_respond = SentenceTranslateResponse.model_validate(
+        r.json()
+    )
+    return sentence_translate_respond
 
 
 @router.post("/frequency")

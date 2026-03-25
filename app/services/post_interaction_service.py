@@ -48,7 +48,10 @@ def get_learner_history(
 ):
     statement = (
         select(PostInteraction.post_id, PostInteraction.reward)
-        .where(PostInteraction.learner_id == learner_id)
+        .where(
+            PostInteraction.learner_id == learner_id,
+            PostInteraction.reward.is_not(None),
+        )
         .order_by(PostInteraction.created_at.desc())
         .limit(history_limit)
     )

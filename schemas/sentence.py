@@ -21,7 +21,7 @@ class Language(str, Enum):
 
 
 class SentenceTranslateRequest(SQLModel):
-    text: str
+    text: str = "what's up?"
     target_lang: Language = Language.vi
 
 

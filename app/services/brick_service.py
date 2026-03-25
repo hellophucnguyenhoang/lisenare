@@ -265,6 +265,19 @@ def update_brick(
 def create_brick(session: Session, brick_create: BrickCreate) -> Brick:
     db_brick = Brick.model_validate(brick_create)
     session.add(db_brick)
+
+    collection = collection_service.get_or_create_collection(
+        session,
+        brick_create.collection_name,
+        brick_create.group_name,
+        brick_create.creator_id,
+    )
+
+    collection.bricks.append(db_brick)
+
     session.commit()
     session.refresh(db_brick)
+
+    collection_service.update_collection_difficulty(session, collection.id)
+
     return db_brick
