@@ -41,7 +41,7 @@ class BrickMetadata(SQLModel, table=True):
         default=None,
         description="Communicative function (only for unit_type=sentence).",
     )
-    grammar_points: list[BrickMetadataGrammarPoint] = Relationship()
+    grammar_points: list[BrickMetadataGrammarPoint] | None = Relationship()
 
 
 class Account(SQLModel, table=True):
@@ -101,7 +101,7 @@ class Brick(SQLModel, table=True):
     )
     creator_id: int = Field(foreign_key="learner.id")
     creator: Learner = Relationship(back_populates="bricks")
-    brick_metadata_id: int | None = Field(
+    brick_metadata_id: int = Field(
         default=None, foreign_key="brickmetadata.id", unique=True
     )
     brick_metadata: BrickMetadata = Relationship()
@@ -162,7 +162,7 @@ class OTP(SQLModel, table=True):
 class Post(SQLModel, table=True):
     id: int | None = Field(default=None, primary_key=True)
     content: str
-    translation: str
+    translation: str | None = None
     audio_uri: str
     log_frequency: float
     audio_duration: float
@@ -363,7 +363,6 @@ def init_posts(session: Session):
             posts.append(
                 Post(
                     content=row["text"],
-                    translation="TODO translation",
                     audio_uri=str(audio_path),
                     log_frequency=text_service.log_frequency(row["text"]),
                     audio_duration=duration_seconds,

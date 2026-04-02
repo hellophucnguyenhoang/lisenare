@@ -3,10 +3,12 @@
 # always specify e.g. app.schemas.brick
 from .account import *
 from .auth import *
+from .brick_metadata import *
 from .brick import *
 from .brick_override import *
 from .collection import *
 from .context_search import *
+from .forced_alignment import *
 from .learner import *
 from .learning_card import *
 from .post_interaction import *

@@ -13,8 +13,14 @@ from app.schemas import (
     ReviewCreate,
     TextFrequencyRequest,
     TextFrequencyResponse,
+    WordSegmentSecond,
 )
-from app.services import auth_service, review_service, learning_card_service
+from app.services import (
+    auth_service,
+    review_service,
+    learning_card_service,
+    forced_alignment_service,
+)
 from app.database import get_session, Learner
 import app.http_client as http_client
 
@@ -80,3 +86,11 @@ def chat_endpoint(text_frequency_request: TextFrequencyRequest):
         text_frequency_request.english_sentence, lang="en"
     )
     return TextFrequencyResponse(frequency=frequency)
+
+
+@router.get(
+    "/forced_alignment/{audio_path:path}",
+    response_model=list[WordSegmentSecond],
+)
+def forced_align(audio_path: str):
+    return forced_alignment_service.align(audio_path)

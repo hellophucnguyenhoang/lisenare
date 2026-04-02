@@ -6,7 +6,7 @@ from .learner import LearnerRead
 class PostRead(SQLModel):
     id: int
     content: str
-    translation: str
+    translation: str | None = None
     audio_uri: str
     accent: str | None
     created_at: datetime
