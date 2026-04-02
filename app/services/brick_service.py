@@ -199,8 +199,12 @@ def update_brick(
         return brick
 
 
-def create_brick(session: Session, brick_create: BrickCreate) -> Brick:
+def create_brick(
+    session: Session, brick_create: BrickCreate, unit_type: UnitType
+) -> Brick:
     db_brick = Brick.model_validate(brick_create)
+    brick_metadata = BrickMetadata(unit_type=unit_type)
+    db_brick.brick_metadata = brick_metadata
     session.add(db_brick)
 
     collection = collection_service.get_or_create_collection(

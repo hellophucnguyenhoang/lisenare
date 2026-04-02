@@ -1,16 +1,15 @@
-from fastapi import APIRouter, Depends
-from sqlmodel import Session
+from fastapi import APIRouter, Depends, File, UploadFile
+from sqlmodel import Session, SQLModel
 from typing import Annotated
 
 from app.database import get_session
-from app.services import collection_service
+from app.services import test_service
 
 
 router = APIRouter(prefix="/test", tags=["A"])
 
 
-@router.get("")
-def test(
-    session: Annotated[Session, Depends(get_session)],
-):
-    return collection_service.temp_test(session)
+@router.post("")
+def export_bricks(session: Annotated[Session, Depends(get_session)]):
+    test_service.export_bricks_to_csv(session)
+    return {"message": "export bricks"}

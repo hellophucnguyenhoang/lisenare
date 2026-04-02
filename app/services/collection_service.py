@@ -29,9 +29,13 @@ def temp_test(session: Session):
 
 
 def get_pending_bricks_subquery(learner_id: int):
+    """
+    A brick is considered pending of a learner if it's created or has a
+    override version created by that learner.
+    """
     return (
         select(Brick)
-        .join(BrickOverride)
+        .join(BrickOverride, isouter=True)
         .where(
             or_(
                 Brick.creator_id == learner_id,
@@ -49,6 +53,10 @@ def get_pending_collections(
     limit: int,
     offset: int,
 ) -> list[CollectionRead]:
+    # Get all the pending bricks
+    # Join with the Review to know the current learning state of them
+    # Aggregate their collection information
+
     pending_bricks_subq = get_pending_bricks_subquery(learner_id)
 
     statement = (

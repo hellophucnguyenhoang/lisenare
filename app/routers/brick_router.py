@@ -23,6 +23,7 @@ from app.schemas import (
     BrickCreate,
     BrickLearnRead,
     StatusResponse,
+    UnitType,
 )
 from app.database import Learner
 from app.config import settings
@@ -71,13 +72,13 @@ def create_brick(
     is_public: Annotated[bool, Form()] = True,
     collection_name: Annotated[str, Form()] = "my collection",
     group_name: Annotated[str, Form()] = "my group",
+    unit_type: Annotated[UnitType, Form()] = UnitType.sentence,
 ):
     UPLOAD_DIR = Path(settings.brick_folder)
     creator_id = current_learner.id
     target_audio_uri = f"learner_{creator_id}_{audio_file.filename}"
     file_path = UPLOAD_DIR / target_audio_uri
     try:
-
         with file_path.open("wb") as buffer:
             shutil.copyfileobj(audio_file.file, buffer)
 
@@ -86,13 +87,15 @@ def create_brick(
             target_text=target_text,
             creator_id=creator_id,
             is_public=is_public,
-            target_audio_uri=target_audio_uri,  # e.g. "learner_1_audio.wav"
+            target_audio_uri=str(
+                file_path
+            ),  # e.g. "brick-audios/learner_1_audio.m4a"
             collection_name=collection_name,
             group_name=group_name,
         )
-        return brick_service.create_brick(session, brick_create)
+        # TODO: Add full metadata
+        return brick_service.create_brick(session, brick_create, unit_type)
     except Exception as e:
-
         if "unique constraint" in str(e).lower():
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
@@ -130,11 +133,18 @@ def get_brick_fsrs(
     ],
     collection_ids: Annotated[list[int] | None, Query()] = None,
 ):
-    return brick_service.get_brick_fsrs(
+    brick_read = brick_service.get_brick_fsrs(
         session=session,
         learner_id=current_learner.id,
         collection_ids=collection_ids,
     )
+    if brick_read is None:
+        print("brick read None")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Haven't had any sentence to practice yet.",
+        )
+    return brick_read
 
 
 @router.get("/learn/{collection_id}", response_model=BrickLearnRead)
@@ -156,11 +166,12 @@ def get_brick_in_collection_learn(
 
 
 @router.post("/report/{filename}", response_model=StatusResponse)
-def append_broken_audio_file(filename: str):
+def append_broken_audio_file(filename: str, description: str | None = None):
     REPORT_FILE = Path(settings.broken_report_file)
     if REPORT_FILE.exists():
         if filename in REPORT_FILE.read_text():
             return {"status": "exists", "message": "Already reported."}
     with REPORT_FILE.open("a") as f:
-        f.write(f"{filename}|{datetime.now(timezone.utc)}\n")
+        clean_desc = description.replace("|", " ").replace("\n", " ")
+        f.write(f"{filename}|{clean_desc}|{datetime.now(timezone.utc)}\n")
     return {"status": "success", "message": f"Reported {filename}"}
