@@ -62,7 +62,9 @@ async def evaluate_audio(
     Bad: sentences, the sound still might be understandable
         to got a right transcript but the pronunciation is not right.
     """
-    target_brick = brick_service.get_brick(session, target_brick_id)
+    target_brick = brick_service.get_brick(
+        session, target_brick_id, learner.id
+    )
     sep = Separator(phone=" ", word="  ")
     teacher_ipa = phonemize(target_brick.target_text, separator=sep)
 

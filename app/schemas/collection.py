@@ -15,10 +15,6 @@ class CollectionRead(CollectionBase):
     learned_count: int | None = None
 
 
-class CollectionCreate(CollectionBase):
-    pass
-
-
 class GroupStats(SQLModel):
     group_name: str
     collection_count: int

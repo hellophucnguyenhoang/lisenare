@@ -9,11 +9,11 @@ from app.services import (
     brick_override_service,
 )
 from app.schemas import (
-    CollectionCreate,
     CollectionRead,
     GroupStats,
     OverrideGroupsCreate,
     OverrideGroupsResponse,
+    BrickReadSimple,
 )
 from schemas.cefr import CEFRLevel
 
@@ -27,6 +27,16 @@ def get_pending_collections(
     current_learner: Annotated[
         Learner, Depends(auth_service.decode_token_to_get_learner)
     ],
+):
+    return collection_service.get_collections(session, current_learner.id)
+
+
+@router.get("/pending", response_model=list[CollectionRead])
+def get_pending_collections(
+    session: Annotated[Session, Depends(get_session)],
+    current_learner: Annotated[
+        Learner, Depends(auth_service.decode_token_to_get_learner)
+    ],
     group_name: str = CEFRLevel.A1,
     limit: int = 20,
     page: int = 1,
@@ -35,6 +45,19 @@ def get_pending_collections(
     offset = (page - 1) * limit
     return collection_service.get_pending_collections(
         session, current_learner.id, group_name, limit, offset
+    )
+
+
+@router.get("/pending-bricks", response_model=list[BrickReadSimple])
+def get_pending_bricks_collection(
+    session: Annotated[Session, Depends(get_session)],
+    current_learner: Annotated[
+        Learner, Depends(auth_service.decode_token_to_get_learner)
+    ],
+    collection_id: int,
+):
+    return collection_service.get_pending_bricks(
+        session, current_learner.id, collection_id
     )
 
 

@@ -3,7 +3,6 @@
 # always specify e.g. app.schemas.brick
 from .account import *
 from .auth import *
-from .brick_metadata import *
 from .brick import *
 from .brick_override import *
 from .collection import *

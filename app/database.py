@@ -2,7 +2,14 @@ import os
 import pandas as pd
 from mutagen import File as MutagenFile
 from collections.abc import Iterator
-from sqlmodel import SQLModel, Field, Relationship, create_engine, Session
+from sqlmodel import (
+    SQLModel,
+    Field,
+    Relationship,
+    create_engine,
+    Session,
+    text,
+)
 from datetime import datetime, timezone, timedelta
 from pydantic import EmailStr
 from pathlib import Path
@@ -22,8 +29,8 @@ from . import security
 
 class BrickMetadataGrammarPoint(SQLModel, table=True):
     id: int | None = Field(default=None, primary_key=True)
-    brick_metadata_id: int | None = Field(
-        default=None, foreign_key="brickmetadata.id"
+    brick_metadata_id: int = Field(
+        default=None, foreign_key="brickmetadata.id", ondelete="CASCADE"
     )
     grammar_point: GrammarPoint
 
@@ -41,7 +48,9 @@ class BrickMetadata(SQLModel, table=True):
         default=None,
         description="Communicative function (only for unit_type=sentence).",
     )
-    grammar_points: list[BrickMetadataGrammarPoint] | None = Relationship()
+    grammar_points: list[BrickMetadataGrammarPoint] | None = Relationship(
+        cascade_delete=True
+    )
 
 
 class Account(SQLModel, table=True):
@@ -101,10 +110,13 @@ class Brick(SQLModel, table=True):
     )
     creator_id: int = Field(foreign_key="learner.id")
     creator: Learner = Relationship(back_populates="bricks")
-    brick_metadata_id: int = Field(
-        default=None, foreign_key="brickmetadata.id", unique=True
+    brick_metadata_id: int | None = Field(
+        default=None,
+        foreign_key="brickmetadata.id",
+        unique=True,
+        nullable=False,
     )
-    brick_metadata: BrickMetadata = Relationship()
+    brick_metadata: BrickMetadata | None = Relationship()
     collection_id: int | None = Field(
         default=None, foreign_key="collection.id"
     )
