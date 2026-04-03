@@ -14,6 +14,8 @@ from typing import Annotated
 from pathlib import Path
 from datetime import datetime, timezone
 import shutil
+import json
+from pydantic import ValidationError
 
 from app.database import get_session
 from app.services import auth_service, brick_service
@@ -22,10 +24,11 @@ from app.schemas import (
     BrickRead,
     BrickCreate,
     BrickLearnRead,
+    BrickCreateRequest,
     StatusResponse,
     UnitType,
 )
-from app.database import Learner
+from app.database import Learner, BrickMetadata, BrickMetadataGrammarPoint
 from app.config import settings
 
 
@@ -37,11 +40,14 @@ router = APIRouter(prefix="/bricks", tags=["Bricks"])
     response_model=BrickRead,
     summary="Update a brick or create/update a personal override",
     description="""
-If the learner is the creator, the original brick is updated and returned.
+If the learner is the creator of the brick, 
+the original brick is updated and returned.
 
-If not, a personal override is created or updated instead.
+If not, a personal override of the brick is created or updated instead. 
 The original brick remains unchanged, 
-and a brick with the edited native_text if requested is return instead.
+and a brick with the edited information is return.
+
+Non-author learners can only edit native_text field.
 """,
 )
 def update_brick(
@@ -67,13 +73,20 @@ def create_brick(
         Learner, Depends(auth_service.decode_token_to_get_learner)
     ],
     audio_file: Annotated[UploadFile, File()],
-    native_text: Annotated[str, Form()],
-    target_text: Annotated[str, Form()],
-    is_public: Annotated[bool, Form()] = True,
-    collection_name: Annotated[str, Form()] = "my collection",
-    group_name: Annotated[str, Form()] = "my group",
-    unit_type: Annotated[UnitType, Form()] = UnitType.sentence,
+    brick_data: Annotated[
+        str,
+        Form(description="A serialized string of a BrickCreateRequest object"),
+    ],
 ):
+    try:
+        data_dict = json.loads(brick_data)
+        request_data = BrickCreateRequest.model_validate(data_dict)
+    except (json.JSONDecodeError, ValidationError) as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Dữ liệu không hợp lệ: {str(e)}",
+        )
+
     UPLOAD_DIR = Path(settings.brick_folder)
     creator_id = current_learner.id
     target_audio_uri = f"learner_{creator_id}_{audio_file.filename}"
@@ -82,19 +95,9 @@ def create_brick(
         with file_path.open("wb") as buffer:
             shutil.copyfileobj(audio_file.file, buffer)
 
-        brick_create = BrickCreate(
-            native_text=native_text,
-            target_text=target_text,
-            creator_id=creator_id,
-            is_public=is_public,
-            target_audio_uri=str(
-                file_path
-            ),  # e.g. "brick-audios/learner_1_audio.m4a"
-            collection_name=collection_name,
-            group_name=group_name,
+        return brick_service.create_brick(
+            session, request_data, creator_id, str(file_path)
         )
-        # TODO: Add full metadata
-        return brick_service.create_brick(session, brick_create, unit_type)
     except Exception as e:
         if "unique constraint" in str(e).lower():
             raise HTTPException(
@@ -120,9 +123,13 @@ def get_brick_audio(filename: str):
 
 @router.get("/by-id/{brick_id}", response_model=BrickRead)
 def get_brick(
-    session: Annotated[Session, Depends(get_session)], brick_id: int
+    session: Annotated[Session, Depends(get_session)],
+    current_learner: Annotated[
+        Learner, Depends(auth_service.decode_token_to_get_learner)
+    ],
+    brick_id: int,
 ):
-    return brick_service.get_brick(session, brick_id)
+    return brick_service.get_brick(session, brick_id, current_learner.id)
 
 
 @router.get("/fsrs", response_model=BrickRead)

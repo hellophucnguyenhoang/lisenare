@@ -1,5 +1,6 @@
 from fastapi import HTTPException, status
 from sqlmodel import Session, select, func, or_
+from sqlalchemy.orm import selectinload
 from pathlib import Path
 from datetime import datetime, timezone
 
@@ -8,18 +9,50 @@ from app.database import (
     BrickMetadata,
     LearningCard,
     BrickOverride,
+    BrickMetadataGrammarPoint,
 )
 from app.config import settings
-from app.schemas import BrickUpdate, BrickCreate, UnitType
-from . import brick_override_service, collection_service
+from app.schemas import BrickUpdate, BrickCreate, BrickCreateRequest, UnitType
+from . import collection_service
 
 
-def get_brick(session: Session, id: int) -> Brick:
-    brick = session.exec(select(Brick).where(Brick.id == id)).first()
-    if not brick:
+def get_brick(session: Session, id: int, learner_id: int) -> Brick:
+    statement = (
+        select(Brick)
+        # eager loading the nested metadata and its grammar points
+        .options(
+            selectinload(Brick.brick_metadata).selectinload(
+                BrickMetadata.grammar_points
+            )
+        )
+        .join(
+            BrickOverride, isouter=True
+        )  # Use outer join in case override doesn't exist
+        .where(
+            Brick.id == id,
+            or_(
+                Brick.creator_id == learner_id,
+                BrickOverride.learner_id == learner_id,
+            ),
+        )
+    )
+
+    result = session.exec(statement).first()
+    if not result:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Brick not found"
         )
+
+    brick = result
+
+    # filter the specific override for the learner and apply if it exists
+    if brick.overrides:
+        specific_override = next(
+            (o for o in brick.overrides if o.learner_id == learner_id), None
+        )
+        if specific_override:
+            brick.native_text = specific_override.native_text
+
     return brick
 
 
@@ -163,49 +196,123 @@ def update_brick(
     learner_id: int,
 ) -> Brick:
 
-    brick = session.get(Brick, brick_id)
+    statement = (
+        select(Brick)
+        .where(Brick.id == brick_id)
+        .options(
+            selectinload(Brick.brick_metadata).selectinload(
+                BrickMetadata.grammar_points
+            )
+        )
+    )
+    brick = session.exec(statement).first()
     if not brick:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Brick not found",
         )
 
+    update_data = brick_update.model_dump(
+        exclude_unset=True,
+    )
+
     # Case 1: Author edits original
     if brick.creator_id == learner_id:
+        # Handle nested metadata separately
+        if "brick_metadata" in update_data:
+            metadata_data = update_data.pop("brick_metadata")
 
-        data = brick_update.model_dump(
-            exclude_unset=True,
-        )
+            # Handle grammar points first
+            grammar_points_data = metadata_data.pop("grammar_points", None)
+            if grammar_points_data is not None:
+                brick.brick_metadata.grammar_points = []
+                for gp in grammar_points_data:
+                    # Access dictionary key safely
+                    new_gp = BrickMetadataGrammarPoint(
+                        brick_metadata_id=brick.brick_metadata_id,
+                        grammar_point=gp["grammar_point"],
+                    )
+                    brick.brick_metadata.grammar_points.append(new_gp)
 
-        for key, value in data.items():
+            # Update other metadata fields (unit_type, structure, function)
+            for key, value in metadata_data.items():
+                setattr(brick.brick_metadata, key, value)
+
+        # Update top-level brick fields
+        for key, value in update_data.items():
             setattr(brick, key, value)
 
         brick.last_edit_at = datetime.now(timezone.utc)
-
         session.add(brick)
         session.commit()
         session.refresh(brick)
         return brick
 
-    # Case 2: Non-author edits → save override
+    # --- Case 2: Non-author edits ---
     else:
-        override = brick_override_service.save_override_for_brick(
-            session=session,
-            learner_id=learner_id,
-            brick_id=brick_id,
-            native_text=brick_update.native_text,
-        )
+        # Check for forbidden fields
+        forbidden_fields = {
+            "target_text",
+            "brick_metadata",
+            "is_public",
+            "collection_id",
+        }
+        attempted_forbidden = forbidden_fields.intersection(update_data.keys())
+        if attempted_forbidden:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"Only the author can edit: {', '.join(attempted_forbidden)}. "
+                f"Change the English text to create your own version.",
+            )
+
+        # Proceed with native_text override
+        override = session.get(BrickOverride, (learner_id, brick_id))
+        if not override:
+            override = BrickOverride(learner_id=learner_id, brick_id=brick_id)
+
+        if "native_text" in update_data:
+            override.native_text = update_data["native_text"]
+
+        override.last_edit_at = datetime.now(timezone.utc)
+        session.add(override)
+        session.commit()
+        session.refresh(override)
+
+        # Return the brick with the user's specific translation
         brick.native_text = override.native_text
         return brick
 
 
 def create_brick(
-    session: Session, brick_create: BrickCreate, unit_type: UnitType
+    session: Session,
+    request_data: BrickCreateRequest,
+    creator_id: int,
+    file_path: str,
 ) -> Brick:
-    db_brick = Brick.model_validate(brick_create)
-    brick_metadata = BrickMetadata(unit_type=unit_type)
-    db_brick.brick_metadata = brick_metadata
-    session.add(db_brick)
+    metadata_data = request_data.brick_metadata.model_dump(
+        exclude={"grammar_points"}
+    )
+    brick_metadata = BrickMetadata(**metadata_data)
+
+    grammar_points_data = request_data.brick_metadata.grammar_points or []
+    grammar_points = [
+        BrickMetadataGrammarPoint(grammar_point=gp.grammar_point)
+        for gp in grammar_points_data
+    ]
+    brick_metadata.grammar_points = grammar_points
+
+    brick_create = BrickCreate(
+        native_text=request_data.native_text,
+        target_text=request_data.target_text,
+        target_audio_uri=file_path,  # e.g. "brick-audios/learner_1_audio.m4a"
+        is_public=request_data.is_public,
+        creator_id=creator_id,
+        collection_name=request_data.collection_name,
+        group_name=request_data.group_name,
+    )
+    brick = Brick.model_validate(brick_create)
+    brick.brick_metadata = brick_metadata
+    session.add(brick)
 
     collection = collection_service.get_or_create_collection(
         session,
@@ -214,11 +321,11 @@ def create_brick(
         brick_create.creator_id,
     )
 
-    collection.bricks.append(db_brick)
+    collection.bricks.append(brick)
 
     session.commit()
-    session.refresh(db_brick)
+    session.refresh(brick)
 
     collection_service.update_collection_difficulty(session, collection.id)
 
-    return db_brick
+    return brick

@@ -10,22 +10,32 @@ from app.schemas import CollectionRead
 from . import text_service
 
 
-def temp_test(session: Session):
-    learner_id = 2
+def get_collections(
+    session: Session,
+    learner_id: int,
+) -> list[CollectionRead]:
+    statement = select(Collection).where(Collection.creator_id == learner_id)
+    collections = session.exec(statement).all()
+    return collections
+
+
+def get_pending_bricks(session: Session, learner_id: int, collection_id: int):
+    """
+    A brick is considered pending of a learner if it's created or has a
+    override version created by that learner.
+    """
     statement = (
         select(Brick)
-        .join(BrickOverride)
+        .join(BrickOverride, isouter=True)
         .where(
+            Brick.collection_id == collection_id,
             or_(
                 Brick.creator_id == learner_id,
                 BrickOverride.learner_id == learner_id,
-            )
+            ),
         )
     )
-    print(f"statement:\n{statement}")
-    results = session.exec(statement).all()
-    print(f"len(results)={len(results)}")
-    return results[:5]
+    return session.exec(statement).all()
 
 
 def get_pending_bricks_subquery(learner_id: int):
