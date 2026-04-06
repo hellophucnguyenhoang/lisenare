@@ -7,6 +7,7 @@ from app.services import (
     auth_service,
     collection_service,
     brick_override_service,
+    brick_service,
 )
 from app.schemas import (
     CollectionRead,
@@ -22,10 +23,10 @@ router = APIRouter(prefix="/collections", tags=["Collections"])
 
 
 @router.get("", response_model=list[CollectionRead])
-def get_pending_collections(
+def get_collections(
     session: Annotated[Session, Depends(get_session)],
     current_learner: Annotated[
-        Learner, Depends(auth_service.decode_token_to_get_learner)
+        Learner, Depends(auth_service.decode_token_get_learner)
     ],
 ):
     return collection_service.get_collections(session, current_learner.id)
@@ -35,7 +36,7 @@ def get_pending_collections(
 def get_pending_collections(
     session: Annotated[Session, Depends(get_session)],
     current_learner: Annotated[
-        Learner, Depends(auth_service.decode_token_to_get_learner)
+        Learner, Depends(auth_service.decode_token_get_learner)
     ],
     group_name: str = CEFRLevel.A1,
     limit: int = 20,
@@ -48,15 +49,25 @@ def get_pending_collections(
     )
 
 
+@router.get("/pending-groups", response_model=list[str])
+def get_pending_groups(
+    session: Annotated[Session, Depends(get_session)],
+    learner: Annotated[
+        Learner, Depends(auth_service.decode_token_get_learner)
+    ],
+):
+    return collection_service.get_pending_groups(session, learner.id)
+
+
 @router.get("/pending-bricks", response_model=list[BrickReadSimple])
 def get_pending_bricks_collection(
     session: Annotated[Session, Depends(get_session)],
     current_learner: Annotated[
-        Learner, Depends(auth_service.decode_token_to_get_learner)
+        Learner, Depends(auth_service.decode_token_get_learner)
     ],
     collection_id: int,
 ):
-    return collection_service.get_pending_bricks(
+    return brick_service.get_pending_bricks(
         session, current_learner.id, collection_id
     )
 
@@ -65,7 +76,7 @@ def get_pending_bricks_collection(
 def get_pending_collection_group_stats(
     session: Annotated[Session, Depends(get_session)],
     current_learner: Annotated[
-        Learner, Depends(auth_service.decode_token_to_get_learner)
+        Learner, Depends(auth_service.decode_token_get_learner)
     ],
 ):
     return collection_service.get_pending_collection_group_stats(
@@ -77,7 +88,7 @@ def get_pending_collection_group_stats(
 def create_group_overrides(
     session: Annotated[Session, Depends(get_session)],
     current_learner: Annotated[
-        Learner, Depends(auth_service.decode_token_to_get_learner)
+        Learner, Depends(auth_service.decode_token_get_learner)
     ],
     payload: OverrideGroupsCreate,
 ):

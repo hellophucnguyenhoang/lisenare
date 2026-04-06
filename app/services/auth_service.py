@@ -23,7 +23,7 @@ def authenticate_account(
     return account
 
 
-async def decode_token_to_get_learner(
+async def decode_token_get_learner(
     session: Annotated[Session, Depends(get_session)],
     token: Annotated[str, Depends(oauth2_scheme)],
 ) -> Learner:

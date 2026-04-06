@@ -14,7 +14,7 @@ router = APIRouter(prefix="/learning-cards", tags=["Learning Cards"])
 def get_learning_stats(
     session: Annotated[Session, Depends(get_session)],
     current_learner: Annotated[
-        Learner, Depends(auth_service.decode_token_to_get_learner)
+        Learner, Depends(auth_service.decode_token_get_learner)
     ],
 ):
     return learning_card_service.get_learning_stats(

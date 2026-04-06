@@ -1,11 +1,16 @@
-from sqlmodel import SQLModel
+from sqlmodel import SQLModel, Field
 from enum import Enum
+from typing import Annotated
 from app.schemas import ReviewBase
 
 
 class SentenceCompareRequest(SQLModel):
-    sentence1: str = "How are you?"
-    sentence2: str = "What's up?"
+    sentence1: Annotated[str, Field(description="The learner's sentence")] = (
+        "How are you?"
+    )
+    sentence2: Annotated[str, Field(description="The model's sentence")] = (
+        "What's up?"
+    )
     review_base: ReviewBase | None = None
 
 

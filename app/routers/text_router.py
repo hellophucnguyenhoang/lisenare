@@ -23,16 +23,25 @@ from app.services import (
 )
 from app.database import get_session, Learner
 import app.http_client as http_client
+from utils import text_utils
 
 
 router = APIRouter(prefix="/text", tags=["Text Features"])
+
+
+@router.get(
+    "/forced_alignment/{audio_path:path}",
+    response_model=list[WordSegmentSecond],
+)
+def forced_align(audio_path: str):
+    return forced_alignment_service.align(audio_path)
 
 
 @router.post("/semantic-comparison", response_model=SentenceCompareResponse)
 async def compare(
     session: Annotated[Session, Depends(get_session)],
     current_learner: Annotated[
-        Learner, Depends(auth_service.decode_token_to_get_learner)
+        Learner, Depends(auth_service.decode_token_get_learner)
     ],
     sentence_compare_request: SentenceCompareRequest,
 ):
@@ -45,8 +54,12 @@ async def compare(
     )
     if sentence_compare_request.review_base:
         review_create = ReviewCreate(
-            **sentence_compare_request.review_base.model_dump(),
+            **sentence_compare_request.review_base.model_dump(
+                exclude_none=True
+            ),
             first_score=sentence_compare_response.score,
+            user_target_text=sentence_compare_request.sentence1,
+            # Haven't store user's audio yet for simplicity
         )
         review_service.save_review(
             session=session,
@@ -86,11 +99,3 @@ def chat_endpoint(text_frequency_request: TextFrequencyRequest):
         text_frequency_request.english_sentence, lang="en"
     )
     return TextFrequencyResponse(frequency=frequency)
-
-
-@router.get(
-    "/forced_alignment/{audio_path:path}",
-    response_model=list[WordSegmentSecond],
-)
-def forced_align(audio_path: str):
-    return forced_alignment_service.align(audio_path)

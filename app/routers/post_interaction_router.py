@@ -13,7 +13,7 @@ router = APIRouter(prefix="/interactions", tags=["Interactions"])
 def upsert_interaction(
     session: Annotated[Session, Depends(get_session)],
     learner: Annotated[
-        Learner, Depends(auth_service.decode_token_to_get_learner)
+        Learner, Depends(auth_service.decode_token_get_learner)
     ],
     data: InteractionCreate,
 ):
