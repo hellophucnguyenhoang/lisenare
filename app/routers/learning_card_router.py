@@ -1,11 +1,11 @@
-from fastapi import APIRouter, Depends
-from sqlmodel import Session
 from typing import Annotated
 
-from app.database import get_session, Learner
-from app.services import auth_service, learning_card_service
-from app.schemas import LearningCardStats
+from fastapi import APIRouter, Depends
+from sqlmodel import Session
 
+from app.database import Learner, get_session
+from app.schemas import LearningCardStats
+from app.services import auth_service, learning_card_service
 
 router = APIRouter(prefix="/learning-cards", tags=["Learning Cards"])
 

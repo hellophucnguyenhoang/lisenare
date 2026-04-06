@@ -1,6 +1,7 @@
-from sqlmodel import Session, select, func
-from sqlalchemy.orm import selectinload
 from pathlib import Path
+
+from sqlalchemy.orm import selectinload
+from sqlmodel import Session, func, select
 
 from app.database import Post
 

@@ -4,16 +4,16 @@ while it's mostly do things with account is because
 this authentication can be a third-party application.
 """
 
+from typing import Annotated
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlmodel import Session
-from typing import Annotated
 
-from app.schemas import Token
-from app.database import get_session
-from app.services import auth_service
 from app import security
-
+from app.database import get_session
+from app.schemas import Token
+from app.services import auth_service
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
 

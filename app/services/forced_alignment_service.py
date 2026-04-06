@@ -1,8 +1,9 @@
+import re
+
+import pandas as pd
 import torch
 import torchaudio
 from sqlmodel import SQLModel
-import re
-import pandas as pd
 
 from app.schemas import WordSegmentSecond
 

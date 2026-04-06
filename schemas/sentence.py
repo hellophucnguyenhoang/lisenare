@@ -1,6 +1,8 @@
-from sqlmodel import SQLModel, Field
 from enum import Enum
 from typing import Annotated
+
+from sqlmodel import Field, SQLModel
+
 from app.schemas import ReviewBase
 
 

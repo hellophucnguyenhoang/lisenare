@@ -1,30 +1,30 @@
 import os
-import pandas as pd
-from mutagen import File as MutagenFile
 from collections.abc import Iterator
-from sqlmodel import (
-    SQLModel,
-    Field,
-    Relationship,
-    create_engine,
-    Session,
-    text,
-)
-from datetime import datetime, timezone, timedelta
-from pydantic import EmailStr
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-from .services import text_service
+import pandas as pd
+from mutagen import File as MutagenFile
+from pydantic import EmailStr
+from sqlmodel import (
+    Field,
+    Relationship,
+    Session,
+    SQLModel,
+    create_engine,
+)
+
+from . import security
 from .config import settings
 from .schemas import (
-    LearnerAccountCreate,
     CEFRLevel,
-    UnitType,
-    SentenceStructure,
-    SentenceFunction,
     GrammarPoint,
+    LearnerAccountCreate,
+    SentenceFunction,
+    SentenceStructure,
+    UnitType,
 )
-from . import security
+from .services import text_service
 
 
 class BrickMetadataGrammarPoint(SQLModel, table=True):
@@ -165,8 +165,10 @@ class OTP(SQLModel, table=True):
     email: str
     hashed_code: str
     expires_at: datetime = Field(
-        default_factory=lambda: datetime.now(timezone.utc)
-        + timedelta(minutes=settings.otp_expire_minutes)
+        default_factory=lambda: (
+            datetime.now(timezone.utc)
+            + timedelta(minutes=settings.otp_expire_minutes)
+        )
     )
     used: bool = False
 

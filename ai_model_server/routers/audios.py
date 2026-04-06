@@ -1,12 +1,11 @@
-from fastapi import APIRouter, UploadFile, HTTPException
+from fastapi import APIRouter, HTTPException, UploadFile
 
 from ai_model_server.services.transcription_service import (
+    phoneme_recognition_service,
     preprocess_upload_file,
     transcription_service,
-    phoneme_recognition_service,
 )
 from schemas.audio import STTResponse
-
 
 router = APIRouter(prefix="/audio", tags=["Audio Features"])
 

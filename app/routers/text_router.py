@@ -1,14 +1,11 @@
+from typing import Annotated
+
 from fastapi import APIRouter, Depends
 from sqlmodel import Session
-from typing import Annotated
 from wordfreq import word_frequency
 
-from schemas.sentence import (
-    SentenceCompareRequest,
-    SentenceCompareResponse,
-    SentenceTranslateRequest,
-    SentenceTranslateResponse,
-)
+import app.http_client as http_client
+from app.database import Learner, get_session
 from app.schemas import (
     ReviewCreate,
     TextFrequencyRequest,
@@ -17,14 +14,16 @@ from app.schemas import (
 )
 from app.services import (
     auth_service,
-    review_service,
-    learning_card_service,
     forced_alignment_service,
+    learning_card_service,
+    review_service,
 )
-from app.database import get_session, Learner
-import app.http_client as http_client
-from utils import text_utils
-
+from schemas.sentence import (
+    SentenceCompareRequest,
+    SentenceCompareResponse,
+    SentenceTranslateRequest,
+    SentenceTranslateResponse,
+)
 
 router = APIRouter(prefix="/text", tags=["Text Features"])
 

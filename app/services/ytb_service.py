@@ -1,9 +1,9 @@
-import yt_dlp
 import json
-from typing import Any
 from pathlib import Path
-from youtube_transcript_api import YouTubeTranscriptApi
+from typing import Any
 
+import yt_dlp
+from youtube_transcript_api import YouTubeTranscriptApi
 
 ytt_api = YouTubeTranscriptApi()
 video_ids_file = Path("video_ids.json")

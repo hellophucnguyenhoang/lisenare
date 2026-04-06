@@ -1,10 +1,15 @@
-import torch
 import ffmpeg
-import numpy as np
 import librosa
-from transformers import Wav2Vec2Processor, Wav2Vec2ForCTC
-from transformers import AutoModelForSpeechSeq2Seq, AutoProcessor, pipeline
+import numpy as np
+import torch
 from fastapi import UploadFile
+from transformers import (
+    AutoModelForSpeechSeq2Seq,
+    AutoProcessor,
+    Wav2Vec2ForCTC,
+    Wav2Vec2Processor,
+    pipeline,
+)
 
 
 async def preprocess_upload_file(file: UploadFile) -> np.ndarray:

@@ -1,6 +1,6 @@
-import json
-from sqlmodel import Session, select
 from datetime import datetime, timezone
+
+from sqlmodel import Session, select
 
 from app.database import PostInteraction
 from app.services import bandit_service
@@ -33,7 +33,8 @@ def create_or_update_interaction(
         interaction.reward = reward
         interaction.created_at = datetime.now(timezone.utc)
 
-        # Only update model if we have the features saved from the recommendation step
+        # Only update model if we have the
+        # features saved from the recommendation step
         if interaction.arm_feature and reward is not None:
             bandit_service.update_model(reward, interaction.arm_feature)
 

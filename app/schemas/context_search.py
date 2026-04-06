@@ -10,7 +10,3 @@ class VideoContextSearchResult(SQLModel):
     text: str
     start: float
     duration: float
-
-
-class ContextSearchRequest(SQLModel):
-    query: str = "jump off"

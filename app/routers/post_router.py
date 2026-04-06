@@ -1,18 +1,18 @@
+import json
+from typing import Annotated
+
 from fastapi import APIRouter, Depends
 from fastapi.responses import StreamingResponse
 from sqlmodel import Session
-from typing import Annotated
-import json
 
-from app.database import get_session, Learner
+from app.database import Learner, get_session
 from app.schemas.post import PostPage
 from app.services import (
     auth_service,
-    post_service,
     bandit_service,
     post_interaction_service,
+    post_service,
 )
-
 
 router = APIRouter(prefix="/posts", tags=["Posts"])
 

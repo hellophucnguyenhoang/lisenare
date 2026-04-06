@@ -1,5 +1,6 @@
-from fsrs import Scheduler, Card, Rating, ReviewLog
 from datetime import datetime, timezone
+
+from fsrs import Card, Rating, ReviewLog, Scheduler
 
 scheduler = Scheduler()
 

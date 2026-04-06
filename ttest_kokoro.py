@@ -1,4 +1,3 @@
-import io
 import soundfile as sf
 from kokoro import KPipeline
 

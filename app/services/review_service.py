@@ -1,7 +1,8 @@
 from sqlmodel import Session, select
 
-from app.schemas import ReviewCreate
 from app.database import Review
+from app.schemas import ReviewCreate
+
 from .spaced_repetition_service import convert_similarity_score_to_fsrs_rating
 
 

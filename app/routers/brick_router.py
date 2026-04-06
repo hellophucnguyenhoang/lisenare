@@ -1,34 +1,33 @@
-from fastapi.responses import StreamingResponse
+import json
+import shutil
+from datetime import datetime, timezone
+from pathlib import Path
+from typing import Annotated
+
 from fastapi import (
     APIRouter,
     Depends,
-    Form,
-    UploadFile,
     File,
-    Query,
-    status,
+    Form,
     HTTPException,
+    Query,
+    UploadFile,
+    status,
 )
-from sqlmodel import Session
-from typing import Annotated
-from pathlib import Path
-from datetime import datetime, timezone
-import shutil
-import json
+from fastapi.responses import StreamingResponse
 from pydantic import ValidationError
+from sqlmodel import Session
 
-from app.database import get_session
-from app.services import auth_service, brick_service
+from app.config import settings
+from app.database import Learner, get_session
 from app.schemas import (
-    BrickUpdate,
-    BrickRead,
-    BrickLearnRead,
     BrickCreateRequest,
+    BrickLearnRead,
+    BrickRead,
+    BrickUpdate,
     StatusResponse,
 )
-from app.database import Learner
-from app.config import settings
-
+from app.services import auth_service, brick_service
 
 router = APIRouter(prefix="/bricks", tags=["Bricks"])
 

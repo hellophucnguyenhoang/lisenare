@@ -1,10 +1,9 @@
-from fastapi import UploadFile
-from sqlmodel import SQLModel, Field
 from datetime import datetime
 from enum import Enum
 
-from schemas.cefr import CEFRLevel
+from sqlmodel import Field, SQLModel
 
+from schemas.cefr import CEFRLevel
 
 # ---------- Enums ----------
 

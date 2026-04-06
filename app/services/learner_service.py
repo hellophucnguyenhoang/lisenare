@@ -1,4 +1,4 @@
-from sqlmodel import select, Session
+from sqlmodel import Session, select
 
 from app.database import Learner
 

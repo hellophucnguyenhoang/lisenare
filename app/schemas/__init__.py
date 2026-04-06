@@ -10,8 +10,8 @@ from .context_search import *
 from .forced_alignment import *
 from .learner import *
 from .learning_card import *
-from .post_interaction import *
 from .post import *
+from .post_interaction import *
 from .readability import *
 from .review import *
 from .status import *

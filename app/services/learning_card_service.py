@@ -1,8 +1,10 @@
-from sqlmodel import Session, select, func, distinct
 from datetime import datetime, timezone
+
 from fsrs import Card, Scheduler
+from sqlmodel import Session, func, select
 
 from app.database import LearningCard
+
 from .spaced_repetition_service import convert_similarity_score_to_fsrs_rating
 
 

@@ -1,5 +1,6 @@
-from sqlmodel import SQLModel
 from enum import Enum
+
+from sqlmodel import SQLModel
 
 
 class ChatRole(str, Enum):

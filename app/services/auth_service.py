@@ -1,13 +1,14 @@
-from fastapi import Depends, HTTPException, status
-from fastapi.security import OAuth2PasswordBearer
-from sqlmodel import Session, select
-from jwt import InvalidTokenError
 from typing import Annotated
 
-from app import security
-from app.database import get_session, Account, Learner, OTP
-from . import account_service, learner_service
+from fastapi import Depends, HTTPException, status
+from fastapi.security import OAuth2PasswordBearer
+from jwt import InvalidTokenError
+from sqlmodel import Session, select
 
+from app import security
+from app.database import OTP, Account, Learner, get_session
+
+from . import account_service, learner_service
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login")
 

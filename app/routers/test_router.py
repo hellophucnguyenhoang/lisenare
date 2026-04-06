@@ -1,10 +1,10 @@
-from fastapi import APIRouter, Depends
-from sqlmodel import Session
 from typing import Annotated
 
-from app.database import get_session
-from app.services import test_service, brick_service
+from fastapi import APIRouter, Depends
+from sqlmodel import Session
 
+from app.database import get_session
+from app.services import brick_service, test_service
 
 router = APIRouter(prefix="/test", tags=["A"])
 

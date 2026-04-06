@@ -1,13 +1,14 @@
-from sqlmodel import Session, select, func, or_
+from sqlmodel import Session, func, or_, select
 
 from app.database import (
-    Collection,
-    BrickOverride,
     Brick,
+    BrickOverride,
+    Collection,
     Review,
 )
 from app.schemas import CollectionRead
-from . import text_service, brick_service
+
+from . import brick_service, text_service
 
 
 def get_collections(

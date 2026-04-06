@@ -1,5 +1,4 @@
-from transformers import AutoTokenizer, AutoModelForSeq2SeqLM
-
+from transformers import AutoModelForSeq2SeqLM, AutoTokenizer
 
 model_name = "VietAI/envit5-translation"
 tokenizer = AutoTokenizer.from_pretrained(model_name)
