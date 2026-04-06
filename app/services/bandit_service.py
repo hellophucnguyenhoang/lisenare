@@ -1,10 +1,11 @@
 import json
 import pickle
+
 import numpy as np
 from numpy.typing import NDArray
 
-from utils.np_utils import cosine_sim
 from app.config import settings
+from utils.np_utils import cosine_sim
 
 
 class SharedLinUCBModel:
@@ -76,7 +77,7 @@ class SharedLinUCBModel:
 
 
 linucb_model = SharedLinUCBModel.load(settings.linucb_model_path)
-print(f"LinUCB model loaded")
+print("LinUCB model loaded")
 
 with open(settings.post_features_path, "rb") as f:
     post_features = pickle.load(f)
@@ -135,4 +136,4 @@ def rank_posts(
 def update_model(reward: float, arm_feature: str):
     arm_vector = np.array(json.loads(arm_feature))
     linucb_model.update(reward, arm_vector)
-    print(f"linUCB model updated")
+    print("linUCB model updated")

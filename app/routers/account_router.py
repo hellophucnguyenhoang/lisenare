@@ -1,19 +1,20 @@
-from fastapi import APIRouter, Depends, BackgroundTasks, Body
-from sqlmodel import Session
 from typing import Annotated
 
+from fastapi import APIRouter, BackgroundTasks, Body, Depends
+from sqlmodel import Session
+
 from app import security
+from app.config import settings
+from app.database import Learner, get_session
 from app.schemas import (
-    Token,
+    LearnerAccountCreate,
     PasswordChangeRequest,
+    PasswordRecoveryResponse,
     PasswordResetRequest,
     StatusResponse,
+    Token,
 )
-from app.database import get_session, Learner
 from app.services import account_service, auth_service, otp_service
-from app.schemas import LearnerAccountCreate, PasswordRecoveryResponse
-from app.config import settings
-
 
 router = APIRouter(prefix="/accounts", tags=["Accounts"])
 

@@ -1,8 +1,9 @@
-from fastapi import BackgroundTasks, HTTPException, status
-from sqlmodel import select, Session
-from email.message import EmailMessage
 import smtplib
 from datetime import datetime, timezone
+from email.message import EmailMessage
+
+from fastapi import BackgroundTasks, HTTPException, status
+from sqlmodel import Session, select
 
 from app import security
 from app.config import settings

@@ -1,22 +1,22 @@
-from fastapi import APIRouter, UploadFile, Depends
-from sqlmodel import Session
 from typing import Annotated
+
+from fastapi import APIRouter, Depends, UploadFile
 from phonemizer import phonemize
 from phonemizer.separator import Separator
+from sqlmodel import Session
 
-from schemas.audio import STTResponse
-from app.database import get_session, Learner
+import app.http_client as http_client
+from app.database import Learner, get_session
 from app.schemas import PronunciationAnalysisResponse, ReviewCreate
-from app.services.text_service import text_service
 from app.services import (
     auth_service,
     brick_service,
-    review_service,
     learning_card_service,
+    review_service,
 )
-import app.http_client as http_client
+from app.services.text_service import text_service
+from schemas.audio import STTResponse
 from utils import file_utils, text_utils
-
 
 router = APIRouter(prefix="/audio", tags=["Audio"])
 
@@ -67,13 +67,14 @@ async def evaluate_audio(
         session, target_brick_id, learner.id
     )
 
-    learner_audio_path, learner_audio_bytes = (
-        await file_utils.save_upload_file(
-            file=learner_file,
-            base_dir="learner_audio",
-            sub_dir=f"user_{learner.id}",
-            filename_prefix=f"brick_{target_brick_id}",
-        )
+    (
+        learner_audio_path,
+        learner_audio_bytes,
+    ) = await file_utils.save_upload_file(
+        file=learner_file,
+        base_dir="learner_audio",
+        sub_dir=f"user_{learner.id}",
+        filename_prefix=f"brick_{target_brick_id}",
     )
 
     learner_files = {

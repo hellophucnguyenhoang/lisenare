@@ -1,22 +1,21 @@
 from fastapi import APIRouter
 from fastapi.responses import StreamingResponse
 
-from ai_model_server.services.text_service import text_service
 from ai_model_server.services.readmepp_service import readmepp_service
+from ai_model_server.services.text_service import text_service
 from app.services import chat_service
+from schemas.cefr import (
+    CEFRLevel,
+    CEFRRequest,
+    CEFRResponse,
+)
+from schemas.chat import ChatRequest
 from schemas.sentence import (
     SentenceCompareRequest,
     SentenceCompareResponse,
     SentenceTranslateRequest,
     SentenceTranslateResponse,
 )
-from schemas.cefr import (
-    CEFRRequest,
-    CEFRResponse,
-    CEFRLevel,
-)
-from schemas.chat import ChatRequest
-
 
 router = APIRouter(prefix="/text", tags=["Text Features"])
 
@@ -54,7 +53,7 @@ def chat_endpoint(request: ChatRequest):
 
 
 @router.post("/cefr-level")
-def chat_endpoint(cefr_request: CEFRRequest):
+def predict_cefr(cefr_request: CEFRRequest):
     pred = readmepp_service.predict(
         cefr_request.english_sentence, return_index=False
     )

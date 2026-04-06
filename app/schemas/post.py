@@ -1,5 +1,7 @@
-from sqlmodel import SQLModel
 from datetime import datetime
+
+from sqlmodel import SQLModel
+
 from .learner import LearnerRead
 
 

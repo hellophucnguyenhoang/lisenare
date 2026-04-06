@@ -1,11 +1,13 @@
 from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
 from app.config import settings
-from .database import init_db, delete_db
-from .http_client import init_client, close_client
+
+from .database import init_db
+from .http_client import close_client, init_client
 from .routers import (
     account_router,
     audio_router,

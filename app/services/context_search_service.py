@@ -1,7 +1,7 @@
-from langchain_ollama import OllamaEmbeddings
 from langchain_chroma import Chroma
+from langchain_ollama import OllamaEmbeddings
 
-from app.schemas import VideoContextSearchResult, BrickContextSearch, CEFRLevel
+from app.schemas import BrickContextSearch, CEFRLevel, VideoContextSearchResult
 
 
 class ContextSearchService:

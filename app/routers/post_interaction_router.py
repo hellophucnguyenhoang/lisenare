@@ -1,10 +1,11 @@
-from fastapi import APIRouter, Depends
-from sqlmodel import Session
 from typing import Annotated
 
-from app.database import get_session, Learner
-from app.services import auth_service, post_interaction_service
+from fastapi import APIRouter, Depends
+from sqlmodel import Session
+
+from app.database import Learner, get_session
 from app.schemas import InteractionCreate, StatusResponse
+from app.services import auth_service, post_interaction_service
 
 router = APIRouter(prefix="/interactions", tags=["Interactions"])
 

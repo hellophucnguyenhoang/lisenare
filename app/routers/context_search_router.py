@@ -1,12 +1,11 @@
 from fastapi import APIRouter
 
-from app.services.context_search_service import context_search_service
 from app.schemas import (
+    BrickContextSearch,
     ContextSearchRequest,
     VideoContextSearchResult,
-    BrickContextSearch,
 )
-
+from app.services.context_search_service import context_search_service
 
 router = APIRouter(prefix="/context-search", tags=["Context Search"])
 
@@ -21,7 +20,7 @@ def search_context_videos(
 
 
 @router.post("/bricks", response_model=list[BrickContextSearch])
-def search_context_videos(
+def search_context_bricks(
     context_search_request: ContextSearchRequest,
 ):
     return context_search_service.search_context_bricks(

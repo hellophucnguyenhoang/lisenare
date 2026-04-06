@@ -1,4 +1,5 @@
 from sqlmodel import SQLModel
+
 from . import CEFRLevel
 
 

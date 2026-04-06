@@ -1,5 +1,6 @@
-import math
 import difflib
+import math
+
 from jiwer import cer
 from wordfreq import word_frequency
 
@@ -50,7 +51,6 @@ class TextService:
 
         # Iterate over all alignment operations between teacher and learner
         for tag, i1, i2, j1, j2 in matcher.get_opcodes():
-
             # --- CASE 1: CORRECT PHONEMES ---
             # These phonemes match exactly between teacher and learner
             if tag == "equal":

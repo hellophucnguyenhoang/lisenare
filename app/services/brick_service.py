@@ -1,19 +1,21 @@
-from fastapi import HTTPException, status
-from sqlmodel import Session, select, func, or_
-from sqlalchemy.orm import selectinload
-from pathlib import Path
 from datetime import datetime, timezone
+from pathlib import Path
 
+from fastapi import HTTPException, status
+from sqlalchemy.orm import selectinload
+from sqlmodel import Session, func, or_, select
+
+from app.config import settings
 from app.database import (
     Brick,
     BrickMetadata,
+    BrickMetadataGrammarPoint,
+    BrickOverride,
     Collection,
     LearningCard,
-    BrickOverride,
-    BrickMetadataGrammarPoint,
 )
-from app.config import settings
-from app.schemas import BrickUpdate, BrickCreate, BrickCreateRequest, UnitType
+from app.schemas import BrickCreate, BrickCreateRequest, BrickUpdate, UnitType
+
 from . import collection_service
 
 
@@ -136,7 +138,7 @@ def get_broken_filenames() -> set[str]:
     # Read and split by "|", taking the first part (filename)
     with REPORT_FILE.open("r") as f:
         return {
-            f"brick-audios/{line.split("|")[0]}" for line in f if "|" in line
+            f"brick-audios/{line.split('|')[0]}" for line in f if "|" in line
         }
 
 

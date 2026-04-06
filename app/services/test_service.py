@@ -1,7 +1,8 @@
-from sqlmodel import Session, select, func
-from sqlalchemy.orm import selectinload
-from app.database import Brick, BrickMetadata
 import pandas as pd
+from sqlalchemy.orm import selectinload
+from sqlmodel import Session, select
+
+from app.database import Brick, BrickMetadata
 
 
 def export_bricks_to_csv(

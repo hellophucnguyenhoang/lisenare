@@ -1,10 +1,10 @@
-from fastapi import APIRouter, Depends
 from typing import Annotated
 
-from app.database import Learner
-from app.services import auth_service
-from app.schemas import LearnerRead
+from fastapi import APIRouter, Depends
 
+from app.database import Learner
+from app.schemas import LearnerRead
+from app.services import auth_service
 
 router = APIRouter(prefix="/learners", tags=["Learners"])
 
