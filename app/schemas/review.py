@@ -9,6 +9,8 @@ class ReviewBase(SQLModel):
         default_factory=lambda: datetime.now(timezone.utc)
     )
     is_answer_revealed: bool = False
+    user_target_text: str | None = None
+    user_target_audio_uri: str | None = None
 
 
 class ReviewCreate(ReviewBase):

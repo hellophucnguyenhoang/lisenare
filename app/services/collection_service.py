@@ -7,7 +7,7 @@ from app.database import (
     Review,
 )
 from app.schemas import CollectionRead
-from . import text_service
+from . import text_service, brick_service
 
 
 def get_collections(
@@ -17,25 +17,6 @@ def get_collections(
     statement = select(Collection).where(Collection.creator_id == learner_id)
     collections = session.exec(statement).all()
     return collections
-
-
-def get_pending_bricks(session: Session, learner_id: int, collection_id: int):
-    """
-    A brick is considered pending of a learner if it's created or has a
-    override version created by that learner.
-    """
-    statement = (
-        select(Brick)
-        .join(BrickOverride, isouter=True)
-        .where(
-            Brick.collection_id == collection_id,
-            or_(
-                Brick.creator_id == learner_id,
-                BrickOverride.learner_id == learner_id,
-            ),
-        )
-    )
-    return session.exec(statement).all()
 
 
 def get_pending_bricks_subquery(learner_id: int):
@@ -59,15 +40,16 @@ def get_pending_bricks_subquery(learner_id: int):
 def get_pending_collections(
     session: Session,
     learner_id: int,
-    group_name: str,
-    limit: int,
-    offset: int,
+    group_name: str | None = None,
+    limit: int | None = None,
+    offset: int | None = None,
 ) -> list[CollectionRead]:
     # Get all the pending bricks
     # Join with the Review to know the current learning state of them
     # Aggregate their collection information
+    # Apply pagination and sorting
 
-    pending_bricks_subq = get_pending_bricks_subquery(learner_id)
+    pending_bricks_subq = brick_service.get_pending_bricks_subquery(learner_id)
 
     statement = (
         select(
@@ -86,21 +68,26 @@ def get_pending_collections(
             & (Review.brick_id == pending_bricks_subq.c.id),
             isouter=True,
         )
-        .where(Collection.group_name == group_name)
-        .group_by(Collection.id)
-        .order_by(
-            Collection.difficulty_score,
-            Collection.name,
-            Collection.id,
-        )
-        .limit(limit)
-        .offset(offset)
     )
+
+    if group_name:
+        statement = statement.where(Collection.group_name == group_name)
+
+    statement = statement.group_by(Collection.id).order_by(
+        Collection.difficulty_score,
+        Collection.name,
+        Collection.id,
+    )
+
+    if limit is not None:
+        statement = statement.limit(limit)
+
+    if offset is not None:
+        statement = statement.offset(offset)
 
     results = session.exec(statement).all()
 
     collections_with_count = []
-
     for collection, brick_count, learned_count in results:
         data = collection.model_dump()
         data["brick_count"] = brick_count
@@ -108,6 +95,15 @@ def get_pending_collections(
         collections_with_count.append(data)
 
     return collections_with_count
+
+
+def get_pending_groups(
+    session: Session,
+    learner_id: int,
+) -> list[str]:
+    collections_with_count = get_pending_collections(session, learner_id)
+    group_names = set([coll["group_name"] for coll in collections_with_count])
+    return list(group_names)
 
 
 def get_or_create_collection(
@@ -151,7 +147,7 @@ def get_pending_collection_group_stats(
     session: Session,
     learner_id: int,
 ) -> list[dict]:
-    pending_bricks_subq = get_pending_bricks_subquery(learner_id)
+    pending_bricks_subq = brick_service.get_pending_bricks_subquery(learner_id)
     statement = (
         select(
             Collection.group_name,

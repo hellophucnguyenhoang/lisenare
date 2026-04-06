@@ -22,55 +22,101 @@ from app.services import auth_service, brick_service
 from app.schemas import (
     BrickUpdate,
     BrickRead,
-    BrickCreate,
     BrickLearnRead,
     BrickCreateRequest,
     StatusResponse,
-    UnitType,
 )
-from app.database import Learner, BrickMetadata, BrickMetadataGrammarPoint
+from app.database import Learner
 from app.config import settings
 
 
 router = APIRouter(prefix="/bricks", tags=["Bricks"])
 
 
-@router.patch(
-    "/{brick_id}",
-    response_model=BrickRead,
-    summary="Update a brick or create/update a personal override",
-    description="""
-If the learner is the creator of the brick, 
-the original brick is updated and returned.
-
-If not, a personal override of the brick is created or updated instead. 
-The original brick remains unchanged, 
-and a brick with the edited information is return.
-
-Non-author learners can only edit native_text field.
-""",
-)
-def update_brick(
+@router.get("/fsrs", response_model=BrickRead)
+def get_brick_fsrs(
     session: Annotated[Session, Depends(get_session)],
     current_learner: Annotated[
-        Learner, Depends(auth_service.decode_token_to_get_learner)
+        Learner, Depends(auth_service.decode_token_get_learner)
+    ],
+    collection_ids: Annotated[list[int] | None, Query()] = None,
+):
+    brick_read = brick_service.get_brick_fsrs(
+        session=session,
+        learner_id=current_learner.id,
+        collection_ids=collection_ids,
+    )
+    if brick_read is None:
+        print("brick read None")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Haven't had any sentence to practice yet.",
+        )
+    return brick_read
+
+
+@router.get("/audio")
+def get_brick_audios(
+    session: Annotated[Session, Depends(get_session)],
+    learner: Annotated[
+        Learner, Depends(auth_service.decode_token_get_learner)
+    ],
+    group_names: Annotated[list[str] | None, Query()] = None,
+):
+    print(f"{group_names = }")
+    pending_bricks = brick_service.get_pending_bricks(
+        session=session,
+        learner_id=learner.id,
+        group_names=group_names,
+    )
+    audio_uris = [brick.target_audio_uri for brick in pending_bricks]
+    return audio_uris
+
+
+@router.get("/audio/{filename}")
+def get_brick_audio(filename: str):
+    """
+    DEPRECATED due to static files. See app/main.py
+    """
+    return StreamingResponse(
+        brick_service.iter_audio_file(filename), media_type="audio/wav"
+    )
+
+
+@router.get("/by-id/{brick_id}", response_model=BrickRead)
+def get_brick(
+    session: Annotated[Session, Depends(get_session)],
+    current_learner: Annotated[
+        Learner, Depends(auth_service.decode_token_get_learner)
     ],
     brick_id: int,
-    brick_update: BrickUpdate,
 ):
-    return brick_service.update_brick(
+    return brick_service.get_brick(session, brick_id, current_learner.id)
+
+
+@router.get("/learn/{collection_id}", response_model=BrickLearnRead)
+def get_brick_in_collection_learn(
+    session: Annotated[Session, Depends(get_session)],
+    current_learner: Annotated[
+        Learner, Depends(auth_service.decode_token_get_learner)
+    ],
+    collection_id: int,
+    brick_order: Annotated[int, Query(ge=1)] = 1,
+):
+    brick_learn = brick_service.get_brick_in_collection_learn(
         session=session,
-        brick_id=brick_id,
-        brick_update=brick_update,
         learner_id=current_learner.id,
+        collection_id=collection_id,
+        brick_order=brick_order,
     )
+    return brick_learn
 
 
 @router.post("", response_model=BrickRead)
 def create_brick(
     session: Annotated[Session, Depends(get_session)],
     current_learner: Annotated[
-        Learner, Depends(auth_service.decode_token_to_get_learner)
+        Learner, Depends(auth_service.decode_token_get_learner)
     ],
     audio_file: Annotated[UploadFile, File()],
     brick_data: Annotated[
@@ -111,67 +157,6 @@ def create_brick(
         )
 
 
-@router.get("/audio/{filename}")
-def get_brick_audio(filename: str):
-    """
-    DEPRECATED due to static files. See app/main.py
-    """
-    return StreamingResponse(
-        brick_service.iter_audio_file(filename), media_type="audio/wav"
-    )
-
-
-@router.get("/by-id/{brick_id}", response_model=BrickRead)
-def get_brick(
-    session: Annotated[Session, Depends(get_session)],
-    current_learner: Annotated[
-        Learner, Depends(auth_service.decode_token_to_get_learner)
-    ],
-    brick_id: int,
-):
-    return brick_service.get_brick(session, brick_id, current_learner.id)
-
-
-@router.get("/fsrs", response_model=BrickRead)
-def get_brick_fsrs(
-    session: Annotated[Session, Depends(get_session)],
-    current_learner: Annotated[
-        Learner, Depends(auth_service.decode_token_to_get_learner)
-    ],
-    collection_ids: Annotated[list[int] | None, Query()] = None,
-):
-    brick_read = brick_service.get_brick_fsrs(
-        session=session,
-        learner_id=current_learner.id,
-        collection_ids=collection_ids,
-    )
-    if brick_read is None:
-        print("brick read None")
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Haven't had any sentence to practice yet.",
-        )
-    return brick_read
-
-
-@router.get("/learn/{collection_id}", response_model=BrickLearnRead)
-def get_brick_in_collection_learn(
-    session: Annotated[Session, Depends(get_session)],
-    current_learner: Annotated[
-        Learner, Depends(auth_service.decode_token_to_get_learner)
-    ],
-    collection_id: int,
-    brick_order: Annotated[int, Query(ge=1)] = 1,
-):
-    brick_learn = brick_service.get_brick_in_collection_learn(
-        session=session,
-        learner_id=current_learner.id,
-        collection_id=collection_id,
-        brick_order=brick_order,
-    )
-    return brick_learn
-
-
 @router.post("/report/{filename}", response_model=StatusResponse)
 def append_broken_audio_file(filename: str, description: str | None = None):
     REPORT_FILE = Path(settings.broken_report_file)
@@ -182,3 +167,34 @@ def append_broken_audio_file(filename: str, description: str | None = None):
         clean_desc = description.replace("|", " ").replace("\n", " ")
         f.write(f"{filename}|{clean_desc}|{datetime.now(timezone.utc)}\n")
     return {"status": "success", "message": f"Reported {filename}"}
+
+
+@router.patch(
+    "/{brick_id}",
+    response_model=BrickRead,
+    summary="Update a brick or create/update a personal override",
+    description="""
+If the learner is the creator of the brick, 
+the original brick is updated and returned.
+
+If not, a personal override of the brick is created or updated instead. 
+The original brick remains unchanged, 
+and a brick with the edited information is return.
+
+Non-author learners can only edit native_text field.
+""",
+)
+def update_brick(
+    session: Annotated[Session, Depends(get_session)],
+    current_learner: Annotated[
+        Learner, Depends(auth_service.decode_token_get_learner)
+    ],
+    brick_id: int,
+    brick_update: BrickUpdate,
+):
+    return brick_service.update_brick(
+        session=session,
+        brick_id=brick_id,
+        brick_update=brick_update,
+        learner_id=current_learner.id,
+    )

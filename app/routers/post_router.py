@@ -30,7 +30,7 @@ def list_random_posts(
 def get_recommended_posts(
     session: Annotated[Session, Depends(get_session)],
     learner: Annotated[
-        Learner, Depends(auth_service.decode_token_to_get_learner)
+        Learner, Depends(auth_service.decode_token_get_learner)
     ],
     page_size: int = 20,
 ):

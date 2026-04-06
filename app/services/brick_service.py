@@ -7,6 +7,7 @@ from datetime import datetime, timezone
 from app.database import (
     Brick,
     BrickMetadata,
+    Collection,
     LearningCard,
     BrickOverride,
     BrickMetadataGrammarPoint,
@@ -14,6 +15,64 @@ from app.database import (
 from app.config import settings
 from app.schemas import BrickUpdate, BrickCreate, BrickCreateRequest, UnitType
 from . import collection_service
+
+
+def get_pending_bricks_subquery(learner_id: int):
+    """
+    A brick is considered pending of a learner if it's created or has a
+    override version created by that learner.
+    """
+    return (
+        select(Brick)
+        .join(BrickOverride, isouter=True)
+        .where(
+            or_(
+                Brick.creator_id == learner_id,
+                BrickOverride.learner_id == learner_id,
+            )
+        )
+        .subquery()
+    )
+
+
+def get_pending_bricks(
+    session: Session,
+    learner_id: int,
+    collection_id: int | None = None,
+    group_names: list[str] | None = None,
+    offset: int | None = None,
+    limit: int | None = None,
+) -> list[Brick]:
+    """
+    A brick is considered pending of a learner if it's created or has a
+    override version created by that learner.
+    """
+    statement = select(Brick).join(BrickOverride, isouter=True)
+
+    conditions = []
+    if collection_id:
+        conditions.append(Brick.collection_id == collection_id)
+
+    conditions.append(
+        or_(
+            Brick.creator_id == learner_id,
+            BrickOverride.learner_id == learner_id,
+        )
+    )
+
+    if group_names:
+        statement = statement.join(Collection, isouter=True)
+        conditions.append(Collection.group_name.in_(group_names))
+
+    statement = statement.where(*conditions).order_by(Brick.id)
+
+    if limit is not None:
+        statement = statement.limit(limit)
+
+    if offset is not None:
+        statement = statement.offset(offset)
+
+    return session.exec(statement).all()
 
 
 def get_brick(session: Session, id: int, learner_id: int) -> Brick:
@@ -76,7 +135,9 @@ def get_broken_filenames() -> set[str]:
         return set()
     # Read and split by "|", taking the first part (filename)
     with REPORT_FILE.open("r") as f:
-        return {line.split("|")[0] for line in f if "|" in line}
+        return {
+            f"brick-audios/{line.split("|")[0]}" for line in f if "|" in line
+        }
 
 
 def get_brick_fsrs(
@@ -129,9 +190,7 @@ def get_brick_fsrs(
         return brick
 
     # 2. New unseen bricks
-    pending_bricks_subq = collection_service.get_pending_bricks_subquery(
-        learner_id
-    )
+    pending_bricks_subq = get_pending_bricks_subquery(learner_id)
 
     new_stmt = (
         select(Brick, BrickOverride.native_text)

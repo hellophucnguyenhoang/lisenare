@@ -31,25 +31,6 @@ def create_account(
     return Token(access_token=access_token)
 
 
-@router.patch("/me/password", response_model=Token)
-def change_account_password(
-    session: Annotated[Session, Depends(get_session)],
-    learner: Annotated[
-        Learner, Depends(auth_service.decode_token_to_get_learner)
-    ],
-    change_password_request: PasswordChangeRequest,
-) -> Token:
-    account = account_service.change_learner_account_password(
-        session,
-        learner_id=learner.id,
-        old_password=change_password_request.old_password,
-        new_password=change_password_request.new_password,
-    )
-    data = {"sub": str(account.learner_id), "username": account.username}
-    access_token = security.create_access_token(data=data)
-    return Token(access_token=access_token)
-
-
 @router.post("/forgot-password", response_model=PasswordRecoveryResponse)
 def forgot_password(
     session: Annotated[Session, Depends(get_session)],
@@ -84,3 +65,22 @@ def reset_password(
     return account_service.reset_account_password(
         session, password_reset_request
     )
+
+
+@router.patch("/me/password", response_model=Token)
+def change_account_password(
+    session: Annotated[Session, Depends(get_session)],
+    learner: Annotated[
+        Learner, Depends(auth_service.decode_token_get_learner)
+    ],
+    change_password_request: PasswordChangeRequest,
+) -> Token:
+    account = account_service.change_learner_account_password(
+        session,
+        learner_id=learner.id,
+        old_password=change_password_request.old_password,
+        new_password=change_password_request.new_password,
+    )
+    data = {"sub": str(account.learner_id), "username": account.username}
+    access_token = security.create_access_token(data=data)
+    return Token(access_token=access_token)
