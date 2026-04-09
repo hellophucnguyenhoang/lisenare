@@ -4,8 +4,14 @@ from enum import Enum
 class Status(str, Enum):
     pending = "a"
     paying = "b"
+    complete = "c"
 
 
-a = Status.pending
-
-print(a == Status.pending)
+my_enum = Status.pending
+print(my_enum)  # Status.pending
+print(my_enum.name)  # pending
+print(my_enum.value)  # a
+print(str(my_enum))  # Status.pending
+print(my_enum == Status.pending)  # True
+print(Status("a"))  # Status.pending
+print(Status["paying"])  # Status.paying

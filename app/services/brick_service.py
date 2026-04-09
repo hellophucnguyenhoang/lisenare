@@ -2,6 +2,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from fastapi import HTTPException, status
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import selectinload
 from sqlmodel import Session, delete, func, or_, select
 
@@ -192,7 +193,7 @@ def get_brick_fsrs(
     brick = resolve_override(result)
     if brick:
         return brick
-    print("FSRS CASE 2")
+    print("FSRS Case 2: Get new unseen card")
     # Case 2: Get new unseen card
     pending_bricks_subq = get_pending_bricks_subquery(learner_id)
 
@@ -406,45 +407,41 @@ def delete_brick(session: Session, learner_id: int, brick_id: int):
     brick = session.get(Brick, brick_id)
     if not brick:
         raise HTTPException(status_code=404, detail="Brick not found")
+    collection_id = brick.collection_id
+    status_msg = ""
 
-    # Case 1: Learner is the Creator -> Delete the whole Brick
+    # Case 1: Creator deletes the actual Brick
     if brick.creator_id == learner_id:
-        session.delete(brick)
+        try:
+            session.delete(brick)
+            session.commit()
+            status_msg = "BRICK_DELETED"
+        except IntegrityError:
+            session.rollback()
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Cannot delete this brick because other learners are using it.",
+            )
+
+    # Case 2: Non-creator deletes personal data
+    else:
+        # Check/Delete Override, Reviews, and LearningCard
+        override = session.get(BrickOverride, (learner_id, brick_id))
+        if override:
+            session.delete(override)
+
+        session.exec(
+            delete(Review).where(
+                Review.learner_id == learner_id, Review.brick_id == brick_id
+            )
+        )
+
+        card = session.get(LearningCard, (learner_id, brick_id))
+        if card:
+            session.delete(card)
+
         session.commit()
-        return "BRICK_DELETED"
+        status_msg = "PERSONAL_DATA_DELETED"
 
-    # Case 2: Learner is NOT the Creator -> Delete personal data
-    # We check if ANY personal data exists (Override, Review, or LearningCard)
-    has_personal_data = False
-
-    # 1. Check/Delete Override
-    override = session.get(BrickOverride, (learner_id, brick_id))
-    if override:
-        session.delete(override)
-        has_personal_data = True
-
-    # 2. Delete personal Reviews
-    # We use a bulk delete for efficiency
-    review_statement = delete(Review).where(
-        Review.learner_id == learner_id, Review.brick_id == brick_id
-    )
-    review_result = session.exec(review_statement)
-    if review_result.rowcount > 0:
-        has_personal_data = True
-
-    # 3. Delete personal LearningCard
-    card = session.get(LearningCard, (learner_id, brick_id))
-    if card:
-        session.delete(card)
-        has_personal_data = True
-
-    if has_personal_data:
-        session.commit()
-        return "PERSONAL_DATA_DELETED"
-
-    # Case 3: No ownership and no override
-    raise HTTPException(
-        status_code=status.HTTP_403_FORBIDDEN,
-        detail="Don't own this brick \
-            and have no personal progress/overrides to delete.",
-    )
+    collection_service.delete_empty_collection(session, collection_id)
+    return status_msg

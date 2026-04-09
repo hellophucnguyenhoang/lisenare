@@ -28,6 +28,7 @@ def save_override_for_brick(
         override = BrickOverride(
             learner_id=learner_id,
             brick_id=brick_id,
+            collection_id=brick.collection_id,
         )
         session.add(override)
 
@@ -80,6 +81,7 @@ def create_overrides_for_group(
             override = BrickOverride(
                 learner_id=learner_id,
                 brick_id=brick_id,
+                collection_id=bricks[brick_id].collection_id,
                 native_text=bricks[brick_id].native_text,
                 target_audio_uri=bricks[brick_id].target_audio_uri,
             )
