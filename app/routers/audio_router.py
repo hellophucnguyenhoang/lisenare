@@ -114,7 +114,7 @@ async def evaluate_audio(
             is_answer_revealed=is_answer_revealed_assumed,
             first_score=result["accuracy_score"],
             user_target_text=learner_text,
-            user_target_audio_uri=str(learner_audio_path),
+            user_target_audio_uri=learner_audio_path,
         )
         review_service.save_review(
             session=session,

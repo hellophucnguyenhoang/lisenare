@@ -20,7 +20,7 @@ router = APIRouter(prefix="/posts", tags=["Posts"])
 @router.get("/random", response_model=PostPage)
 def list_random_posts(
     session: Annotated[Session, Depends(get_session)],
-    page_size: int = 20,
+    page_size: int = 5,
 ):
     posts = post_service.get_random_posts(session, page_size)
     return {"items": posts, "total": len(posts)}
@@ -32,7 +32,7 @@ def get_recommended_posts(
     learner: Annotated[
         Learner, Depends(auth_service.decode_token_get_learner)
     ],
-    page_size: int = 20,
+    page_size: int = 5,
 ):
     learner_history = post_interaction_service.get_learner_history(
         session, learner.id
