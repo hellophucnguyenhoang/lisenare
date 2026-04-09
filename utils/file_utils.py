@@ -1,5 +1,6 @@
-from pathlib import Path
 from datetime import datetime, timezone
+from pathlib import Path
+
 from fastapi import UploadFile
 
 
@@ -8,7 +9,7 @@ async def save_upload_file(
     base_dir: str,
     sub_dir: str | None = None,
     filename_prefix: str | None = None,
-) -> Path:
+) -> tuple[str, bytes]:
     """
     Save an UploadFile to disk using pathlib.
 
@@ -19,7 +20,7 @@ async def save_upload_file(
         filename_prefix: Optional prefix (e.g. f"brick_{brick_id}")
 
     Returns:
-        Path to saved file, file_bytes
+        Relative path to the saved file, file_bytes
     """
 
     # Read file bytes once
@@ -47,4 +48,4 @@ async def save_upload_file(
     # Save file
     file_path.write_bytes(file_bytes)
 
-    return file_path, file_bytes
+    return str(file_path), file_bytes

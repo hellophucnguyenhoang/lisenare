@@ -1,4 +1,4 @@
-from sqlmodel import Session, func, or_, select
+from sqlmodel import Session, asc, desc, func, or_, select
 
 from app.database import (
     Brick,
@@ -6,7 +6,7 @@ from app.database import (
     Collection,
     Review,
 )
-from app.schemas import CollectionRead
+from app.schemas import CollectionRead, CollectionSort, CollectionStatus
 
 from . import brick_service, text_service
 
@@ -42,6 +42,8 @@ def get_pending_collections(
     session: Session,
     learner_id: int,
     group_name: str | None = None,
+    status: CollectionStatus = CollectionStatus.ALL,
+    sort_by: CollectionSort = CollectionSort.recommended,
     limit: int | None = None,
     offset: int | None = None,
 ) -> list[CollectionRead]:
@@ -55,8 +57,13 @@ def get_pending_collections(
     statement = (
         select(
             Collection,
-            func.count(pending_bricks_subq.c.id).label("brick_count"),
+            func.count(func.distinct(pending_bricks_subq.c.id)).label(
+                "brick_count"
+            ),
             func.count(func.distinct(Review.brick_id)).label("learned_count"),
+            func.max(pending_bricks_subq.c.last_edit_at).label(
+                "latest_brick_edit"
+            ),
         )
         .select_from(Collection)
         .join(
@@ -74,11 +81,47 @@ def get_pending_collections(
     if group_name:
         statement = statement.where(Collection.group_name == group_name)
 
-    statement = statement.group_by(Collection.id).order_by(
-        Collection.difficulty_score,
-        Collection.name,
-        Collection.id,
-    )
+    statement = statement.group_by(Collection.id)
+
+    total_bricks_count = func.count(func.distinct(pending_bricks_subq.c.id))
+    learned_bricks_count = func.count(func.distinct(Review.brick_id))
+
+    if status == CollectionStatus.NOT_STARTED:
+        # Chưa học brick nào
+        statement = statement.having(learned_bricks_count == 0)
+
+    elif status == CollectionStatus.IN_PROGRESS:
+        # Đã học ít nhất 1 brick VÀ chưa học hết
+        statement = statement.having(
+            (learned_bricks_count > 0)
+            & (learned_bricks_count < total_bricks_count)
+        )
+
+    elif status == CollectionStatus.COMPLETED:
+        # Số lượng brick đã học bằng tổng số brick
+        statement = statement.having(
+            (learned_bricks_count == total_bricks_count)
+            & (total_bricks_count > 0)  # Đảm bảo collection không trống
+        )
+
+    # --- Sorting Logic ---
+    if sort_by == CollectionSort.newest:
+        statement = statement.order_by(
+            desc("latest_brick_edit"), Collection.id
+        )
+    elif sort_by == CollectionSort.az:
+        # Sort by name A -> Z
+        statement = statement.order_by(asc(Collection.name), Collection.id)
+    elif sort_by == CollectionSort.za:
+        # Sort by name Z -> A
+        statement = statement.order_by(desc(Collection.name), Collection.id)
+    else:
+        # Default "recommended" sorting
+        statement = statement.order_by(
+            Collection.difficulty_score,
+            Collection.name,
+            Collection.id,
+        )
 
     if limit is not None:
         statement = statement.limit(limit)
@@ -89,7 +132,7 @@ def get_pending_collections(
     results = session.exec(statement).all()
 
     collections_with_count = []
-    for collection, brick_count, learned_count in results:
+    for collection, brick_count, learned_count, _ in results:
         data = collection.model_dump()
         data["brick_count"] = brick_count
         data["learned_count"] = learned_count

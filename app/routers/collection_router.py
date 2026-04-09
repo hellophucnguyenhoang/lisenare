@@ -7,6 +7,8 @@ from app.database import Learner, get_session
 from app.schemas import (
     BrickReadSimple,
     CollectionRead,
+    CollectionSort,
+    CollectionStatus,
     GroupStats,
     OverrideGroupsCreate,
     OverrideGroupsResponse,
@@ -39,13 +41,15 @@ def get_pending_collections(
         Learner, Depends(auth_service.decode_token_get_learner)
     ],
     group_name: str = CEFRLevel.A1,
+    status: CollectionStatus = CollectionStatus.ALL,
+    sort_by: CollectionSort = CollectionSort.recommended,
     limit: int = 20,
     page: int = 1,
 ):
     # Calculate offset: (page 1 - 1) * 20 = 0; (page 2 - 1) * 20 = 20
     offset = (page - 1) * limit
     return collection_service.get_pending_collections(
-        session, current_learner.id, group_name, limit, offset
+        session, current_learner.id, group_name, status, sort_by, limit, offset
     )
 
 

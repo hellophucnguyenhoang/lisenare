@@ -115,19 +115,31 @@ class Brick(SQLModel, table=True):
         foreign_key="brickmetadata.id",
         unique=True,
         nullable=False,
+        ondelete="CASCADE",
     )
-    brick_metadata: BrickMetadata | None = Relationship()
+    brick_metadata: BrickMetadata | None = Relationship(
+        cascade_delete=True, sa_relationship_kwargs={"single_parent": True}
+    )
     collection_id: int | None = Field(
         default=None, foreign_key="collection.id"
     )
     collection: Collection | None = Relationship(back_populates="bricks")
-    reviews: list["Review"] | None = Relationship(back_populates="brick")
-    overrides: list["BrickOverride"] = Relationship(back_populates="brick")
+    reviews: list["Review"] | None = Relationship(
+        back_populates="brick", cascade_delete=True
+    )
+    overrides: list["BrickOverride"] = Relationship(
+        back_populates="brick", cascade_delete=True
+    )
+    learning_cards: list["LearningCard"] = Relationship(
+        back_populates="brick", cascade_delete=True
+    )
 
 
 class BrickOverride(SQLModel, table=True):
     learner_id: int = Field(foreign_key="learner.id", primary_key=True)
-    brick_id: int = Field(foreign_key="brick.id", primary_key=True)
+    brick_id: int = Field(
+        foreign_key="brick.id", primary_key=True, ondelete="CASCADE"
+    )
     native_text: str | None = None
     target_audio_uri: str | None = None
     last_edit_at: datetime = Field(
@@ -140,7 +152,7 @@ class BrickOverride(SQLModel, table=True):
 class Review(SQLModel, table=True):
     id: int | None = Field(default=None, primary_key=True)
     learner_id: int = Field(foreign_key="learner.id")
-    brick_id: int = Field(foreign_key="brick.id")
+    brick_id: int = Field(foreign_key="brick.id", ondelete="CASCADE")
     first_score: float
     is_answer_revealed: bool = False
     fsrs_rating: int = Field(ge=1, le=4)
@@ -155,9 +167,12 @@ class Review(SQLModel, table=True):
 
 class LearningCard(SQLModel, table=True):
     learner_id: int = Field(foreign_key="learner.id", primary_key=True)
-    brick_id: int = Field(foreign_key="brick.id", primary_key=True)
+    brick_id: int = Field(
+        foreign_key="brick.id", primary_key=True, ondelete="CASCADE"
+    )
+    brick: "Brick" = Relationship(back_populates="learning_cards")
     fsrs_card_json: str
-    due: datetime  # let due here for quick access
+    due: datetime
 
 
 class OTP(SQLModel, table=True):

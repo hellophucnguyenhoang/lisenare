@@ -1,6 +1,14 @@
+from enum import Enum
+
 from sqlmodel import SQLModel
 
 
+class StatusType(str, Enum):
+    SUCCESS = "success"
+    ERROR = "error"
+    PENDING = "pending"
+
+
 class StatusResponse(SQLModel):
-    status: str
+    status: StatusType
     message: str

@@ -3,7 +3,7 @@ from pathlib import Path
 
 from fastapi import HTTPException, status
 from sqlalchemy.orm import selectinload
-from sqlmodel import Session, func, or_, select
+from sqlmodel import Session, delete, func, or_, select
 
 from app.config import settings
 from app.database import (
@@ -13,6 +13,7 @@ from app.database import (
     BrickOverride,
     Collection,
     LearningCard,
+    Review,
 )
 from app.schemas import BrickCreate, BrickCreateRequest, BrickUpdate, UnitType
 
@@ -21,7 +22,7 @@ from . import collection_service
 
 def get_pending_bricks_subquery(learner_id: int):
     """
-    A brick is considered pending of a learner if it's created or has a
+    A brick is considered pending of a learner if it's created or has an
     override version created by that learner.
     """
     return (
@@ -166,16 +167,17 @@ def get_brick_fsrs(
         return brick
 
     # Common override join condition
+    # Only get the overrides of the learner_id
     override_join = (BrickOverride.brick_id == Brick.id) & (
         BrickOverride.learner_id == learner_id
     )
 
-    # 1. Due cards
+    # Case 1: Get the most overdue card
     due_stmt = (
         select(Brick, BrickOverride.native_text)
         .join(LearningCard, LearningCard.brick_id == Brick.id)
         .join(BrickMetadata)
-        .outerjoin(BrickOverride, override_join)
+        .join(BrickOverride, override_join, isouter=True)
         .where(
             LearningCard.learner_id == learner_id,
             LearningCard.due <= now,
@@ -190,15 +192,15 @@ def get_brick_fsrs(
     brick = resolve_override(result)
     if brick:
         return brick
-
-    # 2. New unseen bricks
+    print("FSRS CASE 2")
+    # Case 2: Get new unseen card
     pending_bricks_subq = get_pending_bricks_subquery(learner_id)
 
     new_stmt = (
         select(Brick, BrickOverride.native_text)
         .join(pending_bricks_subq, pending_bricks_subq.c.id == Brick.id)
         .join(BrickMetadata)
-        .outerjoin(BrickOverride, override_join)
+        .join(BrickOverride, override_join, isouter=True)
         .where(
             BrickMetadata.unit_type == UnitType.sentence,
             ~Brick.id.in_(
@@ -390,3 +392,59 @@ def create_brick(
     collection_service.update_collection_difficulty(session, collection.id)
 
     return brick
+
+
+def check_target_text_exists(session: Session, target_text: str) -> bool:
+    # Use select to find a matching record
+    statement = select(Brick).where(Brick.target_text == target_text)
+    result = session.exec(statement).first()
+
+    return result is not None
+
+
+def delete_brick(session: Session, learner_id: int, brick_id: int):
+    brick = session.get(Brick, brick_id)
+    if not brick:
+        raise HTTPException(status_code=404, detail="Brick not found")
+
+    # Case 1: Learner is the Creator -> Delete the whole Brick
+    if brick.creator_id == learner_id:
+        session.delete(brick)
+        session.commit()
+        return "BRICK_DELETED"
+
+    # Case 2: Learner is NOT the Creator -> Delete personal data
+    # We check if ANY personal data exists (Override, Review, or LearningCard)
+    has_personal_data = False
+
+    # 1. Check/Delete Override
+    override = session.get(BrickOverride, (learner_id, brick_id))
+    if override:
+        session.delete(override)
+        has_personal_data = True
+
+    # 2. Delete personal Reviews
+    # We use a bulk delete for efficiency
+    review_statement = delete(Review).where(
+        Review.learner_id == learner_id, Review.brick_id == brick_id
+    )
+    review_result = session.exec(review_statement)
+    if review_result.rowcount > 0:
+        has_personal_data = True
+
+    # 3. Delete personal LearningCard
+    card = session.get(LearningCard, (learner_id, brick_id))
+    if card:
+        session.delete(card)
+        has_personal_data = True
+
+    if has_personal_data:
+        session.commit()
+        return "PERSONAL_DATA_DELETED"
+
+    # Case 3: No ownership and no override
+    raise HTTPException(
+        status_code=status.HTTP_403_FORBIDDEN,
+        detail="Don't own this brick \
+            and have no personal progress/overrides to delete.",
+    )
