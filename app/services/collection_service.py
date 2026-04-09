@@ -1,11 +1,7 @@
-from sqlmodel import Session, asc, desc, func, or_, select
+from sqlalchemy.exc import IntegrityError
+from sqlmodel import Session, asc, desc, func, select
 
-from app.database import (
-    Brick,
-    BrickOverride,
-    Collection,
-    Review,
-)
+from app.database import Brick, Collection, Review
 from app.schemas import CollectionRead, CollectionSort, CollectionStatus
 
 from . import brick_service, text_service
@@ -18,24 +14,6 @@ def get_collections(
     statement = select(Collection).where(Collection.creator_id == learner_id)
     collections = session.exec(statement).all()
     return collections
-
-
-def get_pending_bricks_subquery(learner_id: int):
-    """
-    A brick is considered pending of a learner if it's created or has a
-    override version created by that learner.
-    """
-    return (
-        select(Brick)
-        .join(BrickOverride, isouter=True)
-        .where(
-            or_(
-                Brick.creator_id == learner_id,
-                BrickOverride.learner_id == learner_id,
-            )
-        )
-        .subquery()
-    )
 
 
 def get_pending_collections(
@@ -172,21 +150,6 @@ def get_or_create_collection(
     return collection
 
 
-def update_collection_difficulty(session: Session, collection_id: int):
-    statement = select(Brick).where(Brick.collection_id == collection_id)
-    bricks = session.exec(statement).all()
-
-    if bricks:
-        sum_score = sum(
-            text_service.log_frequency(b.target_text) for b in bricks
-        )
-        collection = session.get(Collection, collection_id)
-        if collection:
-            collection.difficulty_score = sum_score
-            session.add(collection)
-            session.commit()
-
-
 def get_pending_collection_group_stats(
     session: Session,
     learner_id: int,
@@ -211,3 +174,41 @@ def get_pending_collection_group_stats(
         }
         for group_name, collection_count in results
     ]
+
+
+def update_collection_difficulty(session: Session, collection_id: int):
+    statement = select(Brick).where(Brick.collection_id == collection_id)
+    bricks = session.exec(statement).all()
+
+    if bricks:
+        sum_score = sum(
+            text_service.log_frequency(b.target_text) for b in bricks
+        )
+        collection = session.get(Collection, collection_id)
+        if collection:
+            collection.difficulty_score = sum_score
+            session.add(collection)
+            session.commit()
+
+
+def delete_empty_collection(session: Session, collection_id: int):
+    """Deletes a collection only if no bricks and no overrides remain."""
+    if not collection_id:
+        return
+
+    collection = session.get(Collection, collection_id)
+    if not collection:
+        return
+
+    try:
+        session.delete(collection)
+        session.commit()
+        print(f"Collection {collection_id} deleted because it was empty.")
+    except IntegrityError:
+        # This error happens if the RESTRICT rule is triggered
+        # Forget about that delete attempt and go
+        # back to the state we were in before I tried that
+        session.rollback()
+        print(
+            f"Collection {collection_id} kept because it still has bricks or overrides."
+        )

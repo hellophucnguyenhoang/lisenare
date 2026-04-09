@@ -6,6 +6,8 @@ from pathlib import Path
 import pandas as pd
 from mutagen import File as MutagenFile
 from pydantic import EmailStr
+from sqlalchemy import event
+from sqlalchemy.engine import Engine
 from sqlmodel import (
     Field,
     Relationship,
@@ -95,7 +97,12 @@ class Collection(SQLModel, table=True):
     )
     creator_id: int = Field(foreign_key="learner.id")
     creator: Learner = Relationship(back_populates="collections")
-    bricks: list["Brick"] = Relationship(back_populates="collection")
+    bricks: list["Brick"] = Relationship(
+        back_populates="collection", passive_deletes="all"
+    )
+    brick_overrides: list["BrickOverride"] = Relationship(
+        back_populates="collection", passive_deletes="all"
+    )
 
 
 class Brick(SQLModel, table=True):
@@ -121,14 +128,14 @@ class Brick(SQLModel, table=True):
         cascade_delete=True, sa_relationship_kwargs={"single_parent": True}
     )
     collection_id: int | None = Field(
-        default=None, foreign_key="collection.id"
+        default=None, foreign_key="collection.id", ondelete="RESTRICT"
     )
     collection: Collection | None = Relationship(back_populates="bricks")
     reviews: list["Review"] | None = Relationship(
         back_populates="brick", cascade_delete=True
     )
     overrides: list["BrickOverride"] = Relationship(
-        back_populates="brick", cascade_delete=True
+        back_populates="brick", passive_deletes="all"
     )
     learning_cards: list["LearningCard"] = Relationship(
         back_populates="brick", cascade_delete=True
@@ -137,16 +144,25 @@ class Brick(SQLModel, table=True):
 
 class BrickOverride(SQLModel, table=True):
     learner_id: int = Field(foreign_key="learner.id", primary_key=True)
+    learner: Learner = Relationship(back_populates="brick_overrides")
+
     brick_id: int = Field(
-        foreign_key="brick.id", primary_key=True, ondelete="CASCADE"
+        foreign_key="brick.id", primary_key=True, ondelete="RESTRICT"
     )
+    brick: Brick = Relationship(back_populates="overrides")
+
+    collection_id: int | None = Field(
+        default=None, foreign_key="collection.id", ondelete="RESTRICT"
+    )
+    collection: Collection | None = Relationship(
+        back_populates="brick_overrides"
+    )
+
     native_text: str | None = None
     target_audio_uri: str | None = None
     last_edit_at: datetime = Field(
         default_factory=lambda: datetime.now(timezone.utc)
     )
-    learner: Learner = Relationship(back_populates="brick_overrides")
-    brick: Brick = Relationship(back_populates="overrides")
 
 
 class Review(SQLModel, table=True):
@@ -228,6 +244,13 @@ connect_args = {"check_same_thread": False}
 engine = create_engine(sqlite_url, echo=False, connect_args=connect_args)
 
 
+@event.listens_for(Engine, "connect")
+def set_sqlite_pragma(dbapi_connection, connection_record):
+    cursor = dbapi_connection.cursor()
+    cursor.execute("PRAGMA foreign_keys=ON")  # for SQLite only
+    cursor.close()
+
+
 def get_session() -> Iterator[Session]:
     with Session(engine) as session:
         yield session
@@ -241,9 +264,11 @@ def init_db():
         print(f"{settings.db_url} not found, create a new one.")
         SQLModel.metadata.create_all(engine)
         print("Database schema created.")
+
         with Session(engine) as session:
             init_bricks(session)
             init_posts(session)
+
         print("Done initialize table data.")
     else:
         print(f"{settings.db_url} already exits, skip initialization.")
@@ -314,7 +339,7 @@ def init_bricks(session: Session):
             ordered=True,
         ).max()
 
-        # Convert the group name "A2" into "Sơ cấp (A2)"
+        # Extract the CEFRLevel.group_name enum
         group_name = CEFRLevel[group_name]
 
         # difficulty score: Concat all text then calculate
