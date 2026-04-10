@@ -7,7 +7,7 @@ from sqlmodel import Session
 
 import app.http_client as http_client
 from app.database import Learner, get_session
-from app.schemas import PronunciationAnalysisResponse, ReviewCreate
+from app.schemas import PronunciationAnalysisResponse, ReviewCreate, UnitType
 from app.services import (
     auth_service,
     brick_service,
@@ -121,13 +121,18 @@ async def evaluate_audio(
             learner_id=learner.id,
             review_create=review_create,
         )
-        learning_card_service.update_learning_card(
-            session=session,
-            learner_id=learner.id,
-            brick_id=target_brick_id,
-            score=result["accuracy_score"],
-            is_answer_revealed=is_answer_revealed_assumed,
+        print("Review saved.")
+        reviewed_brick = brick_service.get_brick(
+            session, target_brick_id, learner.id
         )
-        print("Learn saved!")
+        if reviewed_brick.brick_metadata.unit_type == UnitType.sentence:
+            learning_card_service.update_learning_card(
+                session=session,
+                learner_id=learner.id,
+                brick_id=target_brick_id,
+                score=result["accuracy_score"],
+                is_answer_revealed=is_answer_revealed_assumed,
+            )
+            print("Learning card saved.")
 
     return result
