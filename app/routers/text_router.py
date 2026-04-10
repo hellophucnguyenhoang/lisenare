@@ -90,7 +90,7 @@ async def translate(
 
 
 @router.post("/frequency")
-def chat_endpoint(text_frequency_request: TextFrequencyRequest):
+def get_text_frequency(text_frequency_request: TextFrequencyRequest):
     # Tokenize the sentence and get the frequency of every token,
     # then aggregate them using the Harmonic Mean
     # Formula: 1 / (1/f1 + 1/f2 + ...)

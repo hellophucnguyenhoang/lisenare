@@ -1,15 +1,12 @@
 from fastapi import APIRouter
-from fastapi.responses import StreamingResponse
 
 from ai_model_server.services.readmepp_service import readmepp_service
 from ai_model_server.services.text_service import text_service
-from app.services import chat_service
 from schemas.cefr import (
     CEFRLevel,
     CEFRRequest,
     CEFRResponse,
 )
-from schemas.chat import ChatRequest
 from schemas.sentence import (
     SentenceCompareRequest,
     SentenceCompareResponse,
@@ -39,17 +36,6 @@ def translate(sentence_translate_req: SentenceTranslateRequest):
         text=target_text, lang=target_lang
     )
     return sentence_translate_res
-
-
-@router.post("/chat")
-def chat_endpoint(request: ChatRequest):
-    print(f"request:{request}")
-    # Convert Pydantic models back to dictionaries for the Ollama client
-    history_as_dicts = [m.model_dump() for m in request.messages]
-    return StreamingResponse(
-        chat_service.generate_ollama_stream(history_as_dicts),
-        media_type="text/plain",
-    )
 
 
 @router.post("/cefr-level")
