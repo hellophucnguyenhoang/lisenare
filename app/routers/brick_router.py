@@ -89,12 +89,20 @@ def check_target_text_exists(
 ):
     # Search for any brick with the exact target_text
     exists = brick_service.check_target_text_exists(session, target_text)
-
     return {"exists": exists}
 
 
+@router.get("/public/by-id/{brick_id}", response_model=BrickRead)
+def get_public_brick(
+    session: Annotated[Session, Depends(get_session)],
+    brick_id: int,
+):
+    # Pass learner_id=None to indicate guest access
+    return brick_service.get_brick(session, brick_id, learner_id=None)
+
+
 @router.get("/by-id/{brick_id}", response_model=BrickRead)
-def get_brick(
+def get_private_brick(
     session: Annotated[Session, Depends(get_session)],
     current_learner: Annotated[
         Learner, Depends(auth_service.decode_token_get_learner)

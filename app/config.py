@@ -10,7 +10,7 @@ class Settings(BaseSettings):
     """
 
     db_path: str = "lisenare.db"
-    subtitle_db_path: str = "ytb_subtitles.db"
+    ytb_subtitle_db_path: str = "ytb_subtitles.db"
     chroma_db_path: str = "chroma_data"
     ai_model_server_url: str
 
