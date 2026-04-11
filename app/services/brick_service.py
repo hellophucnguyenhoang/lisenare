@@ -79,37 +79,44 @@ def get_pending_bricks(
     return session.exec(statement).all()
 
 
-def get_brick(session: Session, id: int, learner_id: int) -> Brick:
+def get_brick(
+    session: Session, id: int, learner_id: int | None = None
+) -> Brick:
+    # 1. Build the base filters
+    # Everyone can see public bricks
+    filters = [Brick.is_public]
+
+    # If logged in, also allow if they are the creator or have an override
+    if learner_id:
+        filters.append(Brick.creator_id == learner_id)
+        filters.append(BrickOverride.learner_id == learner_id)
+
     statement = (
         select(Brick)
-        # eager loading the nested metadata and its grammar points
         .options(
             selectinload(Brick.brick_metadata).selectinload(
                 BrickMetadata.grammar_points
             )
         )
-        .join(
-            BrickOverride, isouter=True
-        )  # Use outer join in case override doesn't exist
+        .join(BrickOverride, isouter=True)
         .where(
             Brick.id == id,
-            or_(
-                Brick.creator_id == learner_id,
-                BrickOverride.learner_id == learner_id,
-            ),
+            or_(*filters),  # Unpacks the list into the OR condition
         )
     )
 
     result = session.exec(statement).first()
+
     if not result:
+        # Note: Using 404 for private bricks keeps the DB structure more secure
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Brick not found"
         )
 
     brick = result
 
-    # filter the specific override for the learner and apply if it exists
-    if brick.overrides:
+    # 2. Only attempt to apply overrides if a learner_id exists
+    if learner_id and brick.overrides:
         specific_override = next(
             (o for o in brick.overrides if o.learner_id == learner_id), None
         )

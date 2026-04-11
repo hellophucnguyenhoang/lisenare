@@ -255,7 +255,7 @@ def set_sqlite_pragma(dbapi_connection, connection_record):
     cursor.execute("PRAGMA foreign_keys=ON")
 
     cursor.execute(
-        f"ATTACH DATABASE '{settings.subtitle_db_path}' AS subtitle_db"
+        f"ATTACH DATABASE '{settings.ytb_subtitle_db_path}' AS subtitle_db"
     )
     cursor.close()
 
