@@ -6,7 +6,7 @@ from fastapi.staticfiles import StaticFiles
 
 from app.config import settings
 
-from .database import delete_db, init_db
+from .database import init_db
 from .http_client import close_client, init_client
 from .routers import (
     account_router,
@@ -32,7 +32,7 @@ async def lifespan(app: FastAPI):
     await init_client()
     yield
     # Shutdown code
-    delete_db()
+    # delete_db()
     await close_client()
 
 

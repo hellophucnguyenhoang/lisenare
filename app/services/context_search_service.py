@@ -30,6 +30,7 @@ def search_bricks_literal(
     # Join with the main 'brick' table to get the full metadata (audio, cefr, etc)
     statement = text("""
         SELECT 
+            b.id as brick_id,
             b.native_text,
             b.target_text, 
             b.target_audio_uri, 
@@ -41,7 +42,9 @@ def search_bricks_literal(
         ORDER BY rank
     """)
 
-    rows = session.exec(statement, params={"val": fts_expression}).all()
+    results = session.exec(statement, params={"val": fts_expression})
+    rows = results.mappings().all()
+    print(f"{rows = }")
     return [BrickContextSearch.model_validate(row) for row in rows]
 
 
@@ -115,11 +118,12 @@ class ContextSearchService:
         docs = self._fetch_docs("bricks", text, mmr)
         return [
             BrickContextSearch(
+                brick_id=d.metadata["brick_id"],
                 native_text=d.metadata["vi_translation"],
                 target_text=d.page_content,
                 target_audio_uri=d.metadata["source_audio_path"],
-                cefr_level=d.metadata["cefr_level"],
-                is_public=True,
+                cefr_level=d.metadata.get("cefr_level"),  # might be None
+                is_public=True,  # TODO: make this real
             )
             for d in docs
         ]
