@@ -14,12 +14,14 @@ from sqlmodel import (
     Session,
     SQLModel,
     create_engine,
+    text,
 )
+
+from schemas.cefr import CEFR_MAPPING, CEFRLevel
 
 from . import security
 from .config import settings
 from .schemas import (
-    CEFRLevel,
     GrammarPoint,
     LearnerAccountCreate,
     SentenceFunction,
@@ -239,7 +241,7 @@ class PostInteraction(SQLModel, table=True):
     )
 
 
-sqlite_url = f"sqlite:///{settings.db_url}"
+sqlite_url = f"sqlite:///{settings.db_path}"
 connect_args = {"check_same_thread": False}
 engine = create_engine(sqlite_url, echo=False, connect_args=connect_args)
 
@@ -247,7 +249,14 @@ engine = create_engine(sqlite_url, echo=False, connect_args=connect_args)
 @event.listens_for(Engine, "connect")
 def set_sqlite_pragma(dbapi_connection, connection_record):
     cursor = dbapi_connection.cursor()
-    cursor.execute("PRAGMA foreign_keys=ON")  # for SQLite only
+
+    # for SQLite only
+    # enable foreign key restrictions
+    cursor.execute("PRAGMA foreign_keys=ON")
+
+    cursor.execute(
+        f"ATTACH DATABASE '{settings.subtitle_db_path}' AS subtitle_db"
+    )
     cursor.close()
 
 
@@ -260,27 +269,38 @@ def init_db():
     """
     Create the tables an insert data to them if the database does not exits.
     """
-    if not os.path.exists(settings.db_url):
-        print(f"{settings.db_url} not found, create a new one.")
+    if not os.path.exists(settings.db_path):
+        print(f"{settings.db_path} not found, create a new one.")
         SQLModel.metadata.create_all(engine)
-        print("Database schema created.")
 
         with Session(engine) as session:
+            session.exec(
+                text("""
+                CREATE VIRTUAL TABLE IF NOT EXISTS brick_search USING fts5( 
+                    brick_id UNINDEXED, 
+                    target_text, 
+                    native_text, 
+                    tokenize="porter unicode61" 
+                );
+            """)
+            )
+            print("Database schema created.")
+            create_brick_triggers(session)
             init_bricks(session)
             init_posts(session)
 
         print("Done initialize table data.")
     else:
-        print(f"{settings.db_url} already exits, skip initialization.")
+        print(f"{settings.db_path} already exists, skip initialization.")
 
 
 def delete_db():
-    db_url = Path(settings.db_url)
-    if db_url.exists():
-        db_url.unlink()
-        print(f"Deleted {db_url}.")
+    db_path = Path(settings.db_path)
+    if db_path.exists():
+        db_path.unlink()
+        print(f"Deleted {db_path}.")
     else:
-        print(f"WARNING: Trying to delete a non existing {db_url}.")
+        print(f"WARNING: Trying to delete a non existing {db_path}.")
 
 
 def init_bricks(session: Session):
@@ -339,8 +359,7 @@ def init_bricks(session: Session):
             ordered=True,
         ).max()
 
-        # Extract the CEFRLevel.group_name enum
-        group_name = CEFRLevel[group_name]
+        group_name = CEFR_MAPPING[group_name]
 
         # difficulty score: Concat all text then calculate
         full_text = " ".join(collection_data["en_source_text"].astype(str))
@@ -389,7 +408,7 @@ def init_bricks(session: Session):
                 target_audio_uri=str(
                     Path("brick-audios") / row["source_audio_path"]
                 ),
-                cefr_level=CEFRLevel[row["cefr_level"]],
+                cefr_level=row["cefr_level"],
                 collections=[],
                 creator=initial_account.learner,
                 brick_metadata=brick_metadata,
@@ -398,6 +417,43 @@ def init_bricks(session: Session):
 
         session.add(collection)
     print("Bricks imported!")
+    session.commit()
+
+
+def create_brick_triggers(session: Session):
+    # Trigger for NEW bricks
+    session.exec(
+        text("""
+        CREATE TRIGGER IF NOT EXISTS trg_brick_insert AFTER INSERT ON brick
+        BEGIN
+            INSERT INTO brick_search (brick_id, target_text, native_text)
+            VALUES (new.id, new.target_text, new.native_text);
+        END;
+    """)
+    )
+
+    # Trigger for UPDATED bricks
+    session.exec(
+        text("""
+        CREATE TRIGGER IF NOT EXISTS trg_brick_update AFTER UPDATE ON brick
+        BEGIN
+            UPDATE brick_search 
+            SET target_text = new.target_text, 
+                native_text = new.native_text
+            WHERE brick_id = old.id;
+        END;
+    """)
+    )
+
+    # Trigger for DELETED bricks
+    session.exec(
+        text("""
+        CREATE TRIGGER IF NOT EXISTS trg_brick_delete AFTER DELETE ON brick
+        BEGIN
+            DELETE FROM brick_search WHERE brick_id = old.id;
+        END;
+    """)
+    )
     session.commit()
 
 

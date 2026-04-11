@@ -17,10 +17,11 @@ wheels/
 
 # Databases
 chroma_bricks/
-chroma_ytb_subtitles_db/
+chroma_ytb_subtitles/
+chroma_data/
 lisenare.db
 
 # Audio files
-static/
-common-voice/
 brick-audios/
+common-voice/
+static/

@@ -3,7 +3,6 @@ from fastapi import APIRouter
 from ai_model_server.services.readmepp_service import readmepp_service
 from ai_model_server.services.text_service import text_service
 from schemas.cefr import (
-    CEFRLevel,
     CEFRRequest,
     CEFRResponse,
 )
@@ -43,4 +42,4 @@ def predict_cefr(cefr_request: CEFRRequest):
     pred = readmepp_service.predict(
         cefr_request.english_sentence, return_index=False
     )
-    return CEFRResponse(cefr_level=CEFRLevel(pred))
+    return CEFRResponse(cefr_level=pred)

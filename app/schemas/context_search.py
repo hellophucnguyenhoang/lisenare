@@ -2,7 +2,7 @@ from sqlmodel import SQLModel
 
 
 class ContextSearchRequest(SQLModel):
-    query: str = "jump off"
+    query: str = "hang out"
 
 
 class VideoContextSearchResult(SQLModel):
