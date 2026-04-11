@@ -9,7 +9,9 @@ class Settings(BaseSettings):
     - If not in .env, fallback to default values
     """
 
-    db_url: str = "lisenare.db"
+    db_path: str = "lisenare.db"
+    subtitle_db_path: str = "ytb_subtitles.db"
+    chroma_db_path: str = "chroma_data"
     ai_model_server_url: str
 
     # Security

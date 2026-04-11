@@ -14,4 +14,4 @@ print(my_enum.value)  # a
 print(str(my_enum))  # Status.pending
 print(my_enum == Status.pending)  # True
 print(Status("a"))  # Status.pending
-print(Status["paying"])  # Status.paying
+print(Status["pending"])  # Status.pending
