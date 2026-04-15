@@ -23,5 +23,7 @@ lisenare.db
 
 # Audio files
 brick-audios/
+learner-audios/
+unused-audios/
 common-voice/
 static/

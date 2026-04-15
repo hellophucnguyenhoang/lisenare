@@ -44,7 +44,7 @@ async def compare(
     ],
     sentence_compare_request: SentenceCompareRequest,
 ):
-    r = await http_client.client.post(
+    r = await http_client.get_client().post(
         "/text/semantic-comparison",
         json=sentence_compare_request.model_dump(mode="json"),
     )
@@ -79,7 +79,7 @@ async def compare(
 async def translate(
     sentence_translate_request: SentenceTranslateRequest,
 ):
-    r = await http_client.client.post(
+    r = await http_client.get_client().post(
         "/text/translations",
         json=sentence_translate_request.model_dump(mode="json"),
     )
