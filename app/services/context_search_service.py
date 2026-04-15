@@ -52,7 +52,6 @@ class ContextSearchService:
     def __init__(self, persist_directory: str = settings.chroma_db_path):
         self.embeddings = OllamaEmbeddings(model="mahonzhan/all-MiniLM-L6-v2")
 
-        # Keep stores organized
         self.stores = {
             "subtitles": Chroma(
                 collection_name="subtitles",
@@ -119,11 +118,8 @@ class ContextSearchService:
         return [
             BrickContextSearch(
                 brick_id=d.metadata["brick_id"],
-                native_text=d.metadata["vi_translation"],
+                native_text=d.metadata["native_text"],
                 target_text=d.page_content,
-                target_audio_uri=d.metadata["source_audio_path"],
-                cefr_level=d.metadata.get("cefr_level"),  # might be None
-                is_public=True,  # TODO: make this real
             )
             for d in docs
         ]
