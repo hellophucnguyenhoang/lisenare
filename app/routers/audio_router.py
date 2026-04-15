@@ -6,6 +6,7 @@ from phonemizer.separator import Separator
 from sqlmodel import Session
 
 import app.http_client as http_client
+from app.config import settings
 from app.database import Learner, get_session
 from app.schemas import PronunciationAnalysisResponse, ReviewCreate, UnitType
 from app.services import (
@@ -30,7 +31,7 @@ async def transcribe_audio(file: UploadFile):
             file.content_type,
         )
     }
-    r = await http_client.client.post("/audio/transcripts", files=files)
+    r = await http_client.get_client().post("/audio/transcripts", files=files)
     return r.json()
 
 
@@ -43,7 +44,7 @@ async def get_phonemes(file: UploadFile):
             file.content_type,
         )
     }
-    r = await http_client.client.post("/audio/phonemes", files=files)
+    r = await http_client.get_client().post("/audio/phonemes", files=files)
     return r.json()
 
 
@@ -72,7 +73,7 @@ async def evaluate_audio(
         learner_audio_bytes,
     ) = await file_utils.save_upload_file(
         file=learner_file,
-        base_dir="learner_audio",
+        base_dir=settings.learner_audio_folder,
         sub_dir=f"user_{learner.id}",
         filename_prefix=f"brick_{target_brick_id}",
     )
@@ -84,7 +85,7 @@ async def evaluate_audio(
             learner_file.content_type,
         )
     }
-    learner_result = await http_client.client.post(
+    learner_result = await http_client.get_client().post(
         "/audio/transcripts", files=learner_files
     )
 

@@ -25,6 +25,7 @@ class Settings(BaseSettings):
     # Media
     broken_report_file: str = "broken_bricks.txt"
     brick_folder: str = "brick-audios"
+    learner_audio_folder: str = "learner-audios"
 
     # Recommendation
     post_features_path: str = "models/post_features.pkl"
