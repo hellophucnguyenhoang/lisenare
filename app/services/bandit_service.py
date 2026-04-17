@@ -115,7 +115,7 @@ def build_arm_vector(item_vector: NDArray, learner_vector: NDArray) -> NDArray:
     return arm_vector
 
 
-def rank_posts(
+def rank_snippets(
     learner_history: list[tuple[int, float]],
     candidate_post_ids: list[int],
     top_k: int,

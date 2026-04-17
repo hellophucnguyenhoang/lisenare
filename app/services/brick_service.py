@@ -127,14 +127,14 @@ def get_brick(
 
 
 def iter_audio_file(filename: str):
-    base_dir = Path(settings.brick_folder)
+    base_dir = Path(settings.brick_audios_folder)
     file_path = (base_dir / filename).resolve()
     with open(file_path, "rb") as audio_file:
         yield from audio_file
 
 
 async def get_audio_file(filename: str):
-    base_dir = Path(settings.brick_folder)
+    base_dir = Path(settings.brick_audios_folder)
     file_path = (base_dir / filename).resolve()
     with open(file_path, "rb") as audio_file:
         return audio_file.read()
@@ -163,7 +163,7 @@ def get_brick_fsrs(
         if collection_ids:
             stmt = stmt.where(Brick.collection_id.in_(collection_ids))
         if broken_files:
-            stmt = stmt.where(~Brick.target_audio_uri.in_(broken_files))
+            stmt = stmt.where(~Brick.target_audio_path.in_(broken_files))
         return stmt
 
     def resolve_override(result):
@@ -375,7 +375,7 @@ def create_brick(
     brick_create = BrickCreate(
         native_text=request_data.native_text,
         target_text=request_data.target_text,
-        target_audio_uri=file_path,  # e.g. "brick-audios/learner_1_audio.m4a"
+        target_audio_path=file_path,  # e.g. "brick-audios/learner_1_audio.m4a"
         is_public=request_data.is_public,
         creator_id=creator_id,
         collection_name=request_data.collection_name,

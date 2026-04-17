@@ -53,7 +53,7 @@ def get_pending_collections(
     )
 
 
-@router.get("/pending-groups", response_model=list[str])
+@router.get("/pending-groups")
 def get_pending_groups(
     session: Annotated[Session, Depends(get_session)],
     learner: Annotated[
@@ -88,14 +88,14 @@ def get_pending_collection_group_stats(
     )
 
 
-@router.post("/overrides", response_model=OverrideGroupsResponse)
+@router.post("/overrides")
 def create_group_overrides(
     session: Annotated[Session, Depends(get_session)],
     current_learner: Annotated[
         Learner, Depends(auth_service.decode_token_get_learner)
     ],
     payload: OverrideGroupsCreate,
-):
+) -> OverrideGroupsResponse:
     total_created = 0
     details = {}
     for group_name in payload.group_names:

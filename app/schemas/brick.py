@@ -125,7 +125,7 @@ class BrickContextSearch(SQLModel):
 class BrickBase(SQLModel):
     native_text: str
     target_text: str
-    target_audio_uri: str
+    target_audio_path: str
     cefr_level: CEFRLevel | None = None
     is_public: bool = True
     creator_id: int

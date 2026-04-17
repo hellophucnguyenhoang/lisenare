@@ -11,4 +11,4 @@ class StatusType(str, Enum):
 
 class StatusResponse(SQLModel):
     status: StatusType
-    message: str
+    message: str | None = None

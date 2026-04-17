@@ -18,8 +18,8 @@ from .routers import (
     context_search_router,
     learner_router,
     learning_card_router,
-    post_interaction_router,
-    post_router,
+    snippet_interaction_router,
+    snippet_router,
     test_router,
     text_router,
 )
@@ -59,16 +59,18 @@ app.include_router(collection_router.router)
 app.include_router(context_search_router.router)
 app.include_router(learner_router.router)
 app.include_router(learning_card_router.router)
-app.include_router(post_interaction_router.router)
-app.include_router(post_router.router)
+app.include_router(snippet_interaction_router.router)
+app.include_router(snippet_router.router)
 app.include_router(text_router.router)
 
 app.mount(
-    "/common-voice", StaticFiles(directory="common-voice"), name="common-voice"
+    f"/{settings.snippets_folder}",
+    StaticFiles(directory=settings.snippets_folder),
+    name=settings.snippets_folder,
 )
 
 app.mount(
-    f"/{settings.brick_folder}",
-    StaticFiles(directory=settings.brick_folder),
-    name=settings.brick_folder,
+    f"/{settings.brick_audios_folder}",
+    StaticFiles(directory=settings.brick_audios_folder),
+    name=settings.brick_audios_folder,
 )

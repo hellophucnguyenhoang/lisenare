@@ -83,7 +83,7 @@ def create_overrides_for_group(
                 brick_id=brick_id,
                 collection_id=bricks[brick_id].collection_id,
                 native_text=bricks[brick_id].native_text,
-                target_audio_uri=bricks[brick_id].target_audio_uri,
+                target_audio_path=bricks[brick_id].target_audio_path,
             )
             session.add(override)
             created_count += 1

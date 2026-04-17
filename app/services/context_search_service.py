@@ -33,7 +33,7 @@ def search_bricks_literal(
             b.id as brick_id,
             b.native_text,
             b.target_text, 
-            b.target_audio_uri, 
+            b.target_audio_path, 
             b.cefr_level, 
             b.is_public
         FROM brick b

@@ -10,15 +10,15 @@ from schemas.audio import STTResponse
 router = APIRouter(prefix="/audio", tags=["Audio Features"])
 
 
-@router.post("/transcripts", response_model=STTResponse)
-async def transcribe_audio(file: UploadFile):
+@router.post("/transcripts")
+async def transcribe_audio(file: UploadFile) -> STTResponse:
     audio_data = await preprocess_upload_file(file)
     transcript = await transcription_service.transcribe(audio_data)
     return STTResponse(transcript=transcript)
 
 
-@router.post("/phonemes", response_model=STTResponse)
-async def get_phonemes(file: UploadFile):
+@router.post("/phonemes")
+async def get_phonemes(file: UploadFile) -> STTResponse:
     try:
         audio_data = await preprocess_upload_file(file)
         phoneme_str = (
