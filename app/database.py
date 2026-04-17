@@ -6,7 +6,7 @@ from pathlib import Path
 import pandas as pd
 from mutagen import File as MutagenFile
 from pydantic import EmailStr
-from sqlalchemy import event
+from sqlalchemy import CheckConstraint, event
 from sqlalchemy.engine import Engine
 from sqlmodel import (
     Field,
@@ -23,6 +23,7 @@ from . import security
 from .config import settings
 from .schemas import (
     GrammarPoint,
+    InteractionType,
     LearnerAccountCreate,
     SentenceFunction,
     SentenceStructure,
@@ -83,7 +84,9 @@ class Learner(SQLModel, table=True):
     brick_overrides: list["BrickOverride"] = Relationship(
         back_populates="learner"
     )
-    post_interactions: list["PostInteraction"] = Relationship()
+    snippet_interactions: list["SnippetInteraction"] = Relationship(
+        back_populates="learner"
+    )
 
 
 class Collection(SQLModel, table=True):
@@ -111,7 +114,7 @@ class Brick(SQLModel, table=True):
     id: int | None = Field(default=None, primary_key=True)
     native_text: str
     target_text: str = Field(unique=True)
-    target_audio_uri: str
+    target_audio_path: str
     cefr_level: CEFRLevel | None = None
     is_public: bool = True
     last_edit_at: datetime = Field(
@@ -161,7 +164,7 @@ class BrickOverride(SQLModel, table=True):
     )
 
     native_text: str | None = None
-    target_audio_uri: str | None = None
+    target_audio_path: str | None = None
     last_edit_at: datetime = Field(
         default_factory=lambda: datetime.now(timezone.utc)
     )
@@ -178,7 +181,7 @@ class Review(SQLModel, table=True):
         default_factory=lambda: datetime.now(timezone.utc)
     )
     user_target_text: str | None = None
-    user_target_audio_uri: str | None = None
+    user_target_audio_path: str | None = None
     brick: Brick = Relationship(back_populates="reviews")
     learner: Learner = Relationship(back_populates="reviews")
 
@@ -206,39 +209,53 @@ class OTP(SQLModel, table=True):
     used: bool = False
 
 
-class Post(SQLModel, table=True):
+class Snippet(SQLModel, table=True):
     id: int | None = Field(default=None, primary_key=True)
     content: str
-    translation: str | None = None
-    audio_uri: str
-    log_frequency: float
-    audio_duration: float
-    accent: str | None = None
+    audio_path: str
     creator_id: int = Field(default=None, foreign_key="learner.id")
     creator: Learner = Relationship()
     created_at: datetime = Field(
         default_factory=lambda: datetime.now(timezone.utc)
     )
     is_public: bool = True
-    post_interactions: list["PostInteraction"] = Relationship()
+    translation: str | None = None  # for dynamic translation
+
+    # for feature enhancement later
+    log_frequency: float | None = None
+    audio_duration: float | None = None
+
+    interactions: list["SnippetInteraction"] = Relationship(
+        back_populates="snippet"
+    )
 
 
-class PostInteraction(SQLModel, table=True):
-    learner_id: int = Field(foreign_key="learner.id", primary_key=True)
-    post_id: int = Field(foreign_key="post.id", primary_key=True)
-    """
-    {
-        "dislike": -1.0,
-        "view": -0.1,
-        "like": 0.8,
-        "save": 1.0,
-    }
-    """
-    arm_feature: str
-    reward: float | None = None
+class SnippetInteraction(SQLModel, table=True):
+    __table_args__ = (
+        CheckConstraint(
+            """
+            (type = 'TIME_SPENT' AND duration IS NOT NULL)
+            OR
+            (type != 'TIME_SPENT' AND duration IS NULL)
+            """,
+            name="check_duration_consistency",
+        ),
+    )
+    id: int | None = Field(default=None, primary_key=True)
+
+    session_id: str
+    snippet_id: int = Field(foreign_key="snippet.id")
+
+    type: InteractionType
+    duration: float | None = None  # for TIME_SPENT
+
     created_at: datetime = Field(
         default_factory=lambda: datetime.now(timezone.utc)
     )
+
+    learner_id: int | None = Field(default=None, foreign_key="learner.id")
+    learner: "Learner" = Relationship(back_populates="snippet_interactions")
+    snippet: "Snippet" = Relationship(back_populates="interactions")
 
 
 sqlite_url = f"sqlite:///{settings.db_path}"
@@ -287,7 +304,7 @@ def init_db():
             print("Database schema created.")
             create_brick_triggers(session)
             init_bricks(session)
-            init_posts(session)
+            init_snippets(session)
 
         print("Done initialize table data.")
     else:
@@ -405,7 +422,7 @@ def init_bricks(session: Session):
             brick = Brick(
                 native_text=row["vi_translation"],
                 target_text=row["en_source_text"],
-                target_audio_uri=str(
+                target_audio_path=str(
                     Path("brick-audios") / row["source_audio_path"]
                 ),
                 cefr_level=row["cefr_level"],
@@ -457,33 +474,32 @@ def create_brick_triggers(session: Session):
     session.commit()
 
 
-def init_posts(session: Session):
+def init_snippets(session: Session):
     COMMON_VOICE_DIR = Path("common-voice")
 
     def import_common_voice(csv_name: str, creator_id: int = 1):
         df = pd.read_csv(COMMON_VOICE_DIR / csv_name)
         split = csv_name.replace(".csv", "")
-        posts = []
+        snippets = []
 
         for row in df.to_dict("records"):
             audio_path = COMMON_VOICE_DIR / split / row["filename"]
             # Get duration in seconds
             audio_info = MutagenFile(audio_path).info
             duration_seconds = audio_info.length
-            posts.append(
-                Post(
+            snippets.append(
+                Snippet(
                     content=row["text"],
-                    audio_uri=str(audio_path),
+                    audio_path=str(audio_path),
+                    creator_id=creator_id,
                     log_frequency=text_service.log_frequency(row["text"]),
                     audio_duration=duration_seconds,
-                    accent=row["accent"] if pd.notna(row["accent"]) else None,
-                    creator_id=creator_id,
                 )
             )
 
-        session.add_all(posts)
+        session.add_all(snippets)
         session.commit()
 
-        print(f"{len(posts)} posts imported from {csv_name}")
+        print(f"{len(snippets)} Snippets was imported from {csv_name}")
 
     import_common_voice("cv-valid-test.csv")

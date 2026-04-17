@@ -41,18 +41,18 @@ def get_brick_fsrs(
     ],
     collection_ids: Annotated[list[int] | None, Query()] = None,
 ):
-    brick_read = brick_service.get_brick_fsrs(
+    brick = brick_service.get_brick_fsrs(
         session=session,
         learner_id=current_learner.id,
         collection_ids=collection_ids,
     )
-    if brick_read is None:
-        print("brick read None")
+    if brick is None:
+        print("Brick is None")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Haven't had any sentence to practice yet.",
         )
-    return brick_read
+    return brick
 
 
 @router.get("/audio")
@@ -69,8 +69,8 @@ def get_brick_audios(
         learner_id=learner.id,
         group_names=group_names,
     )
-    audio_uris = [brick.target_audio_uri for brick in pending_bricks]
-    return audio_uris
+    audio_paths = [brick.target_audio_path for brick in pending_bricks]
+    return audio_paths
 
 
 @router.get("/audio/{filename}")
@@ -154,7 +154,7 @@ async def create_brick(
     creator_id = current_learner.id
     learner_audio_path, _ = await file_utils.save_upload_file(
         file=audio_file,
-        base_dir=settings.brick_folder,
+        base_dir=settings.brick_audios_folder,
         filename_prefix=f"ln{creator_id}rec",
     )
     print(f"{learner_audio_path = }")

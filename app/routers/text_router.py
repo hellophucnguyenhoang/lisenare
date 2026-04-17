@@ -28,22 +28,19 @@ from schemas.sentence import (
 router = APIRouter(prefix="/text", tags=["Text Features"])
 
 
-@router.get(
-    "/forced_alignment/{audio_path:path}",
-    response_model=list[WordSegmentSecond],
-)
-def forced_align(audio_path: str):
+@router.get("/forced_alignment/{audio_path:path}")
+def forced_align(audio_path: str) -> list[WordSegmentSecond]:
     return forced_alignment_service.align(audio_path)
 
 
-@router.post("/semantic-comparison", response_model=SentenceCompareResponse)
+@router.post("/semantic-comparison")
 async def compare(
     session: Annotated[Session, Depends(get_session)],
     current_learner: Annotated[
         Learner, Depends(auth_service.decode_token_get_learner)
     ],
     sentence_compare_request: SentenceCompareRequest,
-):
+) -> SentenceCompareResponse:
     r = await http_client.get_client().post(
         "/text/semantic-comparison",
         json=sentence_compare_request.model_dump(mode="json"),
@@ -75,10 +72,10 @@ async def compare(
     return sentence_compare_response
 
 
-@router.post("/translations", response_model=SentenceTranslateResponse)
+@router.post("/translations")
 async def translate(
     sentence_translate_request: SentenceTranslateRequest,
-):
+) -> SentenceTranslateResponse:
     r = await http_client.get_client().post(
         "/text/translations",
         json=sentence_translate_request.model_dump(mode="json"),
@@ -90,7 +87,9 @@ async def translate(
 
 
 @router.post("/frequency")
-def get_text_frequency(text_frequency_request: TextFrequencyRequest):
+def get_text_frequency(
+    text_frequency_request: TextFrequencyRequest,
+) -> TextFrequencyResponse:
     # Tokenize the sentence and get the frequency of every token,
     # then aggregate them using the Harmonic Mean
     # Formula: 1 / (1/f1 + 1/f2 + ...)

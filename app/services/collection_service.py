@@ -2,7 +2,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlmodel import Session, asc, desc, func, select
 
 from app.database import Brick, Collection, Review
-from app.schemas import CollectionRead, CollectionSort, CollectionStatus
+from app.schemas import CollectionSort, CollectionStatus
 
 from . import brick_service, text_service
 
@@ -10,7 +10,7 @@ from . import brick_service, text_service
 def get_collections(
     session: Session,
     learner_id: int,
-) -> list[CollectionRead]:
+) -> list[Collection]:
     statement = select(Collection).where(Collection.creator_id == learner_id)
     collections = session.exec(statement).all()
     return collections
@@ -24,7 +24,7 @@ def get_pending_collections(
     sort_by: CollectionSort = CollectionSort.recommended,
     limit: int | None = None,
     offset: int | None = None,
-) -> list[CollectionRead]:
+) -> list:
     # Get all the pending bricks
     # Join with the Review to know the current learning state of them
     # Aggregate their collection information

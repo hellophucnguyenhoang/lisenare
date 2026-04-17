@@ -15,11 +15,11 @@ from app.services.context_search_service import context_search_service
 router = APIRouter(prefix="/context-search", tags=["Context Search"])
 
 
-@router.post("/videos", response_model=list[VideoContextSearchResult])
+@router.post("/videos")
 def search_context_videos(
     session: Annotated[Session, Depends(get_session)],
     context_search_request: ContextSearchRequest,
-):
+) -> list[VideoContextSearchResult]:
     start = time.time()
     search_result = context_search_service.search_videos_hybrid(
         session, context_search_request.query
@@ -29,11 +29,11 @@ def search_context_videos(
     return search_result
 
 
-@router.post("/bricks", response_model=list[BrickContextSearch])
+@router.post("/bricks")
 def search_context_bricks(
     session: Annotated[Session, Depends(get_session)],
     context_search_request: ContextSearchRequest,
-):
+) -> list[BrickContextSearch]:
     start = time.time()
     search_result = context_search_service.search_bricks_hybrid(
         session, context_search_request.query

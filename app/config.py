@@ -24,10 +24,11 @@ class Settings(BaseSettings):
 
     # Media
     broken_report_file: str = "broken_bricks.txt"
-    brick_folder: str = "brick-audios"
-    learner_audio_folder: str = "learner-audios"
+    brick_audios_folder: str = "brick-audios"
+    learner_audios_folder: str = "learner-audios"
+    snippets_folder: str = "common-voice"
 
-    # Recommendation
+    # Recommendation: LinUCB
     post_features_path: str = "models/post_features.pkl"
     linucb_model_path: str = "models/linucb_weights.npz"
     item_feature_dim: int = 387

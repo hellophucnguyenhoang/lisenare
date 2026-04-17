@@ -11,7 +11,7 @@ class ReviewBase(SQLModel):
     )
     is_answer_revealed: bool = False
     user_target_text: str | None = None
-    user_target_audio_uri: str | None = None
+    user_target_audio_path: str | None = None
 
 
 class ReviewCreate(ReviewBase):

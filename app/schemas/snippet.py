@@ -5,16 +5,15 @@ from sqlmodel import SQLModel
 from .learner import LearnerRead
 
 
-class PostRead(SQLModel):
+class SnippetRead(SQLModel):
     id: int
     content: str
-    translation: str | None = None
-    audio_uri: str
-    accent: str | None
+    audio_path: str
     created_at: datetime
+    translation: str | None = None
     creator: LearnerRead
 
 
-class PostPage(SQLModel):
-    items: list[PostRead]
+class SnippetPage(SQLModel):
+    items: list[SnippetRead]
     total: int
