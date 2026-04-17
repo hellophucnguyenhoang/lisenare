@@ -4,15 +4,34 @@ from sqlmodel import Session, func, select
 from app.database import Snippet
 
 
-def get_random_snippets(session: Session, limit: int = 20):
+def get_random_snippets(session: Session, limit: int = 20) -> list[Snippet]:
     query = (
         select(Snippet)
         .options(selectinload(Snippet.creator))
         .order_by(func.random())
         .limit(limit)
     )
-
     return session.exec(query).all()
+
+
+def create_snippet(
+    session: Session,
+    content: str,
+    audio_path: str,
+    creator_id: int,
+    translation: str | None = None,
+) -> Snippet:
+    snippet = Snippet(
+        content=content,
+        audio_path=audio_path,
+        creator_id=creator_id,
+        translation=translation,
+    )
+
+    session.add(snippet)
+    session.commit()
+    session.refresh(snippet)
+    return snippet
 
 
 # NOT USED
