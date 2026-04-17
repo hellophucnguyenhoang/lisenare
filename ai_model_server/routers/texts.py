@@ -16,8 +16,10 @@ from schemas.sentence import (
 router = APIRouter(prefix="/text", tags=["Text Features"])
 
 
-@router.post("/semantic-comparison", response_model=SentenceCompareResponse)
-def compare(sentence_compare_req: SentenceCompareRequest):
+@router.post("/semantic-comparison")
+def compare(
+    sentence_compare_req: SentenceCompareRequest,
+) -> SentenceCompareResponse:
     score = text_service.get_similarity(
         sentence_compare_req.sentence1, sentence_compare_req.sentence2
     )
@@ -26,8 +28,10 @@ def compare(sentence_compare_req: SentenceCompareRequest):
     return sentence_compare_res
 
 
-@router.post("/translations", response_model=SentenceTranslateResponse)
-def translate(sentence_translate_req: SentenceTranslateRequest):
+@router.post("/translations")
+def translate(
+    sentence_translate_req: SentenceTranslateRequest,
+) -> SentenceTranslateResponse:
     target_text, target_lang = text_service.translate(
         sentence_translate_req.text, sentence_translate_req.target_lang
     )
@@ -38,7 +42,7 @@ def translate(sentence_translate_req: SentenceTranslateRequest):
 
 
 @router.post("/cefr-level")
-def predict_cefr(cefr_request: CEFRRequest):
+def predict_cefr(cefr_request: CEFRRequest) -> CEFRResponse:
     pred = readmepp_service.predict(
         cefr_request.english_sentence, return_index=False
     )

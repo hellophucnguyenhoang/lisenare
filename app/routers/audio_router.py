@@ -73,7 +73,7 @@ async def evaluate_audio(
         learner_audio_bytes,
     ) = await file_utils.save_upload_file(
         file=learner_file,
-        base_dir=settings.learner_audio_folder,
+        base_dir=settings.learner_audios_folder,
         sub_dir=f"user_{learner.id}",
         filename_prefix=f"brick_{target_brick_id}",
     )
@@ -115,7 +115,7 @@ async def evaluate_audio(
             is_answer_revealed=is_answer_revealed_assumed,
             first_score=result["accuracy_score"],
             user_target_text=learner_text,
-            user_target_audio_uri=learner_audio_path,
+            user_target_audio_path=learner_audio_path,
         )
         review_service.save_review(
             session=session,
