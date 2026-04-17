@@ -5,15 +5,22 @@ from sqlmodel import SQLModel
 from .learner import LearnerRead
 
 
-class SnippetRead(SQLModel):
-    id: int
+class SnippetBase(SQLModel):
     content: str
+    translation: str | None = None
+
+
+class SnippetRead(SnippetBase):
+    id: int
     audio_path: str
     created_at: datetime
-    translation: str | None = None
     creator: LearnerRead
 
 
 class SnippetPage(SQLModel):
     items: list[SnippetRead]
     total: int
+
+
+class SnippetCreate(SnippetBase):
+    pass
