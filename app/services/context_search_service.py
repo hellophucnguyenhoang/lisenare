@@ -3,7 +3,12 @@ from langchain_ollama import OllamaEmbeddings
 from sqlmodel import Session, text
 
 from app.config import settings
-from app.schemas import BrickContextSearch, VideoContextSearchResult
+from app.schemas import (
+    BrickContextSearch,
+    LearnerRead,
+    SnippetRead,
+    VideoContextSearchResult,
+)
 
 
 def search_subtitles_literal(
@@ -44,12 +49,53 @@ def search_bricks_literal(
 
     results = session.exec(statement, params={"val": fts_expression})
     rows = results.mappings().all()
-    print(f"{rows = }")
     return [BrickContextSearch.model_validate(row) for row in rows]
 
 
+def search_snippets_literal(
+    session: Session,
+    keyword: str,
+) -> list[SnippetRead]:
+    fts_expression = f"NEAR({keyword}*, 3)"
+
+    statement = text("""
+        SELECT 
+            s.id,
+            s.content,
+            s.translation, 
+            s.audio_path, 
+            s.created_at, 
+            l.id as creator_id, 
+            l.full_name 
+        FROM snippet s
+        JOIN snippet_search ss ON s.id = ss.snippet_id 
+        JOIN learner l ON s.creator_id = l.id 
+        WHERE snippet_search MATCH :val
+        ORDER BY rank
+    """)
+
+    raw_rows = session.exec(statement, params={"val": fts_expression}).all()
+    items = []
+    for raw_row in raw_rows:
+        creator = LearnerRead(
+            id=raw_row.creator_id,
+            full_name=raw_row.full_name,
+        )
+        snippet_read = SnippetRead(
+            id=raw_row.id,
+            content=raw_row.content,
+            translation=raw_row.translation,
+            audio_path=raw_row.audio_path,
+            created_at=raw_row.created_at,
+            creator=creator,
+        )
+        items.append(snippet_read)
+
+    return items
+
+
 class ContextSearchService:
-    def __init__(self, persist_directory: str = settings.chroma_db_path):
+    def __init__(self, persist_directory: str = settings.chroma_context_path):
         self.embeddings = OllamaEmbeddings(model="mahonzhan/all-MiniLM-L6-v2")
 
         self.stores = {

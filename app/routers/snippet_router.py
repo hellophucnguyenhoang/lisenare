@@ -11,8 +11,8 @@ from sqlmodel import Session
 
 from app.config import settings
 from app.database import Learner, get_session
-from app.schemas.snippet import SnippetPage, SnippetRead
-from app.services import auth_service, snippet_service
+from app.schemas import SnippetPage, SnippetRead
+from app.services import auth_service, snippet_like_service, snippet_service
 from utils import file_utils
 
 router = APIRouter(prefix="/snippets", tags=["Snippets"])
@@ -21,9 +21,16 @@ router = APIRouter(prefix="/snippets", tags=["Snippets"])
 @router.get("/random")
 def get_random_snippets(
     session: Annotated[Session, Depends(get_session)],
+    learner: Annotated[
+        Learner | None, Depends(auth_service.decode_token_get_optional_learner)
+    ],
     page_size: int = 5,
 ) -> SnippetPage:
     snippets = snippet_service.get_random_snippets(session, page_size)
+    learner_id = learner.id if learner else None
+    snippets = snippet_like_service.apply_like_state(
+        session, snippets, learner_id
+    )
     snippet_page = SnippetPage(items=snippets, total=len(snippets))
     return snippet_page
 

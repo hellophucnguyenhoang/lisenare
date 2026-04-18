@@ -1,11 +1,12 @@
 import re
 
-import pandas as pd
 import torch
 import torchaudio
-from sqlmodel import SQLModel
+from sqlmodel import Session, SQLModel
 
 from app.schemas import WordSegmentSecond
+
+from . import snippet_service
 
 # --------------------- Global Model ---------------------
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -189,23 +190,9 @@ def align_audio_to_transcript(
     return word_segments, num_frames / (num_samples / SAMPLE_RATE)
 
 
-cv_metadata_df = pd.read_csv("common-voice/cv-valid-test.csv")
-cv_lookup = dict(zip(cv_metadata_df["filename"], cv_metadata_df["text"]))
-
-
-def align(audio_path: str) -> list[WordSegmentSecond]:
-    """
-    currently ONLY working for common-voice folder
-    """
-    # audio_path: common-voice/cv-valid-test/cv-valid-test/sample-000000.mp3
-    parts = audio_path.split("/")
-    rel_path = "/".join(parts[-2:])
-
-    if rel_path not in cv_lookup:
-        raise ValueError(f"Transcript not found for: {rel_path}")
-
-    transcript = normalize_transcript(cv_lookup[rel_path])
-
+def align(session: Session, audio_path: str) -> list[WordSegmentSecond]:
+    snippet = snippet_service.get_snippet_by_audio_path(session, audio_path)
+    transcript = normalize_transcript(snippet.content)
     words, frames_per_sec = align_audio_to_transcript(audio_path, transcript)
 
     return [

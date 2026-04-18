@@ -11,7 +11,7 @@ class Settings(BaseSettings):
 
     db_path: str = "lisenare.db"
     ytb_subtitle_db_path: str = "ytb_subtitles.db"
-    chroma_db_path: str = "chroma_data"
+    chroma_context_path: str = "chroma_context"
     ai_model_server_url: str
 
     # Security
@@ -26,7 +26,7 @@ class Settings(BaseSettings):
     broken_report_file: str = "broken_bricks.txt"
     brick_audios_folder: str = "brick-audios"
     learner_audios_folder: str = "learner-audios"
-    snippets_folder: str = "common-voice"
+    snippets_folder: str = "snippets-data"
 
     # Recommendation: LinUCB
     post_features_path: str = "models/post_features.pkl"
