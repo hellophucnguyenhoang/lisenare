@@ -258,6 +258,14 @@ class SnippetInteraction(SQLModel, table=True):
     snippet: "Snippet" = Relationship(back_populates="interactions")
 
 
+class SnippetLike(SQLModel, table=True):
+    learner_id: int = Field(foreign_key="learner.id", primary_key=True)
+    snippet_id: int = Field(foreign_key="snippet.id", primary_key=True)
+    created_at: datetime = Field(
+        default_factory=lambda: datetime.now(timezone.utc)
+    )
+
+
 sqlite_url = f"sqlite:///{settings.db_path}"
 connect_args = {"check_same_thread": False}
 engine = create_engine(sqlite_url, echo=False, connect_args=connect_args)
@@ -301,8 +309,18 @@ def init_db():
                 );
             """)
             )
+            session.exec(
+                text("""
+                CREATE VIRTUAL TABLE IF NOT EXISTS snippet_search USING fts5( 
+                    snippet_id UNINDEXED, 
+                    content, 
+                    tokenize="porter unicode61" 
+                );
+            """)
+            )
             print("Database schema created.")
             create_brick_triggers(session)
+            create_snippet_triggers(session)
             init_bricks(session)
             init_snippets(session)
 
@@ -474,8 +492,23 @@ def create_brick_triggers(session: Session):
     session.commit()
 
 
+def create_snippet_triggers(session: Session):
+    # Trigger for NEW snippets
+    session.exec(
+        text("""
+        CREATE TRIGGER IF NOT EXISTS trg_snippet_insert AFTER INSERT ON snippet
+        BEGIN
+            INSERT INTO snippet_search (snippet_id, content)
+            VALUES (new.id, new.content);
+        END;
+    """)
+    )
+
+    session.commit()
+
+
 def init_snippets(session: Session):
-    COMMON_VOICE_DIR = Path("common-voice")
+    COMMON_VOICE_DIR = Path(settings.snippets_folder)
 
     def import_common_voice(csv_name: str, creator_id: int = 1):
         df = pd.read_csv(COMMON_VOICE_DIR / csv_name)
