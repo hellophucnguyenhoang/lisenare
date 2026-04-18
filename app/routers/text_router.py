@@ -29,8 +29,10 @@ router = APIRouter(prefix="/text", tags=["Text Features"])
 
 
 @router.get("/forced_alignment/{audio_path:path}")
-def forced_align(audio_path: str) -> list[WordSegmentSecond]:
-    return forced_alignment_service.align(audio_path)
+def forced_align(
+    session: Annotated[Session, Depends(get_session)], audio_path: str
+) -> list[WordSegmentSecond]:
+    return forced_alignment_service.align(session, audio_path)
 
 
 @router.post("/semantic-comparison")

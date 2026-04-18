@@ -47,10 +47,10 @@ def migrate_to_single_client(source_folders, target_folder):
                     )
                 print(f"  Successfully moved {total_items} items.")
 
-    print("\nMigration complete! You can now use './chroma_data'.")
+    print("\nMigration complete! You can now use './chroma_context'.")
 
 
 migrate_to_single_client(
     source_folders=["./chroma_ytb_subtitles", "./chroma_bricks"],
-    target_folder="./chroma_data",
+    target_folder="./chroma_context",
 )
