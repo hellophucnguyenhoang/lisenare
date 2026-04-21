@@ -24,3 +24,5 @@ lisenare.db
 static/
 common-voice/
 brick-audios/
+
+.cache/

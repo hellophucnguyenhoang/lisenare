@@ -22,6 +22,7 @@ from .routers import (
     post_router,
     test_router,
     text_router,
+    grammar_router
 )
 
 
@@ -39,14 +40,21 @@ async def lifespan(app: FastAPI):
 app = FastAPI(title="Lisenare API", lifespan=lifespan)
 
 # Allow requests from the frontend
-origins = ["http://localhost:5173"]  # Vite default port 5173
+# origins = ["http://localhost:5173"]  # Vite default port 5173
 
+# app.add_middleware(
+#     CORSMiddleware,
+#     allow_origins=origins,
+#     allow_credentials=True,
+#     allow_methods=["*"],  # allow all HTTP methods (GET, POST, etc.)
+#     allow_headers=["*"],  # allow all headers
+# )
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins,
-    allow_credentials=True,
-    allow_methods=["*"],  # allow all HTTP methods (GET, POST, etc.)
-    allow_headers=["*"],  # allow all headers
+    allow_origins=["*"],      # ✅ cho phép tất cả domain
+    allow_credentials=False,  # ⚠️ phải đổi thành False nếu dùng "*"
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 app.include_router(test_router.router)
@@ -62,6 +70,8 @@ app.include_router(learning_card_router.router)
 app.include_router(post_interaction_router.router)
 app.include_router(post_router.router)
 app.include_router(text_router.router)
+app.include_router(grammar_router.router)
+
 
 app.mount(
     "/common-voice", StaticFiles(directory="common-voice"), name="common-voice"
