@@ -9,6 +9,8 @@ from app.schemas import (
     BrickContextSearch,
     ContextSearchRequest,
     SnippetRead,
+    StatusResponse,
+    StatusType,
     VideoContextSearchResult,
 )
 from app.services import auth_service, snippet_like_service
@@ -20,7 +22,47 @@ from app.services.context_search_service import (
 router = APIRouter(prefix="/context-search", tags=["Context Search"])
 
 
-@router.post("/snippets")
+@router.post("/snippet/{snippet_id}")
+def upsert_context_snippet(
+    session: Annotated[Session, Depends(get_session)], snippet_id: int
+) -> StatusResponse:
+    context_search_service.upsert_context_snippet(session, snippet_id)
+    return StatusResponse(
+        status=StatusType.SUCCESS,
+        message=f"Snippet {snippet_id} upserted successfully",
+    )
+
+
+@router.post("/brick/{brick_id}")
+def upsert_context_brick(
+    session: Annotated[Session, Depends(get_session)], brick_id: int
+) -> StatusResponse:
+    context_search_service.upsert_context_brick(session, brick_id)
+    return StatusResponse(
+        status=StatusType.SUCCESS,
+        message=f"Brick {brick_id} upserted successfully",
+    )
+
+
+@router.post(
+    "/all-snippets", description="WARNING: This take a long time to run"
+)
+def upsert_context_all_snippets(
+    session: Annotated[Session, Depends(get_session)],
+):
+    context_search_service.upsert_context_all_snippets(session)
+
+
+@router.post(
+    "/all-bricks", description="WARNING: This take a long time to run"
+)
+def upsert_context_all_bricks(
+    session: Annotated[Session, Depends(get_session)],
+):
+    context_search_service.upsert_context_all_bricks(session)
+
+
+@router.post("/snippets-search")
 def search_context_snippets(
     session: Annotated[Session, Depends(get_session)],
     learner: Annotated[
@@ -41,7 +83,7 @@ def search_context_snippets(
     return search_result[:30]
 
 
-@router.post("/videos")
+@router.post("/videos-search")
 def search_context_videos(
     session: Annotated[Session, Depends(get_session)],
     context_search_request: ContextSearchRequest,
@@ -55,7 +97,7 @@ def search_context_videos(
     return search_result
 
 
-@router.post("/bricks")
+@router.post("/bricks-search")
 def search_context_bricks(
     session: Annotated[Session, Depends(get_session)],
     context_search_request: ContextSearchRequest,

@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, UploadFile
+from fastapi import APIRouter, HTTPException, UploadFile, status
 
 from ai_model_server.services.transcription_service import (
     phoneme_recognition_service,
@@ -29,7 +29,8 @@ async def get_phonemes(file: UploadFile) -> STTResponse:
         return STTResponse(transcript=phoneme_str)
     except Exception as e:
         raise HTTPException(
-            status_code=500, detail=f"Phoneme recognition failed: {str(e)}"
+            status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Phoneme recognition failed: {str(e)}",
         )
     finally:
         await file.close()

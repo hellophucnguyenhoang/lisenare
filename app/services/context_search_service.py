@@ -1,8 +1,10 @@
+from fastapi import HTTPException, status
 from langchain_chroma import Chroma
 from langchain_ollama import OllamaEmbeddings
-from sqlmodel import Session, text
+from sqlmodel import Session, select, text
 
 from app.config import settings
+from app.database import Brick, Snippet
 from app.schemas import (
     BrickContextSearch,
     LearnerRead,
@@ -99,6 +101,11 @@ class ContextSearchService:
         self.embeddings = OllamaEmbeddings(model="mahonzhan/all-MiniLM-L6-v2")
 
         self.stores = {
+            "snippets": Chroma(
+                collection_name="snippets",
+                embedding_function=self.embeddings,
+                persist_directory=persist_directory,
+            ),
             "subtitles": Chroma(
                 collection_name="subtitles",
                 embedding_function=self.embeddings,
@@ -110,6 +117,111 @@ class ContextSearchService:
                 persist_directory=persist_directory,
             ),
         }
+
+    def _update_docs(
+        self,
+        collection_name: str,
+        docs: list[str],
+        doc_ids: list[str],
+        doc_metas: list[dict] | None = None,
+    ):
+        store = self.stores[collection_name]
+
+        # Access the underlying Chroma collection directly for upsert
+        if doc_metas:
+            store._collection.upsert(
+                ids=doc_ids, documents=docs, metadatas=doc_metas
+            )
+        else:
+            store._collection.upsert(ids=doc_ids, documents=docs)
+
+        print(f"Upserted {len(doc_ids)} docs to {collection_name} collection.")
+
+    def upsert_context_snippet(self, session: Session, snippet_id: int):
+        content = session.exec(
+            select(Snippet.content).where(Snippet.id == snippet_id)
+        ).first()
+
+        if not content:
+            raise HTTPException(
+                status.HTTP_404_NOT_FOUND,
+                detail=f"data for snippet_id {snippet_id} does not exists",
+            )
+
+        self._update_docs("snippets", [content], [str(snippet_id)])
+        print("Done upserting the snippet into collection")
+
+    def upsert_context_brick(self, session: Session, brick_id: int):
+        brick_text = session.exec(
+            select(Brick.native_text, Brick.target_text).where(
+                Brick.id == brick_id
+            )
+        ).first()
+
+        if not brick_text:
+            raise HTTPException(
+                status.HTTP_404_NOT_FOUND,
+                detail=f"data for brick_id {brick_id} does not exists",
+            )
+
+        native_text, target_text = brick_text
+        self._update_docs(
+            "bricks",
+            [target_text],
+            [str(brick_id)],
+            [{"native_text": native_text}],
+        )
+        print("Done upserting the brick into collection")
+
+    def upsert_context_all_snippets(self, session: Session):
+        snippet_contents = session.exec(
+            select(Snippet.id, Snippet.content)
+        ).all()
+        print(f"{len(snippet_contents)} snippets to upsert")
+        batch_docs = []
+        batch_ids = []
+        batch_size = 256
+
+        for snippet_id, snippet_content in snippet_contents:
+            batch_docs.append(snippet_content)
+            batch_ids.append(str(snippet_id))
+
+            if len(batch_ids) >= batch_size:
+                self._update_docs("snippets", batch_docs, batch_ids)
+                batch_docs = []
+                batch_ids = []
+
+        if batch_docs:
+            self._update_docs("snippets", batch_docs, batch_ids)
+
+        print("Done upserting snippets collection")
+
+    def upsert_context_all_bricks(self, session: Session):
+        brick_texts = session.exec(
+            select(Brick.id, Brick.native_text, Brick.target_text)
+        ).all()
+        print(f"{len(brick_texts)} bricks to upsert")
+        batch_docs = []
+        batch_ids = []
+        batch_metas = []
+        batch_size = 256
+
+        for brick_id, native_text, target_text in brick_texts:
+            batch_docs.append(target_text)
+            batch_ids.append(str(brick_id))
+            meta = {"native_text": native_text}
+            batch_metas.append(meta)
+
+            if len(batch_ids) >= batch_size:
+                self._update_docs("bricks", batch_docs, batch_ids, batch_metas)
+                batch_docs = []
+                batch_ids = []
+                batch_metas = []
+
+        if batch_docs:
+            self._update_docs("bricks", batch_docs, batch_ids, batch_metas)
+
+        print("Done upserting bricks collection")
 
     def _fetch_docs(self, collection_name: str, query: str, mmr: bool) -> list:
         """Generic helper to fetch docs from Chroma."""
