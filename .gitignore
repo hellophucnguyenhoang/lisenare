@@ -28,3 +28,6 @@ snippets-data/
 unused-audios/
 common-voice/
 static/
+
+# Cache
+.cache/
