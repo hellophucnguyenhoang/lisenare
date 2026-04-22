@@ -1,13 +1,10 @@
-from fastapi import APIRouter, Depends, HTTPException, FastAPI
+from fastapi import APIRouter, Depends
 from sqlmodel import Session
 
 from app.services.question_service import process_questions
 from ..database import get_session
 from ..services.topic_service import  build_learning_tree
-from ..services.lesson_service import get_lesson_by_id
-from ..services.exercise_service import get_exercise_by_id, get_exercise_by_lesson_id
 from ..services.question_service import get_question_by_exercise_id
-from ..services.concept_service import get_root_concept_by_lesson_id
 router = APIRouter(prefix="/grammar", tags=["Grammar"])
 
 @router.get("/topics")
