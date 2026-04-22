@@ -14,6 +14,7 @@ from sqlmodel import (
     Session,
     SQLModel,
     create_engine,
+    select,
     text,
 )
 
@@ -30,6 +31,8 @@ from .schemas import (
     UnitType,
 )
 from .services import text_service
+
+BASE_DIR = Path(__file__).resolve().parent.parent
 
 
 class BrickMetadataGrammarPoint(SQLModel, table=True):
@@ -423,6 +426,7 @@ def init_db():
             init_bricks(session)
             init_snippets(session)
             init_from_attach_dbs(session)
+        transfer_knowledge_graph_data()
 
         print("Done initialize table data.")
     else:
@@ -639,35 +643,38 @@ def init_snippets(session: Session):
 
 
 def init_from_attach_dbs(session: Session):
-    # Tạm thời tắt kiểm tra khóa ngoại
-    # Lí do tắt mặc dù tắt là mặc định bởi vì
-    # session này được tạo ra từ Engine tự động bật foreign_keys
-    session.exec(text("PRAGMA foreign_keys = OFF"))
-
-    # Kết nối các DB phụ
     session.exec(
         text(
             f"ATTACH DATABASE '{settings.ytb_subtitle_db_path}' AS subtitle_db"
         )
     )
-    session.exec(text("ATTACH DATABASE 'knowledge_graph.db' AS grammar_db"))
+    print(f"Attached {settings.ytb_subtitle_db_path}")
 
-    try:
-        dict_mapping = ["topic", "lesson", "exercise", "question"]
-        for table_name in dict_mapping:
-            session.exec(
-                text(
-                    f"INSERT INTO main.{table_name} SELECT * FROM grammar_db.{table_name}"
-                )
-            )
 
-        session.commit()
-        print("Migration complete!")
+def transfer_knowledge_graph_data():
+    engine_old = create_engine(
+        f"sqlite:///{BASE_DIR}/knowledge_graph.db", echo=False
+    )
+    dict_mapping = {
+        "topic": Topic,
+        "lesson": Lesson,
+        "exercise": Exercise,
+        "question": Question,
+    }
+    with Session(engine_old) as session_old:
+        all_data = {}
+        for table_name, model in dict_mapping.items():
+            all_data[table_name] = [
+                r.model_dump() for r in session_old.exec(select(model)).all()
+            ]
 
-    except Exception as e:
-        session.rollback()
-        print(f"Error during migration: {e}")
-        raise e
-
-    finally:
-        session.exec(text("DETACH DATABASE grammar_db"))
+    with Session(engine) as session_new:
+        try:
+            for table_name, model in dict_mapping.items():
+                for data in all_data[table_name]:
+                    session_new.add(model(**data))
+            session_new.commit()
+            print("Knowledge graph data transferred successfully.")
+        except Exception as e:
+            session_new.rollback()
+            raise e
