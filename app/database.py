@@ -2,7 +2,6 @@ import os
 from collections.abc import Iterator
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import List, Optional
 import pandas as pd
 from mutagen import File as MutagenFile
 from pydantic import EmailStr
@@ -299,12 +298,12 @@ class ConceptRelation(SQLModel, table=True):
 
     relation_type: str | None  # uses, used_for, has_structure, similar_to...
 
-    from_concept: Optional[Concept] = Relationship(
+    from_concept: Concept|None = Relationship(
         back_populates="outgoing_relations",
         sa_relationship_kwargs={"foreign_keys": "[ConceptRelation.from_concept_id]"},
     )
 
-    to_concept: Optional[Concept] = Relationship(
+    to_concept: Concept|None = Relationship(
         back_populates="incoming_relations",
         sa_relationship_kwargs={"foreign_keys": "[ConceptRelation.to_concept_id]"},
     )
