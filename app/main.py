@@ -16,13 +16,13 @@ from .routers import (
     chat_router,
     collection_router,
     context_search_router,
+    grammar_router,
     learner_router,
     learning_card_router,
     snippet_interaction_router,
     snippet_router,
     test_router,
     text_router,
-    grammar_router
 )
 
 
@@ -40,22 +40,32 @@ async def lifespan(app: FastAPI):
 app = FastAPI(title="Lisenare API", lifespan=lifespan)
 
 # Allow requests from the frontend
-# origins = ["http://localhost:5173"]  # Vite default port 5173
+origins = [
+    "http://localhost:8000",
+    "http://127.0.0.1:8000",  # Backend itself
+    # "http://10.0.2.2:8081",  # Android Emulator loopback
+]
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,
+    allow_credentials=True,
+    allow_methods=[
+        "GET",
+        "POST",
+        "PUT",
+        "DELETE",
+    ],
+    allow_headers=["Authorization", "Content-Type"],
+)
 
 # app.add_middleware(
 #     CORSMiddleware,
-#     allow_origins=origins,
-#     allow_credentials=True,
-#     allow_methods=["*"],  # allow all HTTP methods (GET, POST, etc.)
-#     allow_headers=["*"],  # allow all headers
+#     allow_origins=["*"],
+#     allow_credentials=False,  # phải đổi thành False nếu dùng "*"
+#     allow_methods=["*"],
+#     allow_headers=["*"],
 # )
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],      # ✅ cho phép tất cả domain
-    allow_credentials=False,  # ⚠️ phải đổi thành False nếu dùng "*"
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
 
 app.include_router(test_router.router)
 app.include_router(account_router.router)
