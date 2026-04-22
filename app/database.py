@@ -242,63 +242,62 @@ class PostInteraction(SQLModel, table=True):
 # Topic
 # =========================
 class Topic(SQLModel, table=True):
-    id: Optional[int] = Field(default=None, primary_key=True)
+    id: int| None = Field(default=None, primary_key=True)
     name: str
-    description: Optional[str] = None
+    description: str | None
 
-    lessons: List["Lesson"] = Relationship(back_populates="topic")
+    lessons: list["Lesson"] = Relationship(back_populates="topic")
 
 
 # =========================
 # Lesson
 # =========================
 class Lesson(SQLModel, table=True):
-    id: Optional[int] = Field(default=None, primary_key=True)
+    id: int| None = Field(default=None, primary_key=True)
     name: str
-    description: Optional[str] = None
+    description: str | None
 
-    topic_id: Optional[int] = Field(default=None, foreign_key="topic.id")
-    topic: Optional[Topic] = Relationship(back_populates="lessons")
+    topic_id: int| None = Field(default=None, foreign_key="topic.id")
+    topic: Topic|None = Relationship(back_populates="lessons")
 
-    concepts: List["LessonConcept"] = Relationship(back_populates="lesson")
-    exercises: List["Exercise"] = Relationship(back_populates="lesson")
+    concepts: list["Concept"] = Relationship(back_populates="lesson")
+    exercises: list["Exercise"] = Relationship(back_populates="lesson")
 
 
 # =========================
 # Concept (Core node)
 # =========================
 class Concept(SQLModel, table=True):
-    id: Optional[int] = Field(default=None, primary_key=True)
+    id: int| None = Field(default=None, primary_key=True)
     name: str
     type: str  # grammar / pattern / word / usage / signal / rule
-    description: Optional[str] = None
-
-    lessons: List["LessonConcept"] = Relationship(back_populates="concept")
-
-    outgoing_relations: List["ConceptRelation"] = Relationship(
+    description: str | None 
+    lesson_id: int = Field(default=None, foreign_key="lesson.id")
+    lesson: Lesson|None = Relationship(back_populates="concepts")
+    outgoing_relations: list["ConceptRelation"] = Relationship(
         back_populates="from_concept",
         sa_relationship_kwargs={"foreign_keys": "[ConceptRelation.from_concept_id]"},
     )
 
-    incoming_relations: List["ConceptRelation"] = Relationship(
+    incoming_relations: list["ConceptRelation"] = Relationship(
         back_populates="to_concept",
         sa_relationship_kwargs={"foreign_keys": "[ConceptRelation.to_concept_id]"},
     )
 
     # is_line_break: Optional[bool] = None  # for formatting purposes
-    examples: List["ExampleConcept"] = Relationship(back_populates="concept")
+    examples: list["Example"] = Relationship(back_populates="concept")
 
 
 # =========================
 # Concept Relation (Graph)
 # =========================
 class ConceptRelation(SQLModel, table=True):
-    id: Optional[int] = Field(default=None, primary_key=True)
+    id: int| None = Field(default=None, primary_key=True)
 
     from_concept_id: int = Field(foreign_key="concept.id")
     to_concept_id: int = Field(foreign_key="concept.id")
 
-    relation_type: str  # uses, used_for, has_structure, similar_to...
+    relation_type: str | None  # uses, used_for, has_structure, similar_to...
 
     from_concept: Optional[Concept] = Relationship(
         back_populates="outgoing_relations",
@@ -312,75 +311,45 @@ class ConceptRelation(SQLModel, table=True):
 
 
 # =========================
-# Lesson - Concept mapping
-# =========================
-class LessonConcept(SQLModel, table=True):
-    lesson_id: Optional[int] = Field(
-        default=None, foreign_key="lesson.id", primary_key=True
-    )
-    concept_id: Optional[int] = Field(
-        default=None, foreign_key="concept.id", primary_key=True
-    )
-
-    lesson: Optional[Lesson] = Relationship(back_populates="concepts")
-    concept: Optional[Concept] = Relationship(back_populates="lessons")
-
-
-# =========================
 # Exercise
 # =========================
 class Exercise(SQLModel, table=True):
-    id: Optional[int] = Field(default=None, primary_key=True)
+    id: int |None = Field(default=None, primary_key=True)
     name: str
 
-    lesson_id: Optional[int] = Field(default=None, foreign_key="lesson.id")
-    lesson: Optional[Lesson] = Relationship(back_populates="exercises")
+    lesson_id: int = Field(default=None, foreign_key="lesson.id")
+    lesson: Lesson|None = Relationship(back_populates="exercises")
 
-    questions: List["Question"] = Relationship(back_populates="exercise")
+    questions: list["Question"] = Relationship(back_populates="exercise")
 
 
 # =========================
 # Question
 # =========================
 class Question(SQLModel, table=True):
-    id: Optional[int] = Field(default=None, primary_key=True)
+    id: int | None = Field(default=None, primary_key=True)
 
-    content: Optional[str] = None
-    question: Optional[str] = None
-    answer: Optional[str] = None
-    correct_answer: Optional[str] = None
+    content: str | None = None
+    question: str | None = None
+    answer: str | None = None
+    correct_answer: str | None = None
 
-    type: Optional[str] = None
-    score: Optional[float] = None
+    type: str | None = None
+    score: float | None = None
     difficulty: float = 0.0
-    exercise_id: Optional[int] = Field(default=None, foreign_key="exercise.id")
-    exercise: Optional[Exercise] = Relationship(back_populates="questions")
+    exercise_id: int  = Field(default=None, foreign_key="exercise.id")
+    exercise: Exercise |None = Relationship(back_populates="questions")
 
 
 # =========================
 # Example (sentence)
 # =========================
 class Example(SQLModel, table=True):
-    id: Optional[int] = Field(default=None, primary_key=True)
+    id: int | None = Field(default=None, primary_key=True)
     sentence: str
-    explanation: Optional[str] = None
-
-    concepts: List["ExampleConcept"] = Relationship(back_populates="example")
-
-
-# =========================
-# Example - Concept mapping
-# =========================
-class ExampleConcept(SQLModel, table=True):
-    example_id: Optional[int] = Field(
-        default=None, foreign_key="example.id", primary_key=True
-    )
-    concept_id: Optional[int] = Field(
-        default=None, foreign_key="concept.id", primary_key=True
-    )
-
-    example: Optional[Example] = Relationship(back_populates="concepts")
-    concept: Optional[Concept] = Relationship(back_populates="examples")
+    explanation: str | None = None
+    concept_id: int | None = Field(default=None, foreign_key="concept.id")
+    concept: Concept | None = Relationship(back_populates="examples")
 
 sqlite_url = f"sqlite:///{settings.db_url}"
 connect_args = {"check_same_thread": False}
