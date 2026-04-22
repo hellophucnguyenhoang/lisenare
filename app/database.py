@@ -13,6 +13,7 @@ from sqlmodel import (
     Session,
     SQLModel,
     create_engine,
+    select
 )
 
 from . import security
@@ -26,6 +27,7 @@ from .schemas import (
     UnitType,
 )
 from .services import text_service
+BASE_DIR = Path(__file__).resolve().parent.parent
 
 
 class BrickMetadataGrammarPoint(SQLModel, table=True):
@@ -379,6 +381,7 @@ def init_db():
         with Session(engine) as session:
             init_bricks(session)
             init_posts(session)
+        transfer_knowledge_graph_data()
 
         print("Done initialize table data.")
     else:
@@ -542,3 +545,28 @@ def init_posts(session: Session):
         print(f"{len(posts)} posts imported from {csv_name}")
 
     import_common_voice("cv-valid-test.csv")
+
+def transfer_knowledge_graph_data():
+    engine_old = create_engine(f"sqlite:///{BASE_DIR}/knowledge_graph.db", echo=False)
+    dict_mapping = {
+        "topic": Topic,
+        "lesson": Lesson,
+        "exercise": Exercise,
+        "question": Question,
+
+    }
+    with Session(engine_old) as session_old:
+        all_data = {}
+        for table_name, model in dict_mapping.items():
+            all_data[table_name] = [r.model_dump() for r in session_old.exec(select(model)).all()]
+
+    with Session(engine) as session_new:
+        try:
+            for table_name, model in dict_mapping.items():
+                for data in all_data[table_name]:
+                    session_new.add(model(**data))
+            session_new.commit()
+            print("Knowledge graph data transferred successfully.")
+        except Exception as e:
+            session_new.rollback()
+            raise e
