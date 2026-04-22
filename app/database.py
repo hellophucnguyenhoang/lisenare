@@ -2,7 +2,7 @@ import os
 from collections.abc import Iterator
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import List, Optional
+
 import pandas as pd
 from mutagen import File as MutagenFile
 from pydantic import EmailStr
@@ -265,94 +265,87 @@ class SnippetLike(SQLModel, table=True):
         default_factory=lambda: datetime.now(timezone.utc)
     )
 
-# =========================
-# Topic
-# =========================
+
 class Topic(SQLModel, table=True):
-    id: int| None = Field(default=None, primary_key=True)
+    id: int | None = Field(default=None, primary_key=True)
     name: str
     description: str | None
 
     lessons: list["Lesson"] = Relationship(back_populates="topic")
 
 
-# =========================
-# Lesson
-# =========================
 class Lesson(SQLModel, table=True):
-    id: int| None = Field(default=None, primary_key=True)
+    id: int | None = Field(default=None, primary_key=True)
     name: str
     description: str | None
 
-    topic_id: int| None = Field(default=None, foreign_key="topic.id")
-    topic: Topic|None = Relationship(back_populates="lessons")
+    topic_id: int | None = Field(default=None, foreign_key="topic.id")
+    topic: Topic | None = Relationship(back_populates="lessons")
 
     concepts: list["Concept"] = Relationship(back_populates="lesson")
     exercises: list["Exercise"] = Relationship(back_populates="lesson")
 
 
-# =========================
 # Concept (Core node)
-# =========================
 class Concept(SQLModel, table=True):
-    id: int| None = Field(default=None, primary_key=True)
+    id: int | None = Field(default=None, primary_key=True)
     name: str
     type: str  # grammar / pattern / word / usage / signal / rule
-    description: str | None 
+    description: str | None
     lesson_id: int = Field(default=None, foreign_key="lesson.id")
-    lesson: Lesson|None = Relationship(back_populates="concepts")
+    lesson: Lesson | None = Relationship(back_populates="concepts")
     outgoing_relations: list["ConceptRelation"] = Relationship(
         back_populates="from_concept",
-        sa_relationship_kwargs={"foreign_keys": "[ConceptRelation.from_concept_id]"},
+        sa_relationship_kwargs={
+            "foreign_keys": "[ConceptRelation.from_concept_id]"
+        },
     )
 
     incoming_relations: list["ConceptRelation"] = Relationship(
         back_populates="to_concept",
-        sa_relationship_kwargs={"foreign_keys": "[ConceptRelation.to_concept_id]"},
+        sa_relationship_kwargs={
+            "foreign_keys": "[ConceptRelation.to_concept_id]"
+        },
     )
 
-    # is_line_break: Optional[bool] = None  # for formatting purposes
+    # is_line_break: bool | None = None  # for formatting purposes
     examples: list["Example"] = Relationship(back_populates="concept")
 
 
-# =========================
 # Concept Relation (Graph)
-# =========================
 class ConceptRelation(SQLModel, table=True):
-    id: int| None = Field(default=None, primary_key=True)
+    id: int | None = Field(default=None, primary_key=True)
 
     from_concept_id: int = Field(foreign_key="concept.id")
     to_concept_id: int = Field(foreign_key="concept.id")
 
     relation_type: str | None  # uses, used_for, has_structure, similar_to...
 
-    from_concept: Optional[Concept] = Relationship(
+    from_concept: Concept | None = Relationship(
         back_populates="outgoing_relations",
-        sa_relationship_kwargs={"foreign_keys": "[ConceptRelation.from_concept_id]"},
+        sa_relationship_kwargs={
+            "foreign_keys": "[ConceptRelation.from_concept_id]"
+        },
     )
 
-    to_concept: Optional[Concept] = Relationship(
+    to_concept: Concept | None = Relationship(
         back_populates="incoming_relations",
-        sa_relationship_kwargs={"foreign_keys": "[ConceptRelation.to_concept_id]"},
+        sa_relationship_kwargs={
+            "foreign_keys": "[ConceptRelation.to_concept_id]"
+        },
     )
 
 
-# =========================
-# Exercise
-# =========================
 class Exercise(SQLModel, table=True):
-    id: int |None = Field(default=None, primary_key=True)
+    id: int | None = Field(default=None, primary_key=True)
     name: str
 
     lesson_id: int = Field(default=None, foreign_key="lesson.id")
-    lesson: Lesson|None = Relationship(back_populates="exercises")
+    lesson: Lesson | None = Relationship(back_populates="exercises")
 
     questions: list["Question"] = Relationship(back_populates="exercise")
 
 
-# =========================
-# Question
-# =========================
 class Question(SQLModel, table=True):
     id: int | None = Field(default=None, primary_key=True)
 
@@ -364,19 +357,17 @@ class Question(SQLModel, table=True):
     type: str | None = None
     score: float | None = None
     difficulty: float = 0.0
-    exercise_id: int  = Field(default=None, foreign_key="exercise.id")
-    exercise: Exercise |None = Relationship(back_populates="questions")
+    exercise_id: int = Field(default=None, foreign_key="exercise.id")
+    exercise: Exercise | None = Relationship(back_populates="questions")
 
 
-# =========================
-# Example (sentence)
-# =========================
 class Example(SQLModel, table=True):
     id: int | None = Field(default=None, primary_key=True)
     sentence: str
     explanation: str | None = None
     concept_id: int | None = Field(default=None, foreign_key="concept.id")
     concept: Concept | None = Relationship(back_populates="examples")
+
 
 sqlite_url = f"sqlite:///{settings.db_path}"
 connect_args = {"check_same_thread": False}
