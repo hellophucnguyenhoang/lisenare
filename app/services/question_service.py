@@ -2,7 +2,7 @@ from ..database import Question
 from sqlmodel import Session, select
 
 def get_question_by_exercise_id(session: Session, exercise_id: int) -> list[Question]:
-    statement = select(Question).where(Question.exercise_id == exercise_id)
+    statement = select(Question).where(Question.exercise_id == exercise_id).order_by(Question.difficulty.desc())
     results = session.exec(statement)
     return results.all()
 
