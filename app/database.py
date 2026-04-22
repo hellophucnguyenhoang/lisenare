@@ -381,10 +381,6 @@ def set_sqlite_pragma(dbapi_connection, connection_record):
     # for SQLite only
     # enable foreign key restrictions
     cursor.execute("PRAGMA foreign_keys=ON")
-
-    cursor.execute(
-        f"ATTACH DATABASE '{settings.ytb_subtitle_db_path}' AS subtitle_db"
-    )
     cursor.close()
 
 
@@ -426,6 +422,7 @@ def init_db():
             create_snippet_triggers(session)
             init_bricks(session)
             init_snippets(session)
+            init_from_attach_dbs(session)
 
         print("Done initialize table data.")
     else:
@@ -639,3 +636,38 @@ def init_snippets(session: Session):
         print(f"{len(snippets)} Snippets was imported from {csv_name}")
 
     import_common_voice("cv-valid-test.csv")
+
+
+def init_from_attach_dbs(session: Session):
+    # Tạm thời tắt kiểm tra khóa ngoại
+    # Lí do tắt mặc dù tắt là mặc định bởi vì
+    # session này được tạo ra từ Engine tự động bật foreign_keys
+    session.exec(text("PRAGMA foreign_keys = OFF"))
+
+    # Kết nối các DB phụ
+    session.exec(
+        text(
+            f"ATTACH DATABASE '{settings.ytb_subtitle_db_path}' AS subtitle_db"
+        )
+    )
+    session.exec(text("ATTACH DATABASE 'knowledge_graph.db' AS grammar_db"))
+
+    try:
+        dict_mapping = ["topic", "lesson", "exercise", "question"]
+        for table_name in dict_mapping:
+            session.exec(
+                text(
+                    f"INSERT INTO main.{table_name} SELECT * FROM grammar_db.{table_name}"
+                )
+            )
+
+        session.commit()
+        print("Migration complete!")
+
+    except Exception as e:
+        session.rollback()
+        print(f"Error during migration: {e}")
+        raise e
+
+    finally:
+        session.exec(text("DETACH DATABASE grammar_db"))
