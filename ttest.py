@@ -1,20 +1,19 @@
-import json
+import chromadb
+import numpy as np
 
-data = {
-    "native_text": "Chào buổi sáng",
-    "target_text": "Good morning",
-    "is_public": True,
-    "collection_name": "My Daily English",
-    "group_name": "Greetings",
-    "brick_metadata": {
-        "unit_type": "sentence",
-        "structure": "simple",
-        "function": "declarative",
-        "grammar_points": [{"grammar_point": "present_simple"}],
-    },
-}
+client = chromadb.PersistentClient("chroma_context")
+print(f"Available collections: {client.list_collections()}")
+
+snippets_coll = client.get_collection("snippets")
+
+collection_data = snippets_coll.get(include=["embeddings"])
+embeddings = collection_data.get("embeddings")  # n x 384 matrix
+print(type(embeddings[0]))
+print(embeddings.shape)
 
 
-# Generate the string to paste into Swagger
-json_string = json.dumps(data, ensure_ascii=False)
-print(json_string)
+exit(0)
+snippets_mean = np.mean(embeddings, axis=0)
+print(np.sum(snippets_mean))
+np.save("assets/embeddings/snippets_mean.npy", snippets_mean)
+print("Snippets mean embedding updated")

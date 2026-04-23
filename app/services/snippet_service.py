@@ -1,13 +1,16 @@
+import numpy as np
 from fastapi import HTTPException, status
+from sqlalchemy import case
 from sqlalchemy.orm import selectinload
 from sqlmodel import Session, func, select
 
-from app.database import Snippet
+from app.database import SessionProfile, Snippet, SnippetInteraction
+from app.services.context_search_service import context_search_service
 
 
 def get_random_snippets(
     session: Session,
-    limit: int = 20,
+    limit: int = 5,
 ) -> list[Snippet]:
     query = (
         select(Snippet)
@@ -17,6 +20,48 @@ def get_random_snippets(
     )
     snippets = session.exec(query).all()
     return snippets
+
+
+def get_recommended_snippets(
+    session: Session,
+    session_id: str,
+    limit: int = 5,
+) -> list[Snippet]:
+    """
+    Get recommended snippets for a session_id. Recommend randomly for the first time.
+    """
+    seen_query = select(SnippetInteraction.snippet_id).where(
+        SnippetInteraction.session_id == session_id
+    )
+    seen_ids = session.exec(seen_query).all()
+
+    profile = session.get(SessionProfile, session_id)
+    if profile:
+        vector = np.frombuffer(
+            profile.profile_vector, dtype=np.float64
+        ).tolist()
+    else:
+        return get_random_snippets(session)
+
+    snippet_ids = context_search_service.get_similar_snippets(
+        vector, limit=limit, exclude_ids=seen_ids
+    )
+    if not snippet_ids:
+        return []
+
+    # Preserving the order of snippet_ids in the relevance order Chroma provided
+    order_preserved = case(
+        {id_: index for index, id_ in enumerate(snippet_ids)}, value=Snippet.id
+    )
+
+    query = (
+        select(Snippet)
+        .where(Snippet.id.in_(snippet_ids))
+        .options(selectinload(Snippet.creator))
+        .order_by(order_preserved)
+    )
+
+    return session.exec(query).all()
 
 
 def create_snippet(

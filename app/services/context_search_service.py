@@ -1,6 +1,7 @@
 from fastapi import HTTPException, status
 from langchain_chroma import Chroma
 from langchain_ollama import OllamaEmbeddings
+from numpy.typing import NDArray
 from sqlmodel import Session, select, text
 
 from app.config import settings
@@ -232,6 +233,39 @@ class ContextSearchService:
             )
         return store.similarity_search(query, k=10)
 
+    def get_similar_snippets(
+        self,
+        profile_vector: list[float],
+        limit: int = 5,
+        exclude_ids: list[int] = [],
+        mmr: bool = True,
+        fetch_k: int = 20,
+        lambda_mult: float = 0.5,
+    ) -> list[int]:
+        """Returns a list of snippet IDs closest to the profile vector."""
+        filter_ = None
+        if exclude_ids:
+            filter_ = {"id": {"$nin": [str(i) for i in exclude_ids]}}
+
+        if mmr:
+            results = self.stores[
+                "snippets"
+            ].max_marginal_relevance_search_by_vector(
+                embedding=profile_vector,
+                k=limit,
+                fetch_k=fetch_k,
+                lambda_mult=lambda_mult,
+                filter=filter_,
+            )
+        else:
+            results = self.stores["snippets"].similarity_search_by_vector(
+                embedding=profile_vector,
+                k=limit,
+                filter=filter_,
+            )
+
+        return [int(doc.id) for doc in results if doc.id is not None]
+
     def search_context_videos(
         self, text: str, mmr: bool = True
     ) -> list[VideoContextSearchResult]:
@@ -275,7 +309,7 @@ class ContextSearchService:
         docs = self._fetch_docs("bricks", text, mmr)
         return [
             BrickContextSearch(
-                brick_id=d.metadata["brick_id"],
+                brick_id=d.id,
                 native_text=d.metadata["native_text"],
                 target_text=d.page_content,
             )
@@ -297,6 +331,17 @@ class ContextSearchService:
                 seen.add(identifier)
 
         return combined
+
+    def get_embedding(self, snippet_id: int) -> NDArray | None:
+        target_id = str(snippet_id)
+        result = self.stores["snippets"]._collection.get(
+            ids=[target_id], include=["embeddings"]
+        )
+
+        embeddings = result.get("embeddings")
+        if len(embeddings) > 0:
+            return embeddings[0]
+        return None
 
 
 context_search_service = ContextSearchService()
