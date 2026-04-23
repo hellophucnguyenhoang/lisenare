@@ -35,6 +35,26 @@ def get_random_snippets(
     return snippet_page
 
 
+@router.get("/recommended/{session_id}")
+def get_recommended_snippets(
+    session: Annotated[Session, Depends(get_session)],
+    learner: Annotated[
+        Learner | None, Depends(auth_service.decode_token_get_optional_learner)
+    ],
+    session_id: str,
+    page_size: int = 5,
+) -> SnippetPage:
+    snippets = snippet_service.get_recommended_snippets(
+        session, session_id, page_size
+    )
+    learner_id = learner.id if learner else None
+    snippets = snippet_like_service.apply_like_state(
+        session, snippets, learner_id
+    )
+    snippet_page = SnippetPage(items=snippets, total=len(snippets))
+    return snippet_page
+
+
 @router.post("", response_model=SnippetRead)
 async def create_snippet(
     session: Annotated[Session, Depends(get_session)],
