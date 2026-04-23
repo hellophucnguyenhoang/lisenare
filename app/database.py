@@ -269,6 +269,15 @@ class SnippetLike(SQLModel, table=True):
     )
 
 
+class SessionProfile(SQLModel, table=True):
+    session_id: str = Field(primary_key=True)
+    profile_vector: bytes
+    interaction_count: int = Field(default=0)
+    updated_at: datetime = Field(
+        default_factory=lambda: datetime.now(timezone.utc)
+    )
+
+
 class Topic(SQLModel, table=True):
     id: int | None = Field(default=None, primary_key=True)
     name: str
@@ -425,7 +434,7 @@ def init_db():
             create_snippet_triggers(session)
             init_bricks(session)
             init_snippets(session)
-            init_from_attach_dbs(session)
+            attach_dbs(session)
         transfer_knowledge_graph_data()
 
         print("Done initialize table data.")
@@ -642,7 +651,7 @@ def init_snippets(session: Session):
     import_common_voice("cv-valid-test.csv")
 
 
-def init_from_attach_dbs(session: Session):
+def attach_dbs(session: Session):
     session.exec(
         text(
             f"ATTACH DATABASE '{settings.ytb_subtitle_db_path}' AS subtitle_db"

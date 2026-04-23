@@ -5,7 +5,10 @@ from sqlmodel import Session
 
 from app.database import Learner, get_session
 from app.schemas import SnippetInteractionCreate, StatusResponse, StatusType
-from app.services import auth_service, snippet_interaction_service
+from app.services import (
+    auth_service,
+    snippet_interaction_service,
+)
 
 router = APIRouter(
     prefix="/snippet-interactions", tags=["Snippet Interactions"]
@@ -20,13 +23,13 @@ def create_interaction(
     ],
     data: SnippetInteractionCreate,
 ) -> StatusResponse:
-    interaction = snippet_interaction_service.create_interaction(
-        session=session,
-        session_id=data.session_id,
-        snippet_id=data.snippet_id,
-        interaction_type=data.interaction_type,
-        duration=data.duration,
-        learner_id=learner.id if learner else None,
+
+    interaction = (
+        snippet_interaction_service.handle_interaction_and_update_profile(
+            session=session,
+            data=data,
+            learner_id=learner.id if learner else None,
+        )
     )
 
     return StatusResponse(
