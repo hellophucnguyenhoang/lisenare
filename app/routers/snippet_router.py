@@ -52,6 +52,7 @@ def get_recommended_snippets(
         session, snippets, learner_id
     )
     snippet_page = SnippetPage(items=snippets, total=len(snippets))
+    print(f"{snippet_page.total = }")
     return snippet_page
 
 

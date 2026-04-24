@@ -149,7 +149,12 @@ class ContextSearchService:
                 detail=f"data for snippet_id {snippet_id} does not exists",
             )
 
-        self._update_docs("snippets", [content], [str(snippet_id)])
+        self._update_docs(
+            "snippets",
+            [content],
+            [str(snippet_id)],
+            [{"snippet_id": str(snippet_id)}],
+        )
         print("Done upserting the snippet into collection")
 
     def upsert_context_brick(self, session: Session, brick_id: int):
@@ -181,19 +186,24 @@ class ContextSearchService:
         print(f"{len(snippet_contents)} snippets to upsert")
         batch_docs = []
         batch_ids = []
+        batch_metas = []
         batch_size = 256
 
         for snippet_id, snippet_content in snippet_contents:
             batch_docs.append(snippet_content)
             batch_ids.append(str(snippet_id))
+            batch_metas.append({"snippet_id": str(snippet_id)})
 
             if len(batch_ids) >= batch_size:
-                self._update_docs("snippets", batch_docs, batch_ids)
+                self._update_docs(
+                    "snippets", batch_docs, batch_ids, batch_metas
+                )
                 batch_docs = []
                 batch_ids = []
+                batch_metas = []
 
         if batch_docs:
-            self._update_docs("snippets", batch_docs, batch_ids)
+            self._update_docs("snippets", batch_docs, batch_ids, batch_metas)
 
         print("Done upserting snippets collection")
 
@@ -210,7 +220,7 @@ class ContextSearchService:
         for brick_id, native_text, target_text in brick_texts:
             batch_docs.append(target_text)
             batch_ids.append(str(brick_id))
-            meta = {"native_text": native_text}
+            meta = {"brick_id": str(brick_id), "native_text": native_text}
             batch_metas.append(meta)
 
             if len(batch_ids) >= batch_size:
@@ -233,7 +243,7 @@ class ContextSearchService:
             )
         return store.similarity_search(query, k=10)
 
-    def get_similar_snippets(
+    def get_relevant_snippets(
         self,
         profile_vector: list[float],
         limit: int = 5,
@@ -245,7 +255,7 @@ class ContextSearchService:
         """Returns a list of snippet IDs closest to the profile vector."""
         filter_ = None
         if exclude_ids:
-            filter_ = {"id": {"$nin": [str(i) for i in exclude_ids]}}
+            filter_ = {"snippet_id": {"$nin": [str(i) for i in exclude_ids]}}
 
         if mmr:
             results = self.stores[
