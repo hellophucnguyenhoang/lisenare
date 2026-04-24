@@ -100,6 +100,7 @@ def handle_interaction_and_update_profile(
                 session_id=data.session_id,
                 new_snippet_embedding=embedding,
                 interaction_type=data.interaction_type,
+                duration=data.duration,
                 commit=False,
             )
 

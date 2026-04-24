@@ -49,8 +49,12 @@ def upsert_context_brick(
 )
 def upsert_context_all_snippets(
     session: Annotated[Session, Depends(get_session)],
-):
+) -> StatusResponse:
     context_search_service.upsert_context_all_snippets(session)
+    return StatusResponse(
+        status=StatusType.SUCCESS,
+        message="Snippets upserted successfully",
+    )
 
 
 @router.post(
@@ -58,8 +62,12 @@ def upsert_context_all_snippets(
 )
 def upsert_context_all_bricks(
     session: Annotated[Session, Depends(get_session)],
-):
+) -> StatusResponse:
     context_search_service.upsert_context_all_bricks(session)
+    return StatusResponse(
+        status=StatusType.SUCCESS,
+        message="Bricks upserted successfully",
+    )
 
 
 @router.post("/snippets-search")

@@ -21,6 +21,7 @@ def calculate_rocchio_update(
     current_profile: NDArray,
     new_item_vec: NDArray,
     interaction_type: InteractionType,
+    duration: float | None = None,
     alpha: float = 0.8,
     beta: float = 0.2,
     gamma: float = 0.9,
@@ -40,22 +41,33 @@ def calculate_rocchio_update(
 
     """
 
-    # Define which interactions are "Interested" vs "Not Interested"
-    interested_types = {
+    # Group types by the mathematical operation they perform
+    positive_interactions = {
         InteractionType.LIKE,
         InteractionType.ADD,
         InteractionType.LISTEN,
-        InteractionType.TIME_SPENT,
     }
-    disinterested_types = {InteractionType.UNLIKE}
+    negative_interactions = {InteractionType.UNLIKE}
 
-    if interaction_type in interested_types:
+    # 1. Determine if this interaction is positive or negative
+    is_positive = interaction_type in positive_interactions or (
+        interaction_type == InteractionType.TIME_SPENT and duration >= 3
+    )
+
+    is_negative = interaction_type in negative_interactions or (
+        interaction_type == InteractionType.TIME_SPENT and duration < 3
+    )
+
+    # 2. Apply the formula based on the direction
+    if is_positive:
         return (alpha * current_profile) + (beta * new_item_vec)
-
-    elif interaction_type in disinterested_types:
+    if is_negative:
         return (alpha * current_profile) - (gamma * new_item_vec)
 
-    return current_profile
+    print(
+        f"WARNING: Rocchio update no match: {interaction_type = }, {duration = }"
+    )
+    return current_profile  # Fallback if no rules matched
 
 
 def update_session_profile(
@@ -63,6 +75,7 @@ def update_session_profile(
     session_id: str,
     new_snippet_embedding: NDArray,
     interaction_type: InteractionType,
+    duration: float | None = None,
     initial_mean_path: str = "assets/embeddings/snippets_mean.npy",
     commit: bool = True,
 ):
@@ -85,6 +98,7 @@ def update_session_profile(
         current_profile=current_profile,
         new_item_vec=new_snippet_embedding,
         interaction_type=interaction_type,
+        duration=duration,
     )
 
     profile.profile_vector = updated_profile.astype(np.float64).tobytes()
