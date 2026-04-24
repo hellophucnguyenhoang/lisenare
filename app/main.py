@@ -33,7 +33,7 @@ async def lifespan(app: FastAPI):
     await init_client()
     yield
     # Shutdown code
-    # database.delete_db()
+    database.delete_db()
     await close_client()
 
 
@@ -42,8 +42,8 @@ app = FastAPI(title="Lisenare API", lifespan=lifespan)
 # Allow requests from the frontend
 origins = [
     "http://localhost:8000",
-    "http://127.0.0.1:8000",  # Backend itself
-    # "http://10.0.2.2:8081",  # Android Emulator loopback
+    "http://127.0.0.1:8000",
+    "http://0.0.0.0:8000",
 ]
 
 app.add_middleware(
@@ -58,14 +58,6 @@ app.add_middleware(
     ],
     allow_headers=["Authorization", "Content-Type"],
 )
-
-# app.add_middleware(
-#     CORSMiddleware,
-#     allow_origins=["*"],
-#     allow_credentials=False,  # phải đổi thành False nếu dùng "*"
-#     allow_methods=["*"],
-#     allow_headers=["*"],
-# )
 
 app.include_router(test_router.router)
 app.include_router(account_router.router)

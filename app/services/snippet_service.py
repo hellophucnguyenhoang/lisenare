@@ -41,13 +41,13 @@ def get_recommended_snippets(
             profile.profile_vector, dtype=np.float64
         ).tolist()
     else:
-        return get_random_snippets(session)
+        return get_random_snippets(session, limit)
 
-    snippet_ids = context_search_service.get_similar_snippets(
+    snippet_ids = context_search_service.get_relevant_snippets(
         vector, limit=limit, exclude_ids=seen_ids
     )
     if not snippet_ids:
-        return []
+        return get_random_snippets(session, limit)
 
     # Preserving the order of snippet_ids in the relevance order Chroma provided
     order_preserved = case(
