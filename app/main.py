@@ -19,6 +19,7 @@ from .routers import (
     grammar_router,
     learner_router,
     learning_card_router,
+    push_token_router,
     snippet_interaction_router,
     snippet_router,
     test_router,
@@ -33,7 +34,7 @@ async def lifespan(app: FastAPI):
     await init_client()
     yield
     # Shutdown code
-    database.delete_db()
+    # database.delete_db()
     await close_client()
 
 
@@ -69,6 +70,7 @@ app.include_router(collection_router.router)
 app.include_router(context_search_router.router)
 app.include_router(learner_router.router)
 app.include_router(learning_card_router.router)
+app.include_router(push_token_router.router)
 app.include_router(snippet_interaction_router.router)
 app.include_router(snippet_router.router)
 app.include_router(text_router.router)

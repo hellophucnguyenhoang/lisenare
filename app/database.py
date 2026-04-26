@@ -73,6 +73,16 @@ class Account(SQLModel, table=True):
     learner: "Learner" = Relationship(back_populates="account")
 
 
+class PushToken(SQLModel, table=True):
+    id: int | None = Field(default=None, primary_key=True)
+    token: str = Field(index=True, unique=True)
+    last_sent_at: datetime | None = None
+    device_name: str | None = None
+    last_ticket_id: str | None = None
+    learner_id: int = Field(foreign_key="learner.id")
+    learner: "Learner" = Relationship(back_populates="push_tokens")
+
+
 class Learner(SQLModel, table=True):
     id: int | None = Field(default=None, primary_key=True)
     full_name: str
@@ -90,6 +100,7 @@ class Learner(SQLModel, table=True):
     snippet_interactions: list["SnippetInteraction"] = Relationship(
         back_populates="learner"
     )
+    push_tokens: list["PushToken"] = Relationship(back_populates="learner")
 
 
 class Collection(SQLModel, table=True):
@@ -625,11 +636,10 @@ def init_snippets(session: Session):
 
     def import_common_voice(csv_name: str, creator_id: int = 1):
         df = pd.read_csv(COMMON_VOICE_DIR / csv_name)
-        split = csv_name.replace(".csv", "")
         snippets = []
 
         for row in df.to_dict("records"):
-            audio_path = COMMON_VOICE_DIR / split / row["filename"]
+            audio_path = COMMON_VOICE_DIR / row["filename"]
             # Get duration in seconds
             audio_info = MutagenFile(audio_path).info
             duration_seconds = audio_info.length

@@ -25,7 +25,7 @@ from app.schemas import (
     BrickRead,
     BrickUpdate,
     StatusResponse,
-    StatusType,
+    StatusResponseType,
 )
 from app.services import auth_service, brick_service
 from utils import file_utils
@@ -184,7 +184,10 @@ def append_broken_audio_file(filename: str, description: str | None = None):
     with REPORT_FILE.open("a") as f:
         clean_desc = description.replace("|", " ").replace("\n", " ")
         f.write(f"{filename}|{clean_desc}|{datetime.now(timezone.utc)}\n")
-    return {"status": StatusType.SUCCESS, "message": f"Reported {filename}"}
+    return {
+        "status": StatusResponseType.SUCCESS,
+        "message": f"Reported {filename}",
+    }
 
 
 @router.patch(
@@ -238,6 +241,6 @@ def delete_brick(
     )
 
     return {
-        "status": StatusType.SUCCESS,
+        "status": StatusResponseType.SUCCESS,
         "message": message,
     }
