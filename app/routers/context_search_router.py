@@ -10,7 +10,7 @@ from app.schemas import (
     ContextSearchRequest,
     SnippetRead,
     StatusResponse,
-    StatusType,
+    StatusResponseType,
     VideoContextSearchResult,
 )
 from app.services import auth_service, snippet_like_service
@@ -28,7 +28,7 @@ def upsert_context_snippet(
 ) -> StatusResponse:
     context_search_service.upsert_context_snippet(session, snippet_id)
     return StatusResponse(
-        status=StatusType.SUCCESS,
+        status=StatusResponseType.SUCCESS,
         message=f"Snippet {snippet_id} upserted successfully",
     )
 
@@ -39,7 +39,7 @@ def upsert_context_brick(
 ) -> StatusResponse:
     context_search_service.upsert_context_brick(session, brick_id)
     return StatusResponse(
-        status=StatusType.SUCCESS,
+        status=StatusResponseType.SUCCESS,
         message=f"Brick {brick_id} upserted successfully",
     )
 
@@ -52,7 +52,7 @@ def upsert_context_all_snippets(
 ) -> StatusResponse:
     context_search_service.upsert_context_all_snippets(session)
     return StatusResponse(
-        status=StatusType.SUCCESS,
+        status=StatusResponseType.SUCCESS,
         message="Snippets upserted successfully",
     )
 
@@ -65,7 +65,7 @@ def upsert_context_all_bricks(
 ) -> StatusResponse:
     context_search_service.upsert_context_all_bricks(session)
     return StatusResponse(
-        status=StatusType.SUCCESS,
+        status=StatusResponseType.SUCCESS,
         message="Bricks upserted successfully",
     )
 

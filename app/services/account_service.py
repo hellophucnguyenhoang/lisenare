@@ -12,7 +12,7 @@ from app.schemas import (
     LearnerAccountCreate,
     PasswordResetRequest,
     StatusResponse,
-    StatusType,
+    StatusResponseType,
 )
 from app.services import auth_service
 
@@ -126,6 +126,6 @@ def reset_account_password(
     session.add(account)
     session.commit()
     return {
-        "status": StatusType.SUCCESS,
+        "status": StatusResponseType.SUCCESS,
         "message": "Password has been reset successfully.",
     }
