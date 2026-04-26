@@ -6,8 +6,9 @@ dist/
 wheels/
 *.egg-info
 
-# Ignore environment config
+# Security
 .env
+todo.md
 
 # Virtual environments
 .venv
@@ -31,3 +32,6 @@ static/
 
 # Cache
 .cache/
+
+# Todo list
+

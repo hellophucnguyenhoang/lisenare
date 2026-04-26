@@ -21,7 +21,7 @@ def search_subtitles_literal(
 
     statement = text("""
         SELECT video_id AS ytb_video_id, start, duration, text 
-        FROM subtitle_search 
+        FROM subtitle_db.subtitle_search 
         WHERE text MATCH :val 
         ORDER BY rank
     """)

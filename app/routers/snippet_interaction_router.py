@@ -4,7 +4,11 @@ from fastapi import APIRouter, Depends
 from sqlmodel import Session
 
 from app.database import Learner, get_session
-from app.schemas import SnippetInteractionCreate, StatusResponse, StatusType
+from app.schemas import (
+    SnippetInteractionCreate,
+    StatusResponse,
+    StatusResponseType,
+)
 from app.services import (
     auth_service,
     snippet_interaction_service,
@@ -33,6 +37,6 @@ def create_interaction(
     )
 
     return StatusResponse(
-        status=StatusType.SUCCESS,
+        status=StatusResponseType.SUCCESS,
         message=f"Interaction type {interaction.type} created.",
     )
