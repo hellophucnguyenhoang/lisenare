@@ -190,7 +190,9 @@ class Review(SQLModel, table=True):
     brick_id: int = Field(foreign_key="brick.id", ondelete="CASCADE")
     first_score: float
     is_answer_revealed: bool = False
-    fsrs_rating: int = Field(ge=1, le=4)
+    fsrs_rating: int = Field(
+        ge=1, le=4
+    )  # Again = 1, Hard = 2, Good = 3, Easy = 4
     reviewed_at: datetime = Field(
         default_factory=lambda: datetime.now(timezone.utc)
     )
@@ -208,6 +210,9 @@ class LearningCard(SQLModel, table=True):
     brick: "Brick" = Relationship(back_populates="learning_cards")
     fsrs_card_json: str
     due: datetime
+    created_at: datetime = Field(
+        default_factory=lambda: datetime.now(timezone.utc)
+    )
 
 
 class OTP(SQLModel, table=True):
@@ -309,7 +314,6 @@ class Lesson(SQLModel, table=True):
     exercises: list["Exercise"] = Relationship(back_populates="lesson")
 
 
-# Concept (Core node)
 class Concept(SQLModel, table=True):
     id: int | None = Field(default=None, primary_key=True)
     name: str
@@ -335,7 +339,6 @@ class Concept(SQLModel, table=True):
     examples: list["Example"] = Relationship(back_populates="concept")
 
 
-# Concept Relation (Graph)
 class ConceptRelation(SQLModel, table=True):
     id: int | None = Field(default=None, primary_key=True)
 
@@ -404,6 +407,11 @@ def set_sqlite_pragma(dbapi_connection, connection_record):
     # for SQLite only
     # enable foreign key restrictions
     cursor.execute("PRAGMA foreign_keys=ON")
+
+    cursor.execute(
+        f"ATTACH DATABASE '{settings.ytb_subtitle_db_path}' AS subtitle_db"
+    )
+    print(f"Attached {settings.ytb_subtitle_db_path}")
     cursor.close()
 
 
@@ -445,7 +453,6 @@ def init_db():
             create_snippet_triggers(session)
             init_bricks(session)
             init_snippets(session)
-            attach_dbs(session)
         transfer_knowledge_graph_data()
 
         print("Done initialize table data.")
@@ -659,15 +666,6 @@ def init_snippets(session: Session):
         print(f"{len(snippets)} Snippets was imported from {csv_name}")
 
     import_common_voice("cv-valid-test.csv")
-
-
-def attach_dbs(session: Session):
-    session.exec(
-        text(
-            f"ATTACH DATABASE '{settings.ytb_subtitle_db_path}' AS subtitle_db"
-        )
-    )
-    print(f"Attached {settings.ytb_subtitle_db_path}")
 
 
 def transfer_knowledge_graph_data():
