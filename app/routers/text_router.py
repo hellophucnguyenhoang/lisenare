@@ -38,7 +38,7 @@ def forced_align(
 @router.post("/semantic-comparison")
 async def compare(
     session: Annotated[Session, Depends(get_session)],
-    current_learner: Annotated[
+    learner: Annotated[
         Learner, Depends(auth_service.decode_token_get_learner)
     ],
     sentence_compare_request: SentenceCompareRequest,
@@ -61,12 +61,12 @@ async def compare(
         )
         review_service.save_review(
             session=session,
-            learner_id=current_learner.id,
+            learner_id=learner.id,
             review_create=review_create,
         )
         learning_card_service.update_learning_card(
             session=session,
-            learner_id=current_learner.id,
+            learner_id=learner.id,
             brick_id=sentence_compare_request.review_base.brick_id,
             score=sentence_compare_response.score,
             is_answer_revealed=sentence_compare_request.review_base.is_answer_revealed,

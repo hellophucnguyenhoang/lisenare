@@ -1,7 +1,7 @@
 from fsrs import Rating
 
 
-def convert_similarity_score_to_fsrs_rating(
+def similarity_to_fsrs(
     first_review_score: float, is_answer_revealed: bool
 ) -> Rating:
     if is_answer_revealed:

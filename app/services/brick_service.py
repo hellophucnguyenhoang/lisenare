@@ -200,6 +200,7 @@ def get_brick_fsrs(
     brick = resolve_override(result)
     if brick:
         return brick
+
     print("FSRS Case 2: Get new unseen card")
     # Case 2: Get new unseen card
     pending_bricks_subq = get_pending_bricks_subquery(learner_id)
