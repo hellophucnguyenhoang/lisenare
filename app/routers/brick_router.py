@@ -36,14 +36,14 @@ router = APIRouter(prefix="/bricks", tags=["Bricks"])
 @router.get("/fsrs", response_model=BrickRead)
 def get_brick_fsrs(
     session: Annotated[Session, Depends(get_session)],
-    current_learner: Annotated[
+    learner: Annotated[
         Learner, Depends(auth_service.decode_token_get_learner)
     ],
     collection_ids: Annotated[list[int] | None, Query()] = None,
 ):
     brick = brick_service.get_brick_fsrs(
         session=session,
-        learner_id=current_learner.id,
+        learner_id=learner.id,
         collection_ids=collection_ids,
     )
     if brick is None:
@@ -104,18 +104,18 @@ def get_public_brick(
 @router.get("/by-id/{brick_id}", response_model=BrickRead)
 def get_private_brick(
     session: Annotated[Session, Depends(get_session)],
-    current_learner: Annotated[
+    learner: Annotated[
         Learner, Depends(auth_service.decode_token_get_learner)
     ],
     brick_id: int,
 ):
-    return brick_service.get_brick(session, brick_id, current_learner.id)
+    return brick_service.get_brick(session, brick_id, learner.id)
 
 
 @router.get("/learn/{collection_id}", response_model=BrickLearnRead)
 def get_brick_in_collection_learn(
     session: Annotated[Session, Depends(get_session)],
-    current_learner: Annotated[
+    learner: Annotated[
         Learner, Depends(auth_service.decode_token_get_learner)
     ],
     collection_id: int,
@@ -123,7 +123,7 @@ def get_brick_in_collection_learn(
 ):
     brick_learn = brick_service.get_brick_in_collection_learn(
         session=session,
-        learner_id=current_learner.id,
+        learner_id=learner.id,
         collection_id=collection_id,
         brick_order=brick_order,
     )
@@ -133,7 +133,7 @@ def get_brick_in_collection_learn(
 @router.post("", response_model=BrickRead)
 async def create_brick(
     session: Annotated[Session, Depends(get_session)],
-    current_learner: Annotated[
+    learner: Annotated[
         Learner, Depends(auth_service.decode_token_get_learner)
     ],
     audio_file: Annotated[UploadFile, File()],
@@ -151,7 +151,7 @@ async def create_brick(
             detail=f"Dữ liệu không hợp lệ: {str(e)}",
         )
 
-    creator_id = current_learner.id
+    creator_id = learner.id
     learner_audio_path, _ = await file_utils.save_upload_file(
         file=audio_file,
         base_dir=settings.brick_audios_folder,
@@ -208,7 +208,7 @@ non-author learners can only override native_text field.
 )
 def update_brick(
     session: Annotated[Session, Depends(get_session)],
-    current_learner: Annotated[
+    learner: Annotated[
         Learner, Depends(auth_service.decode_token_get_learner)
     ],
     brick_id: int,
@@ -220,7 +220,7 @@ def update_brick(
         session=session,
         brick_id=brick_id,
         brick_update=brick_update,
-        learner_id=current_learner.id,
+        learner_id=learner.id,
     )
 
 

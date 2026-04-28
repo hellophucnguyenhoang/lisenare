@@ -27,17 +27,17 @@ router = APIRouter(prefix="/collections", tags=["Collections"])
 @router.get("", response_model=list[CollectionRead])
 def get_collections(
     session: Annotated[Session, Depends(get_session)],
-    current_learner: Annotated[
+    learner: Annotated[
         Learner, Depends(auth_service.decode_token_get_learner)
     ],
 ):
-    return collection_service.get_collections(session, current_learner.id)
+    return collection_service.get_collections(session, learner.id)
 
 
 @router.get("/pending", response_model=list[CollectionRead])
 def get_pending_collections(
     session: Annotated[Session, Depends(get_session)],
-    current_learner: Annotated[
+    learner: Annotated[
         Learner, Depends(auth_service.decode_token_get_learner)
     ],
     group_name: str = CEFRLevel.A1,
@@ -49,7 +49,7 @@ def get_pending_collections(
     # Calculate offset: (page 1 - 1) * 20 = 0; (page 2 - 1) * 20 = 20
     offset = (page - 1) * limit
     return collection_service.get_pending_collections(
-        session, current_learner.id, group_name, status, sort_by, limit, offset
+        session, learner.id, group_name, status, sort_by, limit, offset
     )
 
 
@@ -66,32 +66,30 @@ def get_pending_groups(
 @router.get("/pending-bricks", response_model=list[BrickReadSimple])
 def get_pending_bricks_collection(
     session: Annotated[Session, Depends(get_session)],
-    current_learner: Annotated[
+    learner: Annotated[
         Learner, Depends(auth_service.decode_token_get_learner)
     ],
     collection_id: int,
 ):
-    return brick_service.get_pending_bricks(
-        session, current_learner.id, collection_id
-    )
+    return brick_service.get_pending_bricks(session, learner.id, collection_id)
 
 
 @router.get("/stats", response_model=list[GroupStats])
 def get_pending_collection_group_stats(
     session: Annotated[Session, Depends(get_session)],
-    current_learner: Annotated[
+    learner: Annotated[
         Learner, Depends(auth_service.decode_token_get_learner)
     ],
 ):
     return collection_service.get_pending_collection_group_stats(
-        session, current_learner.id
+        session, learner.id
     )
 
 
 @router.post("/overrides")
 def create_group_overrides(
     session: Annotated[Session, Depends(get_session)],
-    current_learner: Annotated[
+    learner: Annotated[
         Learner, Depends(auth_service.decode_token_get_learner)
     ],
     payload: OverrideGroupsCreate,
@@ -101,7 +99,7 @@ def create_group_overrides(
     for group_name in payload.group_names:
         created_count = brick_override_service.create_overrides_for_group(
             session=session,
-            learner_id=current_learner.id,
+            learner_id=learner.id,
             group_name=group_name,
         )
         details[group_name] = created_count
