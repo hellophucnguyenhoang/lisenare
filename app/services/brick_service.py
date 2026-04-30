@@ -140,24 +140,13 @@ async def get_audio_file(filename: str):
         return audio_file.read()
 
 
-def get_broken_filenames() -> set[str]:
-    REPORT_FILE = Path(settings.broken_report_file)
-    if not REPORT_FILE.exists():
-        return set()
-    # Read and split by "|", taking the first part (filename)
-    with REPORT_FILE.open("r") as f:
-        return {
-            f"brick-audios/{line.split('|')[0]}" for line in f if "|" in line
-        }
-
-
 def get_brick_fsrs(
     session: Session,
     learner_id: int,
     collection_ids: list[int] | None = None,
 ) -> Brick | None:
     now = datetime.now(timezone.utc)
-    broken_files = get_broken_filenames()
+    broken_files = set()  # get_broken_filenames()
 
     def apply_filters(stmt):
         if collection_ids:
@@ -234,9 +223,13 @@ def get_brick_in_collection_learn(
     brick_order: int = 1,
 ) -> dict | None:
     stmt = (
-        select(Brick, BrickOverride.native_text)
+        select(
+            Brick,
+            BrickOverride.native_text,
+            func.length(Brick.target_text).label("target_text_len"),
+        )
         .distinct()
-        .join(BrickOverride, full=True)
+        .join(BrickOverride, isouter=True)
         .where(
             Brick.collection_id == collection_id,
             or_(
@@ -244,13 +237,13 @@ def get_brick_in_collection_learn(
                 BrickOverride.learner_id == learner_id,
             ),
         )
-        .order_by(func.length(Brick.target_text))
+        .order_by("target_text_len")
     )
     bricks_overrides = session.exec(stmt).all()
     if not bricks_overrides:
         return None
 
-    brick, override_native = bricks_overrides[brick_order - 1]
+    brick, override_native, target_text_len = bricks_overrides[brick_order - 1]
     if override_native:
         brick.native_text = override_native
 

@@ -1,13 +1,11 @@
-import os
 from collections.abc import Iterator
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import pandas as pd
-from mutagen import File as MutagenFile
 from pydantic import EmailStr
-from sqlalchemy import CheckConstraint, event
-from sqlalchemy.engine import Engine
+from sqlalchemy import CheckConstraint, Index, inspect
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlmodel import (
     Field,
     Relationship,
@@ -31,8 +29,6 @@ from .schemas import (
     UnitType,
 )
 from .services import text_service
-
-BASE_DIR = Path(__file__).resolve().parent.parent
 
 
 class BrickMetadataGrammarPoint(SQLModel, table=True):
@@ -159,6 +155,15 @@ class Brick(SQLModel, table=True):
     learning_cards: list["LearningCard"] = Relationship(
         back_populates="brick", cascade_delete=True
     )
+    __table_args__ = (
+        Index(
+            "idx_brick_search",
+            text(
+                "to_tsvector('simple', target_text || ' ' || native_text)"
+            ),  # Use 'simple' or 'english'
+            postgresql_using="gin",
+        ),
+    )
 
 
 class BrickOverride(SQLModel, table=True):
@@ -208,7 +213,7 @@ class LearningCard(SQLModel, table=True):
         foreign_key="brick.id", primary_key=True, ondelete="CASCADE"
     )
     brick: "Brick" = Relationship(back_populates="learning_cards")
-    fsrs_card_json: str
+    fsrs_card_dict: dict = Field(default={}, sa_type=JSONB)
     due: datetime
     created_at: datetime = Field(
         default_factory=lambda: datetime.now(timezone.utc)
@@ -246,6 +251,13 @@ class Snippet(SQLModel, table=True):
 
     interactions: list["SnippetInteraction"] = Relationship(
         back_populates="snippet"
+    )
+    __table_args__ = (
+        Index(
+            "idx_snippet_search",
+            text("to_tsvector('simple', content)"),
+            postgresql_using="gin",
+        ),
     )
 
 
@@ -395,24 +407,31 @@ class Example(SQLModel, table=True):
     concept: Concept | None = Relationship(back_populates="examples")
 
 
-sqlite_url = f"sqlite:///{settings.db_path}"
-connect_args = {"check_same_thread": False}
-engine = create_engine(sqlite_url, echo=False, connect_args=connect_args)
-
-
-@event.listens_for(Engine, "connect")
-def set_sqlite_pragma(dbapi_connection, connection_record):
-    cursor = dbapi_connection.cursor()
-
-    # for SQLite only
-    # enable foreign key restrictions
-    cursor.execute("PRAGMA foreign_keys=ON")
-
-    cursor.execute(
-        f"ATTACH DATABASE '{settings.ytb_subtitle_db_path}' AS subtitle_db"
+class YouTubeSubtitle(SQLModel, table=True):
+    id: int | None = Field(default=None, primary_key=True)
+    video_id: str = Field(index=True)  # The link to the video
+    start: float
+    duration: float
+    transcript: str
+    __table_args__ = (
+        Index(
+            "idx_ytb_search",
+            text("to_tsvector('simple', transcript)"),
+            postgresql_using="gin",
+        ),
     )
-    print(f"Attached {settings.ytb_subtitle_db_path}")
-    cursor.close()
+
+
+class BrokenBrickReport(SQLModel, table=True):
+    id: int | None = Field(default=None, primary_key=True)
+    filename: str = Field(index=True, unique=True)
+    description: str | None = None
+    reported_at: datetime = Field(
+        default_factory=lambda: datetime.now(timezone.utc)
+    )
+
+
+engine = create_engine(settings.database_url, echo=False)
 
 
 def get_session() -> Iterator[Session]:
@@ -424,49 +443,43 @@ def init_db():
     """
     Create the tables an insert data to them if the database does not exits.
     """
-    if not os.path.exists(settings.db_path):
-        print(f"{settings.db_path} not found, create a new one.")
+    # Use SQLAlchemy to check if tables exist
+    inspector = inspect(engine)
+    if not inspector.has_table("snippet"):
+        print("Database tables not found, creating schema...")
+
+        # Create SQLModel tables
         SQLModel.metadata.create_all(engine)
 
         with Session(engine) as session:
-            session.exec(
-                text("""
-                CREATE VIRTUAL TABLE IF NOT EXISTS brick_search USING fts5( 
-                    brick_id UNINDEXED, 
-                    target_text, 
-                    native_text, 
-                    tokenize="porter unicode61" 
-                );
-            """)
-            )
-            session.exec(
-                text("""
-                CREATE VIRTUAL TABLE IF NOT EXISTS snippet_search USING fts5( 
-                    snippet_id UNINDEXED, 
-                    content, 
-                    tokenize="porter unicode61" 
-                );
-            """)
-            )
-            print("Database schema created.")
-            create_brick_triggers(session)
-            create_snippet_triggers(session)
+            # Enable Extensions
+            session.exec(text("CREATE EXTENSION IF NOT EXISTS vector;"))
+
             init_bricks(session)
             init_snippets(session)
-        transfer_knowledge_graph_data()
+            session.commit()
 
-        print("Done initialize table data.")
+        transfer_knowledge_graph_data()
+        transfer_subtitles()
+        print("Data initialization complete except embeddings.")
     else:
-        print(f"{settings.db_path} already exists, skip initialization.")
+        print("Database already initialized, skipping.")
 
 
 def delete_db():
-    db_path = Path(settings.db_path)
-    if db_path.exists():
-        db_path.unlink()
-        print(f"Deleted {db_path}.")
-    else:
-        print(f"WARNING: Trying to delete a non existing {db_path}.")
+    # 1. Drop the LangChain-managed tables (which SQLModel doesn't know about)
+    with Session(engine) as session:
+        session.exec(
+            text("DROP TABLE IF EXISTS langchain_pg_embedding CASCADE;")
+        )
+        session.exec(
+            text("DROP TABLE IF EXISTS langchain_pg_collection CASCADE;")
+        )
+        session.commit()
+
+    # 2. Drop SQLModel tables
+    SQLModel.metadata.drop_all(engine)
+    print("Dropped all tables (including LangChain tables) from PostgreSQL.")
 
 
 def init_bricks(session: Session):
@@ -582,96 +595,38 @@ def init_bricks(session: Session):
             collection.bricks.append(brick)
 
         session.add(collection)
-    print("Bricks imported!")
-    session.commit()
-
-
-def create_brick_triggers(session: Session):
-    # Trigger for NEW bricks
-    session.exec(
-        text("""
-        CREATE TRIGGER IF NOT EXISTS trg_brick_insert AFTER INSERT ON brick
-        BEGIN
-            INSERT INTO brick_search (brick_id, target_text, native_text)
-            VALUES (new.id, new.target_text, new.native_text);
-        END;
-    """)
-    )
-
-    # Trigger for UPDATED bricks
-    session.exec(
-        text("""
-        CREATE TRIGGER IF NOT EXISTS trg_brick_update AFTER UPDATE ON brick
-        BEGIN
-            UPDATE brick_search 
-            SET target_text = new.target_text, 
-                native_text = new.native_text
-            WHERE brick_id = old.id;
-        END;
-    """)
-    )
-
-    # Trigger for DELETED bricks
-    session.exec(
-        text("""
-        CREATE TRIGGER IF NOT EXISTS trg_brick_delete AFTER DELETE ON brick
-        BEGIN
-            DELETE FROM brick_search WHERE brick_id = old.id;
-        END;
-    """)
-    )
-    session.commit()
-
-
-def create_snippet_triggers(session: Session):
-    # Trigger for NEW snippets
-    session.exec(
-        text("""
-        CREATE TRIGGER IF NOT EXISTS trg_snippet_insert AFTER INSERT ON snippet
-        BEGIN
-            INSERT INTO snippet_search (snippet_id, content)
-            VALUES (new.id, new.content);
-        END;
-    """)
-    )
-
+    print(f"{len(brick_metadata_df)} bricks imported!")
     session.commit()
 
 
 def init_snippets(session: Session):
-    COMMON_VOICE_DIR = Path(settings.snippets_folder)
 
     def import_common_voice(csv_name: str, creator_id: int = 1):
-        df = pd.read_csv(COMMON_VOICE_DIR / csv_name)
+        df = pd.read_csv(csv_name)
         snippets = []
 
         for row in df.to_dict("records"):
-            audio_path = COMMON_VOICE_DIR / row["filename"]
-            # Get duration in seconds
-            audio_info = MutagenFile(audio_path).info
-            duration_seconds = audio_info.length
+            audio_path = f"{settings.snippets_folder}/{row['filename']}"
             snippets.append(
                 Snippet(
                     content=row["text"],
                     audio_path=str(audio_path),
                     creator_id=creator_id,
                     log_frequency=text_service.log_frequency(row["text"]),
-                    audio_duration=duration_seconds,
+                    audio_duration=float(row["duration"]),
                 )
             )
 
         session.add_all(snippets)
         session.commit()
 
-        print(f"{len(snippets)} Snippets was imported from {csv_name}")
+        print(f"{len(snippets)} snippets was imported from {csv_name}")
 
-    import_common_voice("cv-valid-test.csv")
+    import_common_voice("snippets-metadata.csv")
 
 
 def transfer_knowledge_graph_data():
-    engine_old = create_engine(
-        f"sqlite:///{BASE_DIR}/knowledge_graph.db", echo=False
-    )
+    engine_old = create_engine("sqlite:///knowledge_graph.db", echo=False)
     dict_mapping = {
         "topic": Topic,
         "lesson": Lesson,
@@ -695,3 +650,35 @@ def transfer_knowledge_graph_data():
         except Exception as e:
             session_new.rollback()
             raise e
+
+
+def transfer_subtitles():
+    engine_old = create_engine("sqlite:///ytb_subtitles.db")
+
+    with engine_old.connect() as conn_old:
+        # We select the columns exactly as they are in SQLite
+        query = text(
+            "SELECT video_id, start, duration, text FROM subtitle_search"
+        )
+        results = conn_old.execute(query).fetchall()
+
+    # insert into the new Postgres table
+    with Session(engine) as session_new:
+        try:
+            for row in results:
+                # Map SQLite 'text' -> Postgres 'transcript'
+                new_entry = YouTubeSubtitle(
+                    video_id=row.video_id,
+                    start=row.start,
+                    duration=row.duration,
+                    transcript=row.text,
+                )
+                session_new.add(new_entry)
+
+            session_new.commit()
+            print(
+                f"Successfully transferred {len(results)} YouTube subtitles to Postgres!"
+            )
+        except Exception as e:
+            session_new.rollback()
+            print(f"Error during transfer: {e}")

@@ -28,7 +28,6 @@ def transcribe_phonemes(file_path):
     return transcription[0]
 
 
-# 3. Run for your specific files
 teacher_phonemes = transcribe_phonemes("test_audios/teacher_shoe.wav")
 # learner_phonemes = transcribe_phonemes("learner.wav")
 

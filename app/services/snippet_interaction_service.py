@@ -93,7 +93,9 @@ def handle_interaction_and_update_profile(
             commit=False,
         )
 
-        embedding = context_search_service.get_embedding(data.snippet_id)
+        embedding = context_search_service.get_embedding(
+            session, data.snippet_id
+        )
         if embedding is not None:
             session_profile_service.update_session_profile(
                 db_session=session,
