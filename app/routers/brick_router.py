@@ -1,6 +1,4 @@
 import json
-from datetime import datetime, timezone
-from pathlib import Path
 from typing import Annotated
 
 from fastapi import (
@@ -27,7 +25,11 @@ from app.schemas import (
     StatusResponse,
     StatusResponseType,
 )
-from app.services import auth_service, brick_service
+from app.services import (
+    auth_service,
+    brick_service,
+    broken_brick_report_service,
+)
 from utils import file_utils
 
 router = APIRouter(prefix="/bricks", tags=["Bricks"])
@@ -175,19 +177,23 @@ async def create_brick(
         )
 
 
-@router.post("/report/{filename}", response_model=StatusResponse)
-def append_broken_audio_file(filename: str, description: str | None = None):
-    REPORT_FILE = Path(settings.broken_report_file)
-    if REPORT_FILE.exists():
-        if filename in REPORT_FILE.read_text():
-            return {"status": "exists", "message": "Already reported."}
-    with REPORT_FILE.open("a") as f:
-        clean_desc = description.replace("|", " ").replace("\n", " ")
-        f.write(f"{filename}|{clean_desc}|{datetime.now(timezone.utc)}\n")
-    return {
-        "status": StatusResponseType.SUCCESS,
-        "message": f"Reported {filename}",
-    }
+@router.post("/report/{filename}")
+def report_broken_audio(
+    session: Annotated[Session, Depends(get_session)],
+    filename: str,
+    description: str | None = None,
+) -> StatusResponse:
+    result = broken_brick_report_service.save_report(
+        session, filename, description
+    )
+    if result is None:
+        return StatusResponse(
+            status=StatusResponseType.EXISTED, message="Already reported."
+        )
+
+    return StatusResponse(
+        status=StatusResponseType.SUCCESS, message=f"Reported {filename}"
+    )
 
 
 @router.patch(

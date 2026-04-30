@@ -3,16 +3,29 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 class Settings(BaseSettings):
     """
-    When create a Settings() object, Pydantic will:
-    - Look for environment variables first
+    When create a Settings() object, its properties will be as the following:
+    - Look for environment variables
     - If not set, read them from the .env file
     - If not in .env, fallback to default values
     """
 
-    db_path: str = "lisenare.db"
-    ytb_subtitle_db_path: str = "ytb_subtitles.db"
-    chroma_context_path: str = "chroma_context"
+    # Databases
+    postgres_user: str
+    postgres_password: str
+    postgres_host: str
+    postgres_port: int
+    postgres_db: str
+
+    @property
+    def database_url(self) -> str:
+        return (
+            f"postgresql://{self.postgres_user}:{self.postgres_password}"
+            f"@{self.postgres_host}:{self.postgres_port}/{self.postgres_db}"
+        )
+
+    # Servers
     ai_model_server_url: str
+    gcs_base_url: str
 
     # Security
     secret_key: str
@@ -23,10 +36,12 @@ class Settings(BaseSettings):
     google_app_password: str
 
     # Media
-    broken_report_file: str = "broken_bricks.txt"
     brick_audios_folder: str = "brick-audios"
     learner_audios_folder: str = "learner-audios"
     snippets_folder: str = "snippets-data"
+
+    # Context search
+    semantic_emb_dim: int = 384  # all-MiniLM-L6-v2
 
     # Recommendation: LinUCB
     post_features_path: str = "models/post_features.pkl"

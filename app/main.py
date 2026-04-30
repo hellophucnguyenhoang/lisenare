@@ -2,9 +2,6 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.staticfiles import StaticFiles
-
-from app.config import settings
 
 from . import database
 from .http_client import close_client, init_client
@@ -75,16 +72,3 @@ app.include_router(snippet_interaction_router.router)
 app.include_router(snippet_router.router)
 app.include_router(text_router.router)
 app.include_router(grammar_router.router)
-
-
-app.mount(
-    f"/{settings.snippets_folder}",
-    StaticFiles(directory=settings.snippets_folder),
-    name=settings.snippets_folder,
-)
-
-app.mount(
-    f"/{settings.brick_audios_folder}",
-    StaticFiles(directory=settings.brick_audios_folder),
-    name=settings.brick_audios_folder,
-)

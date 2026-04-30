@@ -39,6 +39,10 @@ scheduler_json = scheduler.to_json()
 card_json = card.to_json()
 review_log_json = review_log.to_json()
 
+card_dict = card.to_dict()
+print(card_dict)
+print(type(card_dict))
+
 # deserialize
 scheduler = Scheduler.from_json(scheduler_json)
 card = Card.from_json(card_json)
