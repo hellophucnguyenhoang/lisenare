@@ -7,6 +7,7 @@ class StatusResponseType(str, Enum):
     SUCCESS = "success"
     ERROR = "error"
     PENDING = "pending"
+    EXISTED = "existed"
 
 
 class StatusResponse(SQLModel):

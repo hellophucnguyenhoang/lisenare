@@ -7,6 +7,6 @@ class ContextSearchRequest(SQLModel):
 
 class VideoContextSearchResult(SQLModel):
     ytb_video_id: str
-    text: str
     start: float
     duration: float
+    transcript: str

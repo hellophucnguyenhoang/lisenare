@@ -5,6 +5,7 @@ from zoneinfo import ZoneInfo
 
 from fastapi import HTTPException, status
 from fsrs import Card, Scheduler
+from sqlalchemy import Float, cast
 from sqlmodel import Session, case, func, select
 
 from app.database import LearningCard
@@ -37,7 +38,7 @@ def update_learning_card(
         card = Card()
     # existing card
     else:
-        card = Card.from_json(db_learning_card.fsrs_card_json)
+        card = Card.from_dict(db_learning_card.fsrs_card_dict)
 
     rating = similarity_to_fsrs(score, is_answer_revealed)
     card, review_log = scheduler.review_card(card, rating)
@@ -49,7 +50,7 @@ def update_learning_card(
             brick_id=brick_id,
         )
 
-    db_learning_card.fsrs_card_json = card.to_json()
+    db_learning_card.fsrs_card_dict = card.to_dict()
     db_learning_card.due = card.due
     session.add(db_learning_card)
     session.commit()
@@ -58,9 +59,11 @@ def update_learning_card(
 def get_average_stability(
     session: Session, learner_id: int, tz_name: str, days: int | None = None
 ) -> float:
-    statement = select(
-        func.avg(func.json_extract(LearningCard.fsrs_card_json, "$.stability"))
-    ).where(LearningCard.learner_id == learner_id)
+    stability_as_text = LearningCard.fsrs_card_dict["stability"].astext
+
+    statement = select(func.avg(cast(stability_as_text, Float))).where(
+        LearningCard.learner_id == learner_id
+    )
 
     statement = apply_time_filter(
         statement, LearningCard.created_at, tz_name, days
@@ -73,7 +76,7 @@ def get_average_stability(
 def get_total_memorized(
     session: Session, learner_id: int, tz_name: str, days: int | None = None
 ) -> float:
-    statement = select(LearningCard.fsrs_card_json).where(
+    statement = select(LearningCard.fsrs_card_dict).where(
         LearningCard.learner_id == learner_id
     )
 
@@ -84,8 +87,8 @@ def get_total_memorized(
     rows = session.exec(statement).all()
     total = 0.0
 
-    for fsrs_card_json in rows:
-        card = Card.from_json(fsrs_card_json)
+    for fsrs_card_dict in rows:
+        card = Card.from_dict(fsrs_card_dict)
         retrievability = scheduler.get_card_retrievability(card)
         if retrievability is not None:
             total += retrievability
@@ -156,7 +159,7 @@ def get_daily_learning_counts(
     - Grouping is done in Python to ensure correct timezone handling
     """
 
-    # 1. Fetch raw timestamps (UTC)
+    # Fetch raw timestamps (UTC)
     statement = select(LearningCard.created_at).where(
         LearningCard.learner_id == learner_id
     )
@@ -167,7 +170,7 @@ def get_daily_learning_counts(
 
     rows = session.exec(statement).all()
 
-    # 2. Convert to local day + group
+    # Convert to local day + group
     tz = ZoneInfo(tz_name)
     counts = defaultdict(int)
 
@@ -175,7 +178,7 @@ def get_daily_learning_counts(
         local_day = created_at.astimezone(tz).date()
         counts[local_day] += 1
 
-    # 3. Sort by day
+    # Sort by day
     return sorted(counts.items())  # [(date, count)]
 
 

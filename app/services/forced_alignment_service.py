@@ -1,9 +1,12 @@
+import io
 import re
 
+import requests
 import torch
 import torchaudio
 from sqlmodel import Session, SQLModel
 
+from app.config import settings
 from app.schemas import WordSegmentSecond
 
 from . import snippet_service
@@ -39,8 +42,13 @@ class WordSegment(SQLModel):
 # --------------------- Core Functions ---------------------
 def get_emission(audio_path: str):
     """Load audio, resample if needed, and get log-softmax emissions."""
+    response = requests.get(f"{settings.gcs_base_url}/{audio_path}")
+
+    # Wrap the binary content in BytesIO to make it "file-like"
+    audio_file = io.BytesIO(response.content)
+
     with torch.inference_mode():
-        waveform, sample_rate = torchaudio.load(audio_path)
+        waveform, sample_rate = torchaudio.load(audio_file)
         if sample_rate != SAMPLE_RATE:
             waveform = torchaudio.functional.resample(
                 waveform, sample_rate, SAMPLE_RATE
