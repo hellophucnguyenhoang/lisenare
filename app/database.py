@@ -90,7 +90,7 @@ class Learner(SQLModel, table=True):
     snippet_interactions: list["SnippetInteraction"] = Relationship(
         back_populates="learner"
     )
-
+    historyanswerquestions: list["HistoryAnswerQuestion"] = Relationship(back_populates="learners")
 
 class Collection(SQLModel, table=True):
     id: int | None = Field(default=None, primary_key=True)
@@ -362,6 +362,7 @@ class Question(SQLModel, table=True):
     difficulty: float = 0.0
     exercise_id: int = Field(default=None, foreign_key="exercise.id")
     exercise: Exercise | None = Relationship(back_populates="questions")
+    historyanswerquestions: list["HistoryAnswerQuestion"] = Relationship(back_populates="questions")
 
 
 class Example(SQLModel, table=True):
@@ -370,6 +371,15 @@ class Example(SQLModel, table=True):
     explanation: str | None = None
     concept_id: int | None = Field(default=None, foreign_key="concept.id")
     concept: Concept | None = Relationship(back_populates="examples")
+
+class HistoryAnswerQuestion(SQLModel, table=True):
+    id: int | None = Field(default=None, primary_key=True)
+    learner_id: int = Field(foreign_key="learner.id")
+    question_id: int = Field(foreign_key="question.id")
+    user_answer: str | None = None
+    timesecond: datetime | None = None 
+    questions : Question = Relationship(back_populates="historyanswerquestions")
+    learners : Learner = Relationship(back_populates="historyanswerquestions")
 
 
 sqlite_url = f"sqlite:///{settings.db_path}"

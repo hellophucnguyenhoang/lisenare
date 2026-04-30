@@ -18,6 +18,7 @@ def get_question_by_exercise_id(
 def process_questions(question: Question):
     question_data = {
         "question": question.question,
+        "question_id": question.id,
         "answer": question.answer.split("|"),
         "correct_answer": question.correct_answer,
     }
