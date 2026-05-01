@@ -1,9 +1,10 @@
-from sqlmodel import Session, select
-from sqlalchemy.orm import selectinload
 from datetime import datetime, timezone
-from fastapi import HTTPException, status
 
-from app.database import Brick, Collection, BrickOverride
+from fastapi import HTTPException, status
+from sqlalchemy.orm import selectinload
+from sqlmodel import Session, select
+
+from app.database import Brick, BrickOverride, Collection
 
 
 def save_override_for_brick(
@@ -27,6 +28,7 @@ def save_override_for_brick(
         override = BrickOverride(
             learner_id=learner_id,
             brick_id=brick_id,
+            collection_id=brick.collection_id,
         )
         session.add(override)
 
@@ -79,8 +81,9 @@ def create_overrides_for_group(
             override = BrickOverride(
                 learner_id=learner_id,
                 brick_id=brick_id,
+                collection_id=bricks[brick_id].collection_id,
                 native_text=bricks[brick_id].native_text,
-                target_audio_uri=bricks[brick_id].target_audio_uri,
+                target_audio_path=bricks[brick_id].target_audio_path,
             )
             session.add(override)
             created_count += 1

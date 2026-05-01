@@ -1,6 +1,6 @@
-import torch
 import librosa
-from transformers import Wav2Vec2Processor, Wav2Vec2ForCTC
+import torch
+from transformers import Wav2Vec2ForCTC, Wav2Vec2Processor
 
 # 1. Load model and processor
 model_id = "facebook/wav2vec2-lv-60-espeak-cv-ft"
@@ -28,7 +28,6 @@ def transcribe_phonemes(file_path):
     return transcription[0]
 
 
-# 3. Run for your specific files
 teacher_phonemes = transcribe_phonemes("test_audios/teacher_shoe.wav")
 # learner_phonemes = transcribe_phonemes("learner.wav")
 

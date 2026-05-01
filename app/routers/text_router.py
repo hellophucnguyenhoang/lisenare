@@ -1,34 +1,49 @@
+from typing import Annotated
+
 from fastapi import APIRouter, Depends
 from sqlmodel import Session
-from typing import Annotated
 from wordfreq import word_frequency
 
-from schemas.sentence import (
-    SentenceCompareRequest,
-    SentenceCompareResponse,
-)
+import app.http_client as http_client
+from app.database import Learner, get_session
 from app.schemas import (
     ReviewCreate,
     TextFrequencyRequest,
     TextFrequencyResponse,
+    WordSegmentSecond,
 )
-from app.services import auth_service, review_service, learning_card_service
-from app.database import get_session, Learner
-import app.http_client as http_client
-
+from app.services import (
+    auth_service,
+    forced_alignment_service,
+    learning_card_service,
+    review_service,
+)
+from schemas.sentence import (
+    SentenceCompareRequest,
+    SentenceCompareResponse,
+    SentenceTranslateRequest,
+    SentenceTranslateResponse,
+)
 
 router = APIRouter(prefix="/text", tags=["Text Features"])
 
 
-@router.post("/semantic-comparison", response_model=SentenceCompareResponse)
+@router.get("/forced_alignment/{audio_path:path}")
+def forced_align(
+    session: Annotated[Session, Depends(get_session)], audio_path: str
+) -> list[WordSegmentSecond]:
+    return forced_alignment_service.align(session, audio_path)
+
+
+@router.post("/semantic-comparison")
 async def compare(
     session: Annotated[Session, Depends(get_session)],
-    current_learner: Annotated[
-        Learner, Depends(auth_service.decode_token_to_get_learner)
+    learner: Annotated[
+        Learner, Depends(auth_service.decode_token_get_learner)
     ],
     sentence_compare_request: SentenceCompareRequest,
-):
-    r = await http_client.client.post(
+) -> SentenceCompareResponse:
+    r = await http_client.get_client().post(
         "/text/semantic-comparison",
         json=sentence_compare_request.model_dump(mode="json"),
     )
@@ -37,17 +52,21 @@ async def compare(
     )
     if sentence_compare_request.review_base:
         review_create = ReviewCreate(
-            **sentence_compare_request.review_base.model_dump(),
+            **sentence_compare_request.review_base.model_dump(
+                exclude_none=True
+            ),
             first_score=sentence_compare_response.score,
+            user_target_text=sentence_compare_request.sentence1,
+            # Haven't store user's audio yet for simplicity
         )
         review_service.save_review(
             session=session,
-            learner_id=current_learner.id,
+            learner_id=learner.id,
             review_create=review_create,
         )
         learning_card_service.update_learning_card(
             session=session,
-            learner_id=current_learner.id,
+            learner_id=learner.id,
             brick_id=sentence_compare_request.review_base.brick_id,
             score=sentence_compare_response.score,
             is_answer_revealed=sentence_compare_request.review_base.is_answer_revealed,
@@ -55,8 +74,24 @@ async def compare(
     return sentence_compare_response
 
 
+@router.post("/translations")
+async def translate(
+    sentence_translate_request: SentenceTranslateRequest,
+) -> SentenceTranslateResponse:
+    r = await http_client.get_client().post(
+        "/text/translations",
+        json=sentence_translate_request.model_dump(mode="json"),
+    )
+    sentence_translate_respond = SentenceTranslateResponse.model_validate(
+        r.json()
+    )
+    return sentence_translate_respond
+
+
 @router.post("/frequency")
-def chat_endpoint(text_frequency_request: TextFrequencyRequest):
+def get_text_frequency(
+    text_frequency_request: TextFrequencyRequest,
+) -> TextFrequencyResponse:
     # Tokenize the sentence and get the frequency of every token,
     # then aggregate them using the Harmonic Mean
     # Formula: 1 / (1/f1 + 1/f2 + ...)

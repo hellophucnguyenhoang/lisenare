@@ -1,10 +1,15 @@
-import torch
 import ffmpeg
-import numpy as np
 import librosa
-from transformers import Wav2Vec2Processor, Wav2Vec2ForCTC
-from transformers import AutoModelForSpeechSeq2Seq, AutoProcessor, pipeline
+import numpy as np
+import torch
 from fastapi import UploadFile
+from transformers import (
+    AutoModelForSpeechSeq2Seq,
+    AutoProcessor,
+    Wav2Vec2ForCTC,
+    Wav2Vec2Processor,
+    pipeline,
+)
 
 
 async def preprocess_upload_file(file: UploadFile) -> np.ndarray:
@@ -35,8 +40,11 @@ class TranscriptionService:
             low_cpu_mem_usage=True,
             use_safetensors=True,
         ).to(self.device)
+        print(f"{self.model_id} loaded with {self.device}")
+
         # Clear the old setting to stop the warning
         self.model.generation_config.forced_decoder_ids = None
+
         self.processor = AutoProcessor.from_pretrained(self.model_id)
 
         self.pipe = pipeline(

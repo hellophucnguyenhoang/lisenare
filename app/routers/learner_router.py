@@ -1,10 +1,10 @@
-from fastapi import APIRouter, Depends
 from typing import Annotated
 
-from app.database import Learner
-from app.services import auth_service
-from app.schemas import LearnerRead
+from fastapi import APIRouter, Depends
 
+from app.database import Learner
+from app.schemas import LearnerRead
+from app.services import auth_service
 
 router = APIRouter(prefix="/learners", tags=["Learners"])
 
@@ -12,7 +12,7 @@ router = APIRouter(prefix="/learners", tags=["Learners"])
 @router.get("/me", response_model=LearnerRead)
 def get_learner_me(
     learner: Annotated[
-        Learner, Depends(auth_service.decode_token_to_get_learner)
+        Learner, Depends(auth_service.decode_token_get_learner)
     ],
 ):
     return learner

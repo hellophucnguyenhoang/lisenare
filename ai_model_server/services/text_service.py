@@ -1,7 +1,8 @@
-import torch
 import string
+
+import torch
 from sentence_transformers import SentenceTransformer, util
-from transformers import AutoTokenizer, AutoModelForSeq2SeqLM
+from transformers import AutoModelForSeq2SeqLM, AutoTokenizer
 
 from schemas.sentence import Language
 

@@ -1,8 +1,9 @@
-from fastapi import BackgroundTasks, HTTPException, status
-from sqlmodel import select, Session
-from email.message import EmailMessage
 import smtplib
 from datetime import datetime, timezone
+from email.message import EmailMessage
+
+from fastapi import BackgroundTasks, HTTPException, status
+from sqlmodel import Session, select
 
 from app import security
 from app.config import settings
@@ -11,6 +12,7 @@ from app.schemas import (
     LearnerAccountCreate,
     PasswordResetRequest,
     StatusResponse,
+    StatusResponseType,
 )
 from app.services import auth_service
 
@@ -124,6 +126,6 @@ def reset_account_password(
     session.add(account)
     session.commit()
     return {
-        "status": "success",
+        "status": StatusResponseType.SUCCESS,
         "message": "Password has been reset successfully.",
     }
