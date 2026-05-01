@@ -1,8 +1,11 @@
 #!/bin/bash
-echo "Starting model server..."
+# Start the AI model server in the background
+# Port (8001) is internal only
 fastapi run ai_model_server/main.py --host 0.0.0.0 --port 8001 &
 
-echo "Starting backend server..."
-fastapi dev app/main.py --host 0.0.0.0 --port 8000 &
+# Start the main app server in the foreground
+# Cloud Run injects $PORT (usually 8080), which should map to the public app
+fastapi run app/main.py --host 0.0.0.0 --port ${PORT:-8000}
 
-wait
+# Wait for any process to exit
+wait -n
