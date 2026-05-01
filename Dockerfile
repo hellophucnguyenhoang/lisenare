@@ -6,7 +6,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     ffmpeg \
     espeak-ng \
     libespeak-ng-dev \
+    curl \
     && rm -rf /var/lib/apt/lists/*
+
+# Install Ollama
+RUN curl -fsSL https://ollama.com/install.sh | sh
 
 # Install uv from the official distroless image
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
