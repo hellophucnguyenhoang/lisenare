@@ -1,4 +1,11 @@
 #!/bin/bash
+ollama serve &
+
+sleep 5
+
+ollama pull mahonzhan/all-MiniLM-L6-v2
+
+
 # Start the AI model server in the background
 # Port (8001) is internal only
 fastapi run ai_model_server/main.py --host 0.0.0.0 --port 8001 &
