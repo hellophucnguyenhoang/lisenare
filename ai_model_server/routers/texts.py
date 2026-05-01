@@ -1,28 +1,25 @@
 from fastapi import APIRouter
-from fastapi.responses import StreamingResponse
 
-from ai_model_server.services.text_service import text_service
 from ai_model_server.services.readmepp_service import readmepp_service
-from app.services import chat_service
+from ai_model_server.services.text_service import text_service
+from schemas.cefr import (
+    CEFRRequest,
+    CEFRResponse,
+)
 from schemas.sentence import (
     SentenceCompareRequest,
     SentenceCompareResponse,
     SentenceTranslateRequest,
     SentenceTranslateResponse,
 )
-from schemas.cefr import (
-    CEFRRequest,
-    CEFRResponse,
-    CEFRLevel,
-)
-from schemas.chat import ChatRequest
-
 
 router = APIRouter(prefix="/text", tags=["Text Features"])
 
 
-@router.post("/semantic-comparison", response_model=SentenceCompareResponse)
-def compare(sentence_compare_req: SentenceCompareRequest):
+@router.post("/semantic-comparison")
+def compare(
+    sentence_compare_req: SentenceCompareRequest,
+) -> SentenceCompareResponse:
     score = text_service.get_similarity(
         sentence_compare_req.sentence1, sentence_compare_req.sentence2
     )
@@ -31,8 +28,10 @@ def compare(sentence_compare_req: SentenceCompareRequest):
     return sentence_compare_res
 
 
-@router.post("/translations", response_model=SentenceTranslateResponse)
-def translate(sentence_translate_req: SentenceTranslateRequest):
+@router.post("/translations")
+def translate(
+    sentence_translate_req: SentenceTranslateRequest,
+) -> SentenceTranslateResponse:
     target_text, target_lang = text_service.translate(
         sentence_translate_req.text, sentence_translate_req.target_lang
     )
@@ -42,20 +41,9 @@ def translate(sentence_translate_req: SentenceTranslateRequest):
     return sentence_translate_res
 
 
-@router.post("/chat")
-def chat_endpoint(request: ChatRequest):
-    print(f"request:{request}")
-    # Convert Pydantic models back to dictionaries for the Ollama client
-    history_as_dicts = [m.model_dump() for m in request.messages]
-    return StreamingResponse(
-        chat_service.generate_ollama_stream(history_as_dicts),
-        media_type="text/plain",
-    )
-
-
 @router.post("/cefr-level")
-def chat_endpoint(cefr_request: CEFRRequest):
+def predict_cefr(cefr_request: CEFRRequest) -> CEFRResponse:
     pred = readmepp_service.predict(
         cefr_request.english_sentence, return_index=False
     )
-    return CEFRResponse(cefr_level=CEFRLevel(pred))
+    return CEFRResponse(cefr_level=pred)

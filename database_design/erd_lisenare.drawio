@@ -48,7 +48,7 @@
         <mxCell id="-sf2rrjYgw9o5DzSjOYV-26" edge="1" parent="1" source="-sf2rrjYgw9o5DzSjOYV-25" style="rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=none;endFill=0;" target="-sf2rrjYgw9o5DzSjOYV-18">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="-sf2rrjYgw9o5DzSjOYV-25" parent="1" style="ellipse;whiteSpace=wrap;html=1;align=center;" value="target_audio_uri" vertex="1">
+        <mxCell id="-sf2rrjYgw9o5DzSjOYV-25" parent="1" style="ellipse;whiteSpace=wrap;html=1;align=center;" value="target_audio_path" vertex="1">
           <mxGeometry height="18.5" width="117.38" x="-998.5" y="97" as="geometry" />
         </mxCell>
         <mxCell id="-sf2rrjYgw9o5DzSjOYV-28" edge="1" parent="1" source="-sf2rrjYgw9o5DzSjOYV-27" style="rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=none;endFill=0;" target="-sf2rrjYgw9o5DzSjOYV-18">

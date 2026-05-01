@@ -1,8 +1,10 @@
 from sqlmodel import SQLModel
 
+from schemas.cefr import CEFR_MAPPING
+
 
 class OverrideGroupsCreate(SQLModel):
-    group_names: list[str] = ["A1", "A2"]
+    group_names: list[str] = list(CEFR_MAPPING.values())
     group_creator_id: int = 1
 
 

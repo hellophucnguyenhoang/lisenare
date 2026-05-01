@@ -1,7 +1,7 @@
 from sqlmodel import Session
 
-from app.database import OTP
 from app import security
+from app.database import OTP
 
 
 def create_otp(

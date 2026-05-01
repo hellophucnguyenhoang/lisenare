@@ -1,15 +1,17 @@
-from fastapi import Depends, HTTPException, status
-from fastapi.security import OAuth2PasswordBearer
-from sqlmodel import Session, select
-from jwt import InvalidTokenError
 from typing import Annotated
 
+from fastapi import Depends, HTTPException, status
+from fastapi.security import OAuth2PasswordBearer
+from jwt import InvalidTokenError
+from sqlalchemy import not_
+from sqlmodel import Session, select
+
 from app import security
-from app.database import get_session, Account, Learner, OTP
+from app.database import OTP, Account, Learner, get_session
+
 from . import account_service, learner_service
 
-
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login")
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login", auto_error=False)
 
 
 def authenticate_account(
@@ -23,7 +25,7 @@ def authenticate_account(
     return account
 
 
-async def decode_token_to_get_learner(
+async def decode_token_get_learner(
     session: Annotated[Session, Depends(get_session)],
     token: Annotated[str, Depends(oauth2_scheme)],
 ) -> Learner:
@@ -51,10 +53,22 @@ async def decode_token_to_get_learner(
     return learner
 
 
+async def decode_token_get_optional_learner(
+    session: Annotated[Session, Depends(get_session)],
+    token: Annotated[str | None, Depends(oauth2_scheme)],
+) -> Learner | None:
+    try:
+        if not token:
+            return None
+        return await decode_token_get_learner(session=session, token=token)
+    except HTTPException:
+        return None
+
+
 def get_most_recent_unused_otp(session: Session, email: str) -> OTP:
     otp_db = session.exec(
         select(OTP)
-        .where(OTP.email == email, OTP.used == False)
+        .where(OTP.email == email, not_(OTP.used))
         .order_by(OTP.expires_at.desc())
     ).first()
     return otp_db

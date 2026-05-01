@@ -1,5 +1,4 @@
 from sqlmodel import SQLModel
-from pydantic import EmailStr
 
 
 class Token(SQLModel):

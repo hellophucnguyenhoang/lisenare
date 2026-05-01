@@ -6,8 +6,9 @@ dist/
 wheels/
 *.egg-info
 
-# Ignore environment config
+# Security
 .env
+
 
 # Virtual environments
 .venv
@@ -17,10 +18,20 @@ wheels/
 
 # Databases
 chroma_bricks/
-chroma_ytb_subtitles_db/
+chroma_ytb_subtitles/
+chroma_context/
 lisenare.db
 
 # Audio files
-static/
-common-voice/
 brick-audios/
+learner-audios/
+snippets-data/
+unused-audios/
+common-voice/
+temp_audios/
+
+# Cache
+.cache/
+
+# Todo list
+todo.md

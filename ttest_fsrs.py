@@ -1,41 +1,47 @@
-from fsrs import Scheduler, Card, Rating, ReviewLog
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
-scheduler = Scheduler()
+from fsrs import Card, Rating, ReviewLog, Scheduler
+
+scheduler = Scheduler(learning_steps=(), relearning_steps=())
 
 # NOTE: all new cards are due immediately upon creation
 card = Card()
+print(card.stability)
 
-# Rating.Again (==1) forgot the card
-# Rating.Hard (==2) remembered the card with serious difficulty
-# Rating.Good (==3) remembered the card after a hesitation
-# Rating.Easy (==4) remembered the card easily
-rating = Rating.Good
+rating = Rating.Again
 
 card, review_log = scheduler.review_card(card, rating)
 
+print(card.stability)
+print(card.to_json())
 print(f"Card rated {review_log.rating} at {review_log.review_datetime}")
-# > Card rated 3 at 2024-11-30 17:46:58.856497+00:00
 
 due = card.due
-
-# how much time between when the card is due and now
-time_delta = due - datetime.now(timezone.utc)
-
 print(f"Card due on {due}")
-print(f"Card due in {time_delta.seconds} seconds")
-print(f"Card due in {time_delta.seconds / 60} mins")
+
+time_delta = due - review_log.review_datetime
+total_seconds = time_delta.total_seconds()
+print(f"Total seconds: {total_seconds}")
+print(f"Total minutes: {total_seconds / 60}")
+print(f"Total hours: {total_seconds / 3600}")
+print(f"Total days: {total_seconds / 86400}")
 
 
 # > Card due on 2024-11-30 18:42:36.070712+00:00
 # > Card due in 599 seconds
-scheduler.get_card_retrievability(card)
-
+retrievability = scheduler.get_card_retrievability(
+    card, current_datetime=datetime.now(timezone.utc) + timedelta(days=1)
+)
+print(f"{retrievability = }")
 
 # serialize
 scheduler_json = scheduler.to_json()
 card_json = card.to_json()
 review_log_json = review_log.to_json()
+
+card_dict = card.to_dict()
+print(card_dict)
+print(type(card_dict))
 
 # deserialize
 scheduler = Scheduler.from_json(scheduler_json)

@@ -1,8 +1,11 @@
-from sqlmodel import SQLModel
 from datetime import datetime
 from enum import Enum
 
+from sqlmodel import Field, SQLModel
+
 from schemas.cefr import CEFRLevel
+
+# ---------- Enums ----------
 
 
 class UnitType(str, Enum):
@@ -11,7 +14,6 @@ class UnitType(str, Enum):
     sentence = "sentence"
 
 
-# ---------- Enums ----------
 class SentenceStructure(str, Enum):
     simple = "simple"
     compound = "compound"
@@ -65,38 +67,95 @@ class GrammarPoint(str, Enum):
     prepositional_phrase = "prepositional_phrase"
 
 
+# ---------- Brick Metadata ----------
+
+
+class BrickMetadataGrammarPointBase(SQLModel):
+    grammar_point: GrammarPoint
+
+
+class BrickMetadataGrammarPointCreate(BrickMetadataGrammarPointBase):
+    pass
+
+
+class BrickMetadataGrammarPointRead(BrickMetadataGrammarPointBase):
+    id: int
+
+
+class BrickMetadataBase(SQLModel):
+    unit_type: UnitType = Field(
+        default=UnitType.sentence,
+        description="Type of brick unit: word, phrase, or sentence.",
+    )
+    structure: SentenceStructure | None = Field(
+        default=None,
+        description="Sentence structure (only for unit_type=sentence).",
+    )
+    function: SentenceFunction | None = Field(
+        default=None,
+        description="Communicative function (only for unit_type=sentence).",
+    )
+
+
+class BrickMetadataCreate(BrickMetadataBase):
+    grammar_points: list[BrickMetadataGrammarPointCreate] | None = None
+
+
+class BrickMetadataRead(BrickMetadataBase):
+    id: int
+    grammar_points: list[BrickMetadataGrammarPointRead] | None = None
+
+
+# ---------- Brick ----------
 class BrickUpdate(SQLModel):
     native_text: str | None = None
     target_text: str | None = None
     cefr_level: CEFRLevel | None = None
     is_public: bool | None = None
-    collection_ids: list[int] | None = None
+    collection_id: int | None = None
+    brick_metadata: BrickMetadataCreate | None = None
 
 
 class BrickContextSearch(SQLModel):
+    brick_id: int
     native_text: str
     target_text: str
-    target_audio_uri: str
-    cefr_level: CEFRLevel
-    is_public: bool = True
 
 
 class BrickBase(SQLModel):
     native_text: str
     target_text: str
-    target_audio_uri: str
-    cefr_level: CEFRLevel
+    target_audio_path: str
+    cefr_level: CEFRLevel | None = None
     is_public: bool = True
     creator_id: int
+    collection_id: int | None = None
 
 
 class BrickRead(BrickBase):
     id: int
     last_edit_at: datetime
+    brick_metadata_id: int
+    brick_metadata: BrickMetadataRead
+
+
+class BrickReadSimple(SQLModel):
+    id: int
+    target_text: str
 
 
 class BrickCreate(BrickBase):
-    pass
+    collection_name: str
+    group_name: str
+
+
+class BrickCreateRequest(SQLModel):
+    native_text: str
+    target_text: str
+    is_public: bool = True
+    collection_name: str = "my collection"
+    group_name: str = "my group"
+    brick_metadata: BrickMetadataCreate
 
 
 class BrickLearnRead(SQLModel):

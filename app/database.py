@@ -1,32 +1,40 @@
-import os
-import math
-import pandas as pd
-import textstat
-import string
-from wordfreq import word_frequency
-from mutagen import File as MutagenFile
 from collections.abc import Iterator
-from sqlmodel import SQLModel, Field, Relationship, create_engine, Session
-from datetime import datetime, timezone, timedelta
-from pydantic import EmailStr
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
+import pandas as pd
+from pydantic import EmailStr
+from sqlalchemy import CheckConstraint, Index, inspect
+from sqlalchemy.dialects.postgresql import JSONB
+from sqlmodel import (
+    Field,
+    Relationship,
+    Session,
+    SQLModel,
+    create_engine,
+    select,
+    text,
+)
+
+from schemas.cefr import CEFR_MAPPING, CEFRLevel
+
+from . import security
 from .config import settings
 from .schemas import (
-    LearnerAccountCreate,
-    CEFRLevel,
-    UnitType,
-    SentenceStructure,
-    SentenceFunction,
     GrammarPoint,
+    InteractionType,
+    LearnerAccountCreate,
+    SentenceFunction,
+    SentenceStructure,
+    UnitType,
 )
-from . import security
+from .services import text_service
 
 
 class BrickMetadataGrammarPoint(SQLModel, table=True):
     id: int | None = Field(default=None, primary_key=True)
-    brick_metadata_id: int | None = Field(
-        default=None, foreign_key="brickmetadata.id"
+    brick_metadata_id: int = Field(
+        default=None, foreign_key="brickmetadata.id", ondelete="CASCADE"
     )
     grammar_point: GrammarPoint
 
@@ -44,7 +52,9 @@ class BrickMetadata(SQLModel, table=True):
         default=None,
         description="Communicative function (only for unit_type=sentence).",
     )
-    grammar_points: list[BrickMetadataGrammarPoint] = Relationship()
+    grammar_points: list[BrickMetadataGrammarPoint] | None = Relationship(
+        cascade_delete=True
+    )
 
 
 class Account(SQLModel, table=True):
@@ -57,6 +67,16 @@ class Account(SQLModel, table=True):
     )
     learner_id: int = Field(foreign_key="learner.id", unique=True)
     learner: "Learner" = Relationship(back_populates="account")
+
+
+class PushToken(SQLModel, table=True):
+    id: int | None = Field(default=None, primary_key=True)
+    token: str = Field(index=True, unique=True)
+    last_sent_at: datetime | None = None
+    device_name: str | None = None
+    last_ticket_id: str | None = None
+    learner_id: int = Field(foreign_key="learner.id")
+    learner: "Learner" = Relationship(back_populates="push_tokens")
 
 
 class Learner(SQLModel, table=True):
@@ -73,16 +93,10 @@ class Learner(SQLModel, table=True):
     brick_overrides: list["BrickOverride"] = Relationship(
         back_populates="learner"
     )
-    post_interactions: list["PostInteraction"] = Relationship()
-
-
-class CollectionBrick(SQLModel, table=True):
-    collection_id: int | None = Field(
-        default=None, foreign_key="collection.id", primary_key=True
+    snippet_interactions: list["SnippetInteraction"] = Relationship(
+        back_populates="learner"
     )
-    brick_id: int | None = Field(
-        default=None, foreign_key="brick.id", primary_key=True
-    )
+    push_tokens: list["PushToken"] = Relationship(back_populates="learner")
 
 
 class Collection(SQLModel, table=True):
@@ -98,8 +112,11 @@ class Collection(SQLModel, table=True):
     )
     creator_id: int = Field(foreign_key="learner.id")
     creator: Learner = Relationship(back_populates="collections")
-    bricks: list["Brick"] | None = Relationship(
-        back_populates="collections", link_model=CollectionBrick
+    bricks: list["Brick"] = Relationship(
+        back_populates="collection", passive_deletes="all"
+    )
+    brick_overrides: list["BrickOverride"] = Relationship(
+        back_populates="collection", passive_deletes="all"
     )
 
 
@@ -107,8 +124,8 @@ class Brick(SQLModel, table=True):
     id: int | None = Field(default=None, primary_key=True)
     native_text: str
     target_text: str = Field(unique=True)
-    target_audio_uri: str
-    cefr_level: CEFRLevel
+    target_audio_path: str
+    cefr_level: CEFRLevel | None = None
     is_public: bool = True
     last_edit_at: datetime = Field(
         default_factory=lambda: datetime.now(timezone.utc)
@@ -116,49 +133,91 @@ class Brick(SQLModel, table=True):
     creator_id: int = Field(foreign_key="learner.id")
     creator: Learner = Relationship(back_populates="bricks")
     brick_metadata_id: int | None = Field(
-        default=None, foreign_key="brickmetadata.id", unique=True
+        default=None,
+        foreign_key="brickmetadata.id",
+        unique=True,
+        nullable=False,
+        ondelete="CASCADE",
     )
-    brick_metadata: BrickMetadata = Relationship()
-    collections: list[Collection] = Relationship(
-        back_populates="bricks", link_model=CollectionBrick
+    brick_metadata: BrickMetadata | None = Relationship(
+        cascade_delete=True, sa_relationship_kwargs={"single_parent": True}
     )
-    reviews: list["Review"] | None = Relationship(back_populates="brick")
-    overrides: list["BrickOverride"] = Relationship(back_populates="brick")
+    collection_id: int | None = Field(
+        default=None, foreign_key="collection.id", ondelete="RESTRICT"
+    )
+    collection: Collection | None = Relationship(back_populates="bricks")
+    reviews: list["Review"] | None = Relationship(
+        back_populates="brick", cascade_delete=True
+    )
+    overrides: list["BrickOverride"] = Relationship(
+        back_populates="brick", passive_deletes="all"
+    )
+    learning_cards: list["LearningCard"] = Relationship(
+        back_populates="brick", cascade_delete=True
+    )
+    __table_args__ = (
+        Index(
+            "idx_brick_search",
+            text(
+                "to_tsvector('simple', target_text || ' ' || native_text)"
+            ),  # Use 'simple' or 'english'
+            postgresql_using="gin",
+        ),
+    )
 
 
 class BrickOverride(SQLModel, table=True):
     learner_id: int = Field(foreign_key="learner.id", primary_key=True)
-    brick_id: int = Field(foreign_key="brick.id", primary_key=True)
+    learner: Learner = Relationship(back_populates="brick_overrides")
+
+    brick_id: int = Field(
+        foreign_key="brick.id", primary_key=True, ondelete="RESTRICT"
+    )
+    brick: Brick = Relationship(back_populates="overrides")
+
+    collection_id: int | None = Field(
+        default=None, foreign_key="collection.id", ondelete="RESTRICT"
+    )
+    collection: Collection | None = Relationship(
+        back_populates="brick_overrides"
+    )
+
     native_text: str | None = None
-    target_audio_uri: str | None = None
+    target_audio_path: str | None = None
     last_edit_at: datetime = Field(
         default_factory=lambda: datetime.now(timezone.utc)
     )
-    learner: Learner = Relationship(back_populates="brick_overrides")
-    brick: Brick = Relationship(back_populates="overrides")
 
 
 class Review(SQLModel, table=True):
     id: int | None = Field(default=None, primary_key=True)
     learner_id: int = Field(foreign_key="learner.id")
-    brick_id: int = Field(foreign_key="brick.id")
+    brick_id: int = Field(foreign_key="brick.id", ondelete="CASCADE")
     first_score: float
     is_answer_revealed: bool = False
-    fsrs_rating: int = Field(ge=1, le=4)
+    fsrs_rating: int = Field(
+        ge=1, le=4
+    )  # Again = 1, Hard = 2, Good = 3, Easy = 4
     reviewed_at: datetime = Field(
         default_factory=lambda: datetime.now(timezone.utc)
     )
     user_target_text: str | None = None
-    user_target_audio_uri: str | None = None
+    user_target_audio_path: str | None = None
     brick: Brick = Relationship(back_populates="reviews")
     learner: Learner = Relationship(back_populates="reviews")
 
 
 class LearningCard(SQLModel, table=True):
     learner_id: int = Field(foreign_key="learner.id", primary_key=True)
-    brick_id: int = Field(foreign_key="brick.id", primary_key=True)
-    fsrs_card_json: str
-    due: datetime  # let due here for quick access
+    brick_id: int = Field(
+        foreign_key="brick.id", primary_key=True, ondelete="CASCADE"
+    )
+    brick: "Brick" = Relationship(back_populates="learning_cards")
+    fsrs_card_dict: dict = Field(default={}, sa_type=JSONB)
+    due: datetime
+    created_at: datetime = Field(
+        default_factory=lambda: datetime.now(timezone.utc)
+    )
 
 
 class OTP(SQLModel, table=True):
@@ -166,50 +225,213 @@ class OTP(SQLModel, table=True):
     email: str
     hashed_code: str
     expires_at: datetime = Field(
-        default_factory=lambda: datetime.now(timezone.utc)
-        + timedelta(minutes=settings.otp_expire_minutes)
+        default_factory=lambda: (
+            datetime.now(timezone.utc)
+            + timedelta(minutes=settings.otp_expire_minutes)
+        )
     )
     used: bool = False
 
 
-class Post(SQLModel, table=True):
+class Snippet(SQLModel, table=True):
     id: int | None = Field(default=None, primary_key=True)
     content: str
-    translation: str
-    audio_uri: str
-    log_frequency: float
-    audio_duration: float
-    accent: str | None = None
+    audio_path: str
     creator_id: int = Field(default=None, foreign_key="learner.id")
     creator: Learner = Relationship()
     created_at: datetime = Field(
         default_factory=lambda: datetime.now(timezone.utc)
     )
     is_public: bool = True
-    post_interactions: list["PostInteraction"] = Relationship()
+    translation: str | None = None  # for dynamic translation
+
+    # for feature enhancement later
+    log_frequency: float | None = None
+    audio_duration: float | None = None
+
+    interactions: list["SnippetInteraction"] = Relationship(
+        back_populates="snippet"
+    )
+    __table_args__ = (
+        Index(
+            "idx_snippet_search",
+            text("to_tsvector('simple', content)"),
+            postgresql_using="gin",
+        ),
+    )
 
 
-class PostInteraction(SQLModel, table=True):
+class SnippetInteraction(SQLModel, table=True):
+    __table_args__ = (
+        CheckConstraint(
+            """
+            (type = 'TIME_SPENT' AND duration IS NOT NULL)
+            OR
+            (type != 'TIME_SPENT' AND duration IS NULL)
+            """,
+            name="check_duration_consistency",
+        ),
+    )
+    id: int | None = Field(default=None, primary_key=True)
+
+    session_id: str
+    snippet_id: int = Field(foreign_key="snippet.id")
+
+    type: InteractionType
+    duration: float | None = None  # for TIME_SPENT
+
+    created_at: datetime = Field(
+        default_factory=lambda: datetime.now(timezone.utc)
+    )
+
+    learner_id: int | None = Field(default=None, foreign_key="learner.id")
+    learner: "Learner" = Relationship(back_populates="snippet_interactions")
+    snippet: "Snippet" = Relationship(back_populates="interactions")
+
+
+class SnippetLike(SQLModel, table=True):
     learner_id: int = Field(foreign_key="learner.id", primary_key=True)
-    post_id: int = Field(foreign_key="post.id", primary_key=True)
-    """
-    {
-        "dislike": -1.0,
-        "view": -0.1,
-        "like": 0.8,
-        "save": 1.0,
-    }
-    """
-    arm_feature: str
-    reward: float | None = None
+    snippet_id: int = Field(foreign_key="snippet.id", primary_key=True)
     created_at: datetime = Field(
         default_factory=lambda: datetime.now(timezone.utc)
     )
 
 
-sqlite_url = f"sqlite:///{settings.db_url}"
-connect_args = {"check_same_thread": False}
-engine = create_engine(sqlite_url, echo=False, connect_args=connect_args)
+class SessionProfile(SQLModel, table=True):
+    session_id: str = Field(primary_key=True)
+    profile_vector: bytes
+    interaction_count: int = Field(default=0)
+    updated_at: datetime = Field(
+        default_factory=lambda: datetime.now(timezone.utc)
+    )
+
+
+class Topic(SQLModel, table=True):
+    id: int | None = Field(default=None, primary_key=True)
+    name: str
+    description: str | None
+
+    lessons: list["Lesson"] = Relationship(back_populates="topic")
+
+
+class Lesson(SQLModel, table=True):
+    id: int | None = Field(default=None, primary_key=True)
+    name: str
+    description: str | None
+
+    topic_id: int | None = Field(default=None, foreign_key="topic.id")
+    topic: Topic | None = Relationship(back_populates="lessons")
+
+    concepts: list["Concept"] = Relationship(back_populates="lesson")
+    exercises: list["Exercise"] = Relationship(back_populates="lesson")
+
+
+class Concept(SQLModel, table=True):
+    id: int | None = Field(default=None, primary_key=True)
+    name: str
+    type: str  # grammar / pattern / word / usage / signal / rule
+    description: str | None
+    lesson_id: int = Field(default=None, foreign_key="lesson.id")
+    lesson: Lesson | None = Relationship(back_populates="concepts")
+    outgoing_relations: list["ConceptRelation"] = Relationship(
+        back_populates="from_concept",
+        sa_relationship_kwargs={
+            "foreign_keys": "[ConceptRelation.from_concept_id]"
+        },
+    )
+
+    incoming_relations: list["ConceptRelation"] = Relationship(
+        back_populates="to_concept",
+        sa_relationship_kwargs={
+            "foreign_keys": "[ConceptRelation.to_concept_id]"
+        },
+    )
+
+    # is_line_break: bool | None = None  # for formatting purposes
+    examples: list["Example"] = Relationship(back_populates="concept")
+
+
+class ConceptRelation(SQLModel, table=True):
+    id: int | None = Field(default=None, primary_key=True)
+
+    from_concept_id: int = Field(foreign_key="concept.id")
+    to_concept_id: int = Field(foreign_key="concept.id")
+
+    relation_type: str | None  # uses, used_for, has_structure, similar_to...
+
+    from_concept: Concept | None = Relationship(
+        back_populates="outgoing_relations",
+        sa_relationship_kwargs={
+            "foreign_keys": "[ConceptRelation.from_concept_id]"
+        },
+    )
+
+    to_concept: Concept | None = Relationship(
+        back_populates="incoming_relations",
+        sa_relationship_kwargs={
+            "foreign_keys": "[ConceptRelation.to_concept_id]"
+        },
+    )
+
+
+class Exercise(SQLModel, table=True):
+    id: int | None = Field(default=None, primary_key=True)
+    name: str
+
+    lesson_id: int = Field(default=None, foreign_key="lesson.id")
+    lesson: Lesson | None = Relationship(back_populates="exercises")
+
+    questions: list["Question"] = Relationship(back_populates="exercise")
+
+
+class Question(SQLModel, table=True):
+    id: int | None = Field(default=None, primary_key=True)
+
+    content: str | None = None
+    question: str | None = None
+    answer: str | None = None
+    correct_answer: str | None = None
+
+    type: str | None = None
+    score: float | None = None
+    difficulty: float = 0.0
+    exercise_id: int = Field(default=None, foreign_key="exercise.id")
+    exercise: Exercise | None = Relationship(back_populates="questions")
+
+
+class Example(SQLModel, table=True):
+    id: int | None = Field(default=None, primary_key=True)
+    sentence: str
+    explanation: str | None = None
+    concept_id: int | None = Field(default=None, foreign_key="concept.id")
+    concept: Concept | None = Relationship(back_populates="examples")
+
+
+class YouTubeSubtitle(SQLModel, table=True):
+    id: int | None = Field(default=None, primary_key=True)
+    video_id: str = Field(index=True)  # The link to the video
+    start: float
+    duration: float
+    transcript: str
+    __table_args__ = (
+        Index(
+            "idx_ytb_search",
+            text("to_tsvector('simple', transcript)"),
+            postgresql_using="gin",
+        ),
+    )
+
+
+class BrokenBrickReport(SQLModel, table=True):
+    id: int | None = Field(default=None, primary_key=True)
+    filename: str = Field(index=True, unique=True)
+    description: str | None = None
+    reported_at: datetime = Field(
+        default_factory=lambda: datetime.now(timezone.utc)
+    )
+
+
+engine = create_engine(settings.database_url, echo=False)
 
 
 def get_session() -> Iterator[Session]:
@@ -221,25 +443,43 @@ def init_db():
     """
     Create the tables an insert data to them if the database does not exits.
     """
-    if not os.path.exists(settings.db_url):
-        print(f"{settings.db_url} not found, create a new one.")
+    # Use SQLAlchemy to check if tables exist
+    inspector = inspect(engine)
+    if not inspector.has_table("snippet"):
+        print("Database tables not found, creating schema...")
+
+        # Create SQLModel tables
         SQLModel.metadata.create_all(engine)
-        print("Done creating table schema.")
+
         with Session(engine) as session:
+            # Enable Extensions
+            session.exec(text("CREATE EXTENSION IF NOT EXISTS vector;"))
+
             init_bricks(session)
-            init_posts(session)
-        print("Done initialize table data.")
+            init_snippets(session)
+            session.commit()
+
+        transfer_knowledge_graph_data()
+        transfer_subtitles()
+        print("Data initialization complete except embeddings.")
     else:
-        print(f"{settings.db_url} already exits, skip initialization.")
+        print("Database already initialized, skipping.")
 
 
 def delete_db():
-    db_url = Path(settings.db_url)
-    if db_url.exists():
-        db_url.unlink()
-        print(f"Deleted {db_url}.")
-    else:
-        print(f"WARNING: Trying to delete a non existing {db_url}.")
+    # 1. Drop the LangChain-managed tables (which SQLModel doesn't know about)
+    with Session(engine) as session:
+        session.exec(
+            text("DROP TABLE IF EXISTS langchain_pg_embedding CASCADE;")
+        )
+        session.exec(
+            text("DROP TABLE IF EXISTS langchain_pg_collection CASCADE;")
+        )
+        session.commit()
+
+    # 2. Drop SQLModel tables
+    SQLModel.metadata.drop_all(engine)
+    print("Dropped all tables (including LangChain tables) from PostgreSQL.")
 
 
 def init_bricks(session: Session):
@@ -280,12 +520,6 @@ def init_bricks(session: Session):
             for v in str(value).split("|")
         ]
 
-    def compute_flesch_kincaid_grade(text: str):
-        translator = str.maketrans("", "", string.punctuation)
-        no_punct_text = text.translate(translator)
-        score = textstat.flesch_kincaid_grade(no_punct_text)
-        return round(score, 3)
-
     def extract_collection_data(collection_data: pd.DataFrame):
         # collection Name (Shortest text)
         shortest_text_idx = (
@@ -295,8 +529,7 @@ def init_bricks(session: Session):
             shortest_text_idx, "en_source_text"
         ]
 
-        # group Name (Highest CEFR)
-        ordered_levels = [level.value for level in CEFRLevel]
+        ordered_levels = [level.name for level in CEFRLevel]
 
         # We find the maximum based on the order defined in the list above
         group_name = pd.Categorical(
@@ -305,23 +538,13 @@ def init_bricks(session: Session):
             ordered=True,
         ).max()
 
-        group_names = [
-            "Vỡ lòng (A1)",
-            "Sơ cấp (A2)",
-            "Trung cấp (B1)",
-            "Cao trung cấp (B2)",
-            "Cao cấp (C1)",
-            "Thành thạo (C2)",
-        ]
-        group_name = next(
-            (g for g in group_names if f"({group_name})" in g), group_name
-        )
+        group_name = CEFR_MAPPING[group_name]
 
         # difficulty score: Concat all text then calculate
         full_text = " ".join(collection_data["en_source_text"].astype(str))
-        difficulty_score = 1 - word_frequency(full_text, lang="en")
+        log_frequency = text_service.log_frequency(full_text)
 
-        return collection_name, group_name, difficulty_score
+        return collection_name, group_name, log_frequency
 
     initial_learner_account_create = LearnerAccountCreate()
     initial_account = create_learner_account(
@@ -341,16 +564,15 @@ def init_bricks(session: Session):
         "collection_id"
     ):
         # Create collection
-        collection_name, group_name, difficulty_score = (
-            extract_collection_data(collection_data)
+        collection_name, group_name, log_frequency = extract_collection_data(
+            collection_data
         )
         collection = Collection(
             name=collection_name,
             group_name=group_name,
-            difficulty_score=difficulty_score,
+            difficulty_score=log_frequency,
             creator=initial_account.learner,
         )
-
         # Create brick and add to collection
         for _, row in collection_data.iterrows():
             brick_metadata = BrickMetadata(
@@ -362,10 +584,10 @@ def init_bricks(session: Session):
             brick = Brick(
                 native_text=row["vi_translation"],
                 target_text=row["en_source_text"],
-                target_audio_uri=str(
+                target_audio_path=str(
                     Path("brick-audios") / row["source_audio_path"]
                 ),
-                cefr_level=CEFRLevel(row["cefr_level"]),
+                cefr_level=row["cefr_level"],
                 collections=[],
                 creator=initial_account.learner,
                 brick_metadata=brick_metadata,
@@ -373,39 +595,90 @@ def init_bricks(session: Session):
             collection.bricks.append(brick)
 
         session.add(collection)
-    print("Bricks imported!")
+    print(f"{len(brick_metadata_df)} bricks imported!")
     session.commit()
 
 
-def init_posts(session: Session):
-    COMMON_VOICE_DIR = Path("common-voice")
+def init_snippets(session: Session):
 
     def import_common_voice(csv_name: str, creator_id: int = 1):
-        df = pd.read_csv(COMMON_VOICE_DIR / csv_name)
-        split = csv_name.replace(".csv", "")
-        posts = []
+        df = pd.read_csv(csv_name)
+        snippets = []
 
         for row in df.to_dict("records"):
-            audio_path = COMMON_VOICE_DIR / split / row["filename"]
-            # Get duration in seconds
-            audio_info = MutagenFile(audio_path).info
-            duration_seconds = audio_info.length
-            content_freq = word_frequency(row["text"], lang="en")
-            posts.append(
-                Post(
+            audio_path = f"{settings.snippets_folder}/{row['filename']}"
+            snippets.append(
+                Snippet(
                     content=row["text"],
-                    translation="TODO translation",
-                    audio_uri=str(audio_path),
-                    log_frequency=math.log10(content_freq + 1e-9),
-                    audio_duration=duration_seconds,
-                    accent=row["accent"] if pd.notna(row["accent"]) else None,
+                    audio_path=str(audio_path),
                     creator_id=creator_id,
+                    log_frequency=text_service.log_frequency(row["text"]),
+                    audio_duration=float(row["duration"]),
                 )
             )
 
-        session.add_all(posts)
+        session.add_all(snippets)
         session.commit()
 
-        print(f"{len(posts)} posts imported from {csv_name}")
+        print(f"{len(snippets)} snippets was imported from {csv_name}")
 
-    import_common_voice("cv-valid-test.csv")
+    import_common_voice("snippets-metadata.csv")
+
+
+def transfer_knowledge_graph_data():
+    engine_old = create_engine("sqlite:///knowledge_graph.db", echo=False)
+    dict_mapping = {
+        "topic": Topic,
+        "lesson": Lesson,
+        "exercise": Exercise,
+        "question": Question,
+    }
+    with Session(engine_old) as session_old:
+        all_data = {}
+        for table_name, model in dict_mapping.items():
+            all_data[table_name] = [
+                r.model_dump() for r in session_old.exec(select(model)).all()
+            ]
+
+    with Session(engine) as session_new:
+        try:
+            for table_name, model in dict_mapping.items():
+                for data in all_data[table_name]:
+                    session_new.add(model(**data))
+            session_new.commit()
+            print("Knowledge graph data transferred successfully.")
+        except Exception as e:
+            session_new.rollback()
+            raise e
+
+
+def transfer_subtitles():
+    engine_old = create_engine("sqlite:///ytb_subtitles.db")
+
+    with engine_old.connect() as conn_old:
+        # We select the columns exactly as they are in SQLite
+        query = text(
+            "SELECT video_id, start, duration, text FROM subtitle_search"
+        )
+        results = conn_old.execute(query).fetchall()
+
+    # insert into the new Postgres table
+    with Session(engine) as session_new:
+        try:
+            for row in results:
+                # Map SQLite 'text' -> Postgres 'transcript'
+                new_entry = YouTubeSubtitle(
+                    video_id=row.video_id,
+                    start=row.start,
+                    duration=row.duration,
+                    transcript=row.text,
+                )
+                session_new.add(new_entry)
+
+            session_new.commit()
+            print(
+                f"Successfully transferred {len(results)} YouTube subtitles to Postgres!"
+            )
+        except Exception as e:
+            session_new.rollback()
+            print(f"Error during transfer: {e}")

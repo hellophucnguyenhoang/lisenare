@@ -1,76 +1,143 @@
-from fastapi import HTTPException, status
-from sqlmodel import Session, select, delete, func
-from pathlib import Path
 from datetime import datetime, timezone
+from pathlib import Path
 
+from fastapi import HTTPException, status
+from sqlalchemy.exc import IntegrityError
+from sqlalchemy.orm import selectinload
+from sqlmodel import Session, delete, func, or_, select
+
+from app.config import settings
 from app.database import (
     Brick,
-    CollectionBrick,
     BrickMetadata,
-    LearningCard,
+    BrickMetadataGrammarPoint,
     BrickOverride,
+    Collection,
+    LearningCard,
+    Review,
 )
-from app.config import settings
-from app.schemas import BrickUpdate, BrickCreate, UnitType
-from . import brick_override_service, collection_service
+from app.schemas import BrickCreate, BrickCreateRequest, BrickUpdate, UnitType
+
+from . import collection_service
 
 
-def get_brick(session: Session, id: int) -> Brick:
-    brick = session.exec(select(Brick).where(Brick.id == id)).first()
-    if not brick:
+def get_pending_bricks_subquery(learner_id: int):
+    """
+    A brick is considered pending of a learner if it's created or has an
+    override version created by that learner.
+    """
+    return (
+        select(Brick)
+        .join(BrickOverride, isouter=True)
+        .where(
+            or_(
+                Brick.creator_id == learner_id,
+                BrickOverride.learner_id == learner_id,
+            )
+        )
+        .subquery()
+    )
+
+
+def get_pending_bricks(
+    session: Session,
+    learner_id: int,
+    collection_id: int | None = None,
+    group_names: list[str] | None = None,
+    offset: int | None = None,
+    limit: int | None = None,
+) -> list[Brick]:
+    """
+    A brick is considered pending of a learner if it's created or has a
+    override version created by that learner.
+    """
+    statement = select(Brick).join(BrickOverride, isouter=True)
+
+    conditions = []
+    if collection_id:
+        conditions.append(Brick.collection_id == collection_id)
+
+    conditions.append(
+        or_(
+            Brick.creator_id == learner_id,
+            BrickOverride.learner_id == learner_id,
+        )
+    )
+
+    if group_names:
+        statement = statement.join(Collection, isouter=True)
+        conditions.append(Collection.group_name.in_(group_names))
+
+    statement = statement.where(*conditions).order_by(Brick.id)
+
+    if limit is not None:
+        statement = statement.limit(limit)
+
+    if offset is not None:
+        statement = statement.offset(offset)
+
+    return session.exec(statement).all()
+
+
+def get_brick(
+    session: Session, id: int, learner_id: int | None = None
+) -> Brick:
+    # 1. Build the base filters
+    # Everyone can see public bricks
+    filters = [Brick.is_public]
+
+    # If logged in, also allow if they are the creator or have an override
+    if learner_id:
+        filters.append(Brick.creator_id == learner_id)
+        filters.append(BrickOverride.learner_id == learner_id)
+
+    statement = (
+        select(Brick)
+        .options(
+            selectinload(Brick.brick_metadata).selectinload(
+                BrickMetadata.grammar_points
+            )
+        )
+        .join(BrickOverride, isouter=True)
+        .where(
+            Brick.id == id,
+            or_(*filters),  # Unpacks the list into the OR condition
+        )
+    )
+
+    result = session.exec(statement).first()
+
+    if not result:
+        # Note: Using 404 for private bricks keeps the DB structure more secure
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Brick not found"
         )
+
+    brick = result
+
+    # 2. Only attempt to apply overrides if a learner_id exists
+    if learner_id and brick.overrides:
+        specific_override = next(
+            (o for o in brick.overrides if o.learner_id == learner_id), None
+        )
+        if specific_override:
+            brick.native_text = specific_override.native_text
+
     return brick
 
 
 def iter_audio_file(filename: str):
-    base_dir = Path(settings.brick_folder)
+    base_dir = Path(settings.brick_audios_folder)
     file_path = (base_dir / filename).resolve()
     with open(file_path, "rb") as audio_file:
         yield from audio_file
 
 
 async def get_audio_file(filename: str):
-    base_dir = Path(settings.brick_folder)
+    base_dir = Path(settings.brick_audios_folder)
     file_path = (base_dir / filename).resolve()
     with open(file_path, "rb") as audio_file:
         return audio_file.read()
-
-
-def get_random_brick(
-    session: Session,
-    learner_id: int,
-    collection_ids: list[int] | None = None,
-) -> Brick | None:
-
-    statement = (
-        select(Brick)
-        .join(CollectionBrick)
-        .join(BrickMetadata)
-        .where(
-            Brick.creator_id == learner_id,
-            BrickMetadata.unit_type == UnitType.sentence,
-        )
-    )
-
-    if collection_ids:
-        statement = statement.where(
-            CollectionBrick.collection_id.in_(collection_ids)
-        )
-
-    statement = statement.order_by(func.random()).limit(1)
-
-    return session.exec(statement).first()
-
-
-def get_broken_filenames() -> set[str]:
-    REPORT_FILE = Path(settings.broken_report_file)
-    if not REPORT_FILE.exists():
-        return set()
-    # Read and split by "|", taking the first part (filename)
-    with REPORT_FILE.open("r") as f:
-        return {line.split("|")[0] for line in f if "|" in line}
 
 
 def get_brick_fsrs(
@@ -79,15 +146,13 @@ def get_brick_fsrs(
     collection_ids: list[int] | None = None,
 ) -> Brick | None:
     now = datetime.now(timezone.utc)
-    broken_files = get_broken_filenames()
+    broken_files = set()  # get_broken_filenames()
 
     def apply_filters(stmt):
         if collection_ids:
-            stmt = stmt.where(
-                CollectionBrick.collection_id.in_(collection_ids)
-            )
+            stmt = stmt.where(Brick.collection_id.in_(collection_ids))
         if broken_files:
-            stmt = stmt.where(~Brick.target_audio_uri.in_(broken_files))
+            stmt = stmt.where(~Brick.target_audio_path.in_(broken_files))
         return stmt
 
     def resolve_override(result):
@@ -99,17 +164,17 @@ def get_brick_fsrs(
         return brick
 
     # Common override join condition
+    # Only get the overrides of the learner_id
     override_join = (BrickOverride.brick_id == Brick.id) & (
         BrickOverride.learner_id == learner_id
     )
 
-    # 1. Due cards
+    # Case 1: Get the most overdue card
     due_stmt = (
         select(Brick, BrickOverride.native_text)
         .join(LearningCard, LearningCard.brick_id == Brick.id)
-        .join(CollectionBrick, CollectionBrick.brick_id == Brick.id)
         .join(BrickMetadata)
-        .outerjoin(BrickOverride, override_join)
+        .join(BrickOverride, override_join, isouter=True)
         .where(
             LearningCard.learner_id == learner_id,
             LearningCard.due <= now,
@@ -125,17 +190,15 @@ def get_brick_fsrs(
     if brick:
         return brick
 
-    # 2. New unseen bricks
-    pending_bricks_subq = collection_service.get_pending_bricks_subquery(
-        learner_id
-    )
+    print("FSRS Case 2: Get new unseen card")
+    # Case 2: Get new unseen card
+    pending_bricks_subq = get_pending_bricks_subquery(learner_id)
 
     new_stmt = (
         select(Brick, BrickOverride.native_text)
         .join(pending_bricks_subq, pending_bricks_subq.c.id == Brick.id)
-        .join(CollectionBrick)
         .join(BrickMetadata)
-        .outerjoin(BrickOverride, override_join)
+        .join(BrickOverride, override_join, isouter=True)
         .where(
             BrickMetadata.unit_type == UnitType.sentence,
             ~Brick.id.in_(
@@ -159,44 +222,32 @@ def get_brick_in_collection_learn(
     collection_id: int,
     brick_order: int = 1,
 ) -> dict | None:
-
-    pending_bricks_subq = collection_service.get_pending_bricks_subquery(
-        learner_id
-    )
-
-    override_join = (BrickOverride.brick_id == Brick.id) & (
-        BrickOverride.learner_id == learner_id
-    )
-
     stmt = (
-        select(Brick, BrickOverride.native_text)
-        .join(pending_bricks_subq, pending_bricks_subq.c.id == Brick.id)
-        .join(CollectionBrick, CollectionBrick.brick_id == Brick.id)
-        .outerjoin(BrickOverride, override_join)
-        .where(CollectionBrick.collection_id == collection_id)
-        .order_by(func.length(Brick.target_text))
-        .offset(brick_order - 1)
-        .limit(1)
+        select(
+            Brick,
+            BrickOverride.native_text,
+            func.length(Brick.target_text).label("target_text_len"),
+        )
+        .distinct()
+        .join(BrickOverride, isouter=True)
+        .where(
+            Brick.collection_id == collection_id,
+            or_(
+                Brick.creator_id == learner_id,
+                BrickOverride.learner_id == learner_id,
+            ),
+        )
+        .order_by("target_text_len")
     )
-    result = session.exec(stmt).first()
-    if not result:
+    bricks_overrides = session.exec(stmt).all()
+    if not bricks_overrides:
         return None
 
-    brick, override_native = result
+    brick, override_native, target_text_len = bricks_overrides[brick_order - 1]
     if override_native:
         brick.native_text = override_native
 
-    # Count only learning bricks inside this collection
-    count_stmt = (
-        select(func.count())
-        .select_from(CollectionBrick)
-        .join(
-            pending_bricks_subq,
-            pending_bricks_subq.c.id == CollectionBrick.brick_id,
-        )
-        .where(CollectionBrick.collection_id == collection_id)
-    )
-    total_bricks = session.exec(count_stmt).one()
+    total_bricks = len(bricks_overrides)
     return {
         "brick": brick,
         "total_bricks": total_bricks,
@@ -210,61 +261,188 @@ def update_brick(
     learner_id: int,
 ) -> Brick:
 
-    brick = session.get(Brick, brick_id)
+    statement = (
+        select(Brick)
+        .where(Brick.id == brick_id)
+        .options(
+            selectinload(Brick.brick_metadata).selectinload(
+                BrickMetadata.grammar_points
+            )
+        )
+    )
+    brick = session.exec(statement).first()
     if not brick:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Brick not found",
         )
 
+    update_data = brick_update.model_dump(
+        exclude_unset=True,
+    )
+
     # Case 1: Author edits original
     if brick.creator_id == learner_id:
+        # Handle nested metadata separately
+        if "brick_metadata" in update_data:
+            metadata_data = update_data.pop("brick_metadata")
 
-        data = brick_update.model_dump(
-            exclude_unset=True,
-            exclude={"collection_ids"},
-        )
+            # Handle grammar points first
+            grammar_points_data = metadata_data.pop("grammar_points", None)
+            if grammar_points_data is not None:
+                brick.brick_metadata.grammar_points = []
+                for gp in grammar_points_data:
+                    # Access dictionary key safely
+                    new_gp = BrickMetadataGrammarPoint(
+                        brick_metadata_id=brick.brick_metadata_id,
+                        grammar_point=gp["grammar_point"],
+                    )
+                    brick.brick_metadata.grammar_points.append(new_gp)
 
-        for key, value in data.items():
+            # Update other metadata fields (unit_type, structure, function)
+            for key, value in metadata_data.items():
+                setattr(brick.brick_metadata, key, value)
+
+        # Update top-level brick fields
+        for key, value in update_data.items():
             setattr(brick, key, value)
 
-        if brick_update.collection_ids is not None:
-            session.exec(
-                delete(CollectionBrick).where(
-                    CollectionBrick.brick_id == brick_id
-                )
-            )
-
-            for collection_id in brick_update.collection_ids:
-                session.add(
-                    CollectionBrick(
-                        collection_id=collection_id,
-                        brick_id=brick_id,
-                    )
-                )
-
         brick.last_edit_at = datetime.now(timezone.utc)
-
         session.add(brick)
         session.commit()
         session.refresh(brick)
         return brick
 
-    # Case 2: Non-author edits → save override
+    # --- Case 2: Non-author edits ---
     else:
-        override = brick_override_service.save_override_for_brick(
-            session=session,
-            learner_id=learner_id,
-            brick_id=brick_id,
-            native_text=brick_update.native_text,
-        )
+        # Check for forbidden fields
+        forbidden_fields = {
+            "target_text",
+            "brick_metadata",
+            "is_public",
+            "collection_id",
+        }
+        attempted_forbidden = forbidden_fields.intersection(update_data.keys())
+        if attempted_forbidden:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"Only the author can edit: {', '.join(attempted_forbidden)}. "
+                f"Change the English text to create your own version.",
+            )
+
+        # Proceed with native_text override
+        override = session.get(BrickOverride, (learner_id, brick_id))
+        if not override:
+            override = BrickOverride(learner_id=learner_id, brick_id=brick_id)
+
+        if "native_text" in update_data:
+            override.native_text = update_data["native_text"]
+
+        override.last_edit_at = datetime.now(timezone.utc)
+        session.add(override)
+        session.commit()
+        session.refresh(override)
+
+        # Return the brick with the user's specific translation
         brick.native_text = override.native_text
         return brick
 
 
-def create_brick(session: Session, brick_create: BrickCreate) -> Brick:
-    db_brick = Brick.model_validate(brick_create)
-    session.add(db_brick)
+def create_brick(
+    session: Session,
+    request_data: BrickCreateRequest,
+    creator_id: int,
+    file_path: str,
+) -> Brick:
+    metadata_data = request_data.brick_metadata.model_dump(
+        exclude={"grammar_points"}
+    )
+    brick_metadata = BrickMetadata(**metadata_data)
+
+    grammar_points_data = request_data.brick_metadata.grammar_points or []
+    grammar_points = [
+        BrickMetadataGrammarPoint(grammar_point=gp.grammar_point)
+        for gp in grammar_points_data
+    ]
+    brick_metadata.grammar_points = grammar_points
+
+    brick_create = BrickCreate(
+        native_text=request_data.native_text,
+        target_text=request_data.target_text,
+        target_audio_path=file_path,  # e.g. "brick-audios/learner_1_audio.m4a"
+        is_public=request_data.is_public,
+        creator_id=creator_id,
+        collection_name=request_data.collection_name,
+        group_name=request_data.group_name,
+    )
+    brick = Brick.model_validate(brick_create)
+    brick.brick_metadata = brick_metadata
+    session.add(brick)
+
+    collection = collection_service.get_or_create_collection(
+        session,
+        brick_create.collection_name,
+        brick_create.group_name,
+        brick_create.creator_id,
+    )
+
+    collection.bricks.append(brick)
+
     session.commit()
-    session.refresh(db_brick)
-    return db_brick
+    session.refresh(brick)
+
+    collection_service.update_collection_difficulty(session, collection.id)
+
+    return brick
+
+
+def check_target_text_exists(session: Session, target_text: str) -> bool:
+    # Use select to find a matching record
+    statement = select(Brick).where(Brick.target_text == target_text)
+    result = session.exec(statement).first()
+
+    return result is not None
+
+
+def delete_brick(session: Session, learner_id: int, brick_id: int):
+    brick = session.get(Brick, brick_id)
+    if not brick:
+        raise HTTPException(status_code=404, detail="Brick not found")
+    collection_id = brick.collection_id
+    status_msg = ""
+
+    # Case 1: Creator deletes the actual Brick
+    if brick.creator_id == learner_id:
+        try:
+            session.delete(brick)
+            session.commit()
+            status_msg = "BRICK_DELETED"
+        except IntegrityError:
+            session.rollback()
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Cannot delete this brick because other learners are using it.",
+            )
+
+    # Case 2: Non-creator deletes personal data
+    else:
+        # Check/Delete Override, Reviews, and LearningCard
+        override = session.get(BrickOverride, (learner_id, brick_id))
+        if override:
+            session.delete(override)
+
+        session.exec(
+            delete(Review).where(
+                Review.learner_id == learner_id, Review.brick_id == brick_id
+            )
+        )
+
+        card = session.get(LearningCard, (learner_id, brick_id))
+        if card:
+            session.delete(card)
+
+        session.commit()
+        status_msg = "PERSONAL_DATA_DELETED"
+
+    collection_service.delete_empty_collection(session, collection_id)
+    return status_msg
