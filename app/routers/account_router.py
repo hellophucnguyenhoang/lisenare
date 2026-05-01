@@ -1,24 +1,25 @@
-from fastapi import APIRouter, Depends, BackgroundTasks, Body
-from sqlmodel import Session
 from typing import Annotated
 
+from fastapi import APIRouter, BackgroundTasks, Body, Depends
+from sqlmodel import Session
+
 from app import security
+from app.config import settings
+from app.database import Learner, get_session
 from app.schemas import (
-    Token,
+    LearnerAccountCreate,
     PasswordChangeRequest,
+    PasswordRecoveryResponse,
     PasswordResetRequest,
     StatusResponse,
+    Token,
 )
-from app.database import get_session, Learner
 from app.services import account_service, auth_service, otp_service
-from app.schemas import LearnerAccountCreate, PasswordRecoveryResponse
-from app.config import settings
-
 
 router = APIRouter(prefix="/accounts", tags=["Accounts"])
 
 
-@router.post("", response_model=Token)
+@router.post("")
 def create_account(
     session: Annotated[Session, Depends(get_session)],
     learner_account_create: LearnerAccountCreate,
@@ -31,31 +32,12 @@ def create_account(
     return Token(access_token=access_token)
 
 
-@router.patch("/me/password", response_model=Token)
-def change_account_password(
-    session: Annotated[Session, Depends(get_session)],
-    learner: Annotated[
-        Learner, Depends(auth_service.decode_token_to_get_learner)
-    ],
-    change_password_request: PasswordChangeRequest,
-) -> Token:
-    account = account_service.change_learner_account_password(
-        session,
-        learner_id=learner.id,
-        old_password=change_password_request.old_password,
-        new_password=change_password_request.new_password,
-    )
-    data = {"sub": str(account.learner_id), "username": account.username}
-    access_token = security.create_access_token(data=data)
-    return Token(access_token=access_token)
-
-
-@router.post("/forgot-password", response_model=PasswordRecoveryResponse)
+@router.post("/forgot-password")
 def forgot_password(
     session: Annotated[Session, Depends(get_session)],
     background_tasks: BackgroundTasks,
     username: Annotated[str, Body(embed=True)],
-):
+) -> PasswordRecoveryResponse:
     account = account_service.get_account_by_username(session, username)
     if account and account.email:
         code = otp_service.create_otp(session, account.email)
@@ -70,17 +52,36 @@ def forgot_password(
             background_tasks, account.email, subject, body
         )
 
-    return {
-        "message": "If an account exists, a recovery code has been sent.",
-        "email_preview": None,
-    }
+    return PasswordRecoveryResponse(
+        message="If an account exists, a recovery code has been sent.",
+        email_preview=None,
+    )
 
 
-@router.post("/reset-password", response_model=StatusResponse)
+@router.post("/reset-password")
 def reset_password(
     session: Annotated[Session, Depends(get_session)],
     password_reset_request: PasswordResetRequest,
-):
+) -> StatusResponse:
     return account_service.reset_account_password(
         session, password_reset_request
     )
+
+
+@router.patch("/me/password")
+def change_account_password(
+    session: Annotated[Session, Depends(get_session)],
+    learner: Annotated[
+        Learner, Depends(auth_service.decode_token_get_learner)
+    ],
+    change_password_request: PasswordChangeRequest,
+) -> Token:
+    account = account_service.change_learner_account_password(
+        session,
+        learner_id=learner.id,
+        old_password=change_password_request.old_password,
+        new_password=change_password_request.new_password,
+    )
+    data = {"sub": str(account.learner_id), "username": account.username}
+    access_token = security.create_access_token(data=data)
+    return Token(access_token=access_token)

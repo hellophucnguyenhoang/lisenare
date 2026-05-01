@@ -1,9 +1,11 @@
 import random
 from datetime import datetime, timedelta, timezone
-from pwdlib import PasswordHash
+
 import jwt
+from pwdlib import PasswordHash
 
 from app.config import settings
+
 from .schemas import TokenPayload
 
 password_hasher = PasswordHash.recommended()

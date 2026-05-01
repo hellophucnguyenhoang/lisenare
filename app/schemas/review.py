@@ -1,6 +1,7 @@
 from datetime import datetime, timezone
-from sqlmodel import SQLModel, Field
+
 from pydantic import field_validator
+from sqlmodel import Field, SQLModel
 
 
 class ReviewBase(SQLModel):
@@ -9,6 +10,8 @@ class ReviewBase(SQLModel):
         default_factory=lambda: datetime.now(timezone.utc)
     )
     is_answer_revealed: bool = False
+    user_target_text: str | None = None
+    user_target_audio_path: str | None = None
 
 
 class ReviewCreate(ReviewBase):
