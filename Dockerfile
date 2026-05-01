@@ -7,6 +7,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     espeak-ng \
     libespeak-ng-dev \
     curl \
+    zstd \
     && rm -rf /var/lib/apt/lists/*
 
 # Install Ollama
