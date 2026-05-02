@@ -1,9 +1,6 @@
 # Environment & Dependencies
 .venv
-node_modules
-env
-venv
-ENV
+.env
 
 # IDEs & Tools
 .vscode
