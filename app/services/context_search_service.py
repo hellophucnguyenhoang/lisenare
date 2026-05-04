@@ -281,13 +281,26 @@ def sync_model_to_langchain(
     model,
     store_key: str,
     text_getter,
-    metadata_getter,  # New parameter for custom metadata
+    metadata_getter,
+    id_getter,
 ):
     items = session.exec(select(model)).all()
     if not items:
         return
 
     store = search_service.stores[store_key]
+
+    existing_ids = set()
+    try:
+        result = session.exec(
+            text("SELECT id FROM langchain_pg_embedding")
+        ).all()
+        existing_ids = {row[0] for row in result if row[0]}
+        print(f"DEBUG: Found {len(existing_ids)} existing IDs in DB.")
+    except Exception as e:
+        print(
+            f"Note: Could not fetch existing IDs, will try to sync all. Error: {e}"
+        )
 
     batch_size = 256
     total = len(items)
@@ -298,15 +311,29 @@ def sync_model_to_langchain(
     for i in range(0, total, batch_size):
         batch_items = items[i : i + batch_size]
 
-        documents = [
-            Document(
-                page_content=text_getter(item), metadata=metadata_getter(item)
-            )
-            for item in batch_items
-        ]
+        documents = []
+        ids = []
+        for item in batch_items:
+            doc_id = f"{model.__name__}_{id_getter(item)}"
+            if doc_id not in existing_ids:
+                documents.append(
+                    Document(
+                        page_content=text_getter(item),
+                        metadata=metadata_getter(item),
+                    )
+                )
+                ids.append(doc_id)
 
-        store.add_documents(documents)
-        print(f"[{store_key}] Progress: {min(i + batch_size, total)}/{total}")
+        if documents:
+            store.add_documents(documents, ids=ids)
+            print(
+                f"[{store_key}] Added {len(documents)} new items. \
+                    Progress: {min(i + batch_size, total)}/{total}"
+            )
+        else:
+            print(
+                f"[{store_key}] Batch {i // batch_size + 1}: Skipping (all exist)."
+            )
 
 
 def create_vector_indexes(session: Session):
@@ -338,6 +365,7 @@ def initialize_embeddings(
             "start": s.start,
             "duration": s.duration,
         },
+        lambda s: f"{s.video_id}_{s.start}_{s.duration}",
     )
 
     # 2. Bricks: (brick_id, native_text)
@@ -352,6 +380,7 @@ def initialize_embeddings(
             "target_text": b.target_text,
             "native_text": b.native_text,
         },
+        lambda b: b.id,
     )
 
     # 3. Snippets: (snippet_id)
@@ -362,6 +391,7 @@ def initialize_embeddings(
         "snippets",
         lambda s: s.content,
         lambda s: {"snippet_id": s.id},
+        lambda s: s.id,
     )
 
     print("All data synced with custom metadata!")

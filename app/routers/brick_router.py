@@ -1,4 +1,5 @@
 import json
+import random
 from typing import Annotated
 
 from fastapi import (
@@ -11,13 +12,14 @@ from fastapi import (
     UploadFile,
     status,
 )
-from fastapi.responses import StreamingResponse
 from pydantic import ValidationError
 from sqlmodel import Session
 
 from app.config import settings
 from app.database import Learner, get_session
 from app.schemas import (
+    BrickAudioData,
+    BrickAudioPage,
     BrickCreateRequest,
     BrickLearnRead,
     BrickRead,
@@ -64,24 +66,37 @@ def get_brick_audios(
         Learner, Depends(auth_service.decode_token_get_learner)
     ],
     group_names: Annotated[list[str] | None, Query()] = None,
-):
+    offset: Annotated[int, Query(ge=0)] = 0,
+    limit: Annotated[int, Query(ge=0, le=100)] = 20,
+    shuffle_page: Annotated[bool, Query()] = False,
+) -> BrickAudioPage:
     print(f"{group_names = }")
     pending_bricks = brick_service.get_pending_bricks(
         session=session,
         learner_id=learner.id,
         group_names=group_names,
+        offset=offset,
+        limit=limit,
     )
-    audio_paths = [brick.target_audio_path for brick in pending_bricks]
-    return audio_paths
-
-
-@router.get("/audio/{filename}")
-def get_brick_audio(filename: str):
-    """
-    DEPRECATED due to static files. See app/main.py
-    """
-    return StreamingResponse(
-        brick_service.iter_audio_file(filename), media_type="audio/wav"
+    if shuffle_page:
+        random.shuffle(pending_bricks)
+    total = brick_service.count_pending_bricks(
+        session=session,
+        learner_id=learner.id,
+        group_names=group_names,
+    )
+    return BrickAudioPage(
+        items=[
+            BrickAudioData(
+                audio_path=brick.target_audio_path,
+                target_text=brick.target_text,
+                native_text=brick.native_text,
+            )
+            for brick in pending_bricks
+        ],
+        offset=offset,
+        limit=limit,
+        total=total,
     )
 
 
