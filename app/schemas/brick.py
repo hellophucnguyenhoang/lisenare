@@ -161,3 +161,16 @@ class BrickCreateRequest(SQLModel):
 class BrickLearnRead(SQLModel):
     brick: BrickRead
     total_bricks: int
+
+
+class BrickAudioData(SQLModel):
+    audio_path: str
+    target_text: str
+    native_text: str
+
+
+class BrickAudioPage(SQLModel):
+    items: list[BrickAudioData]
+    offset: int
+    limit: int
+    total: int

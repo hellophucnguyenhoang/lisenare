@@ -1,12 +1,10 @@
 from datetime import datetime, timezone
-from pathlib import Path
 
 from fastapi import HTTPException, status
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import selectinload
 from sqlmodel import Session, delete, func, or_, select
 
-from app.config import settings
 from app.database import (
     Brick,
     BrickMetadata,
@@ -79,6 +77,38 @@ def get_pending_bricks(
     return session.exec(statement).all()
 
 
+def count_pending_bricks(
+    session: Session,
+    learner_id: int,
+    collection_id: int | None = None,
+    group_names: list[str] | None = None,
+) -> int:
+    statement = (
+        select(func.count(Brick.id))
+        .select_from(Brick)
+        .join(BrickOverride, isouter=True)
+    )
+
+    conditions = []
+
+    if collection_id:
+        conditions.append(Brick.collection_id == collection_id)
+
+    conditions.append(
+        or_(
+            Brick.creator_id == learner_id,
+            BrickOverride.learner_id == learner_id,
+        )
+    )
+
+    if group_names:
+        statement = statement.join(Collection, isouter=True)
+        conditions.append(Collection.group_name.in_(group_names))
+
+    statement = statement.where(*conditions)
+    return session.exec(statement).one()
+
+
 def get_brick(
     session: Session, id: int, learner_id: int | None = None
 ) -> Brick:
@@ -124,20 +154,6 @@ def get_brick(
             brick.native_text = specific_override.native_text
 
     return brick
-
-
-def iter_audio_file(filename: str):
-    base_dir = Path(settings.brick_audios_folder)
-    file_path = (base_dir / filename).resolve()
-    with open(file_path, "rb") as audio_file:
-        yield from audio_file
-
-
-async def get_audio_file(filename: str):
-    base_dir = Path(settings.brick_audios_folder)
-    file_path = (base_dir / filename).resolve()
-    with open(file_path, "rb") as audio_file:
-        return audio_file.read()
 
 
 def get_brick_fsrs(
