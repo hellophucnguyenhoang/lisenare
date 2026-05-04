@@ -28,7 +28,8 @@ def get_recommended_snippets(
     limit: int = 5,
 ) -> list[Snippet]:
     """
-    Get recommended snippets for a session_id. Recommend randomly for the first time.
+    Get most relevant snippets to the profile_vector of a session_id.
+    Recommend randomly for the first time.
     """
     seen_query = select(SnippetInteraction.snippet_id).where(
         SnippetInteraction.session_id == session_id
@@ -49,7 +50,7 @@ def get_recommended_snippets(
     if not snippet_ids:
         return get_random_snippets(session, limit)
 
-    # Preserving the order of snippet_ids in the relevance order Chroma provided
+    # Preserving the order of snippet_ids in the  provided relevance order
     order_preserved = case(
         {id_: index for index, id_ in enumerate(snippet_ids)}, value=Snippet.id
     )
