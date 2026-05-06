@@ -12,18 +12,19 @@ class Settings(BaseSettings):
     # Databases
     database_url: str
 
-    # Servers
+    # Servers and Cloud
     ai_model_server_url: str
     gcs_base_url: str
+    google_app_email_address: str
+    google_app_password: str
+    gemini_api_key: str
+    google_cloud_project: str
 
     # Security
     secret_key: str
     jwt_algorithm: str
     access_token_expire_minutes: int = 10
     otp_expire_minutes: int = 5
-    google_app_email_address: str
-    google_app_password: str
-    gemini_api_key: str
 
     # Media
     brick_audios_folder: str = "brick-audios"
