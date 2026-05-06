@@ -3,7 +3,7 @@ from datetime import datetime, timezone
 from fastapi import HTTPException, status
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import selectinload
-from sqlmodel import Session, delete, func, or_, select
+from sqlmodel import Session, and_, delete, func, or_, select
 
 from app.database import (
     Brick,
@@ -49,18 +49,36 @@ def get_pending_bricks(
     A brick is considered pending of a learner if it's created or has a
     override version created by that learner.
     """
-    statement = select(Brick).join(BrickOverride, isouter=True)
+
+    # A Brick can have 0 to many BrickOverride
+    # A creator cannot have an override for a Brick he created
+    # Left join to get all bricks, and its possible overrides from learner_id
+    statement = select(
+        Brick,
+        func.coalesce(BrickOverride.native_text, Brick.native_text).label(
+            "final_native_text"
+        ),
+    ).join(
+        BrickOverride,
+        and_(
+            BrickOverride.brick_id == Brick.id,
+            BrickOverride.learner_id == learner_id,
+        ),
+        isouter=True,
+    )
 
     conditions = []
-    if collection_id:
-        conditions.append(Brick.collection_id == collection_id)
 
+    # The conditions of a brick to be called a pending brick
     conditions.append(
         or_(
             Brick.creator_id == learner_id,
             BrickOverride.learner_id == learner_id,
         )
     )
+
+    if collection_id:
+        conditions.append(Brick.collection_id == collection_id)
 
     if group_names:
         statement = statement.join(Collection, isouter=True)
@@ -74,7 +92,17 @@ def get_pending_bricks(
     if offset is not None:
         statement = statement.offset(offset)
 
-    return session.exec(statement).all()
+    results = session.exec(statement).all()
+
+    bricks = []
+    for brick, final_native_text in results:
+        # the final_native_text is either from the original brick or
+        # its overridden depends on whether the learner is the creator
+        # or not, and cannot be null because Brick.native_text can't
+        brick.native_text = final_native_text
+        bricks.append(brick)
+
+    return bricks
 
 
 def count_pending_bricks(
