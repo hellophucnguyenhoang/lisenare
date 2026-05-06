@@ -1,3 +1,5 @@
+import json
+
 import numpy as np
 from langchain_core.documents import Document
 from langchain_ollama import OllamaEmbeddings
@@ -249,25 +251,28 @@ class ContextSearchService:
                 filter=filter_,
             )
 
-        return [int(doc.id) for doc in results if doc.id is not None]
+        return [
+            doc.metadata["snippet_id"] for doc in results if doc.id is not None
+        ]
 
     def get_embedding(
         self, session: Session, snippet_id: int
     ) -> NDArray | None:
-        target_id = str(snippet_id)
+
+        doc_id = f"Snippet_{snippet_id}"
 
         query = text("""
             SELECT embedding FROM langchain_pg_embedding 
-            WHERE cmetadata->>'id' = :target_id 
+            WHERE id = :doc_id
             LIMIT 1
         """)
 
-        # .first() gets the first value directly (the vector)
-        result = session.exec(query, params={"target_id": target_id}).first()
+        result = session.exec(query, params={"doc_id": doc_id}).first()
 
         if result is not None:
-            # Result is already a list/array from the pgvector driver
-            return np.array(result, dtype=np.float32)
+            vector_str = result[0]
+            vector = json.loads(vector_str)
+            return np.array(vector, dtype=np.float32)
 
         return None
 
