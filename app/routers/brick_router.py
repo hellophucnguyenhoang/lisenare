@@ -169,7 +169,7 @@ async def create_brick(
         )
 
     creator_id = learner.id
-    learner_audio_path, _ = await file_utils.save_upload_file(
+    learner_audio_path, _ = await file_utils.save_cloud_upload_file(
         file=audio_file,
         base_dir=settings.brick_audios_folder,
         filename_prefix=f"ln{creator_id}rec",

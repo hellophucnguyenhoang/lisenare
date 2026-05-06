@@ -43,9 +43,10 @@ def calculate_rocchio_update(
 
     # Group types by the mathematical operation they perform
     positive_interactions = {
+        InteractionType.LISTEN,
+        InteractionType.VIEW_TRANSLATION,
         InteractionType.LIKE,
         InteractionType.ADD,
-        InteractionType.LISTEN,
     }
     negative_interactions = {InteractionType.DISLIKE}
 
