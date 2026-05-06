@@ -289,10 +289,11 @@ class SnippetInteraction(SQLModel, table=True):
     snippet: "Snippet" = Relationship(back_populates="interactions")
 
 
-class SnippetLike(SQLModel, table=True):
+class SnippetReaction(SQLModel, table=True):
     learner_id: int = Field(foreign_key="learner.id", primary_key=True)
     snippet_id: int = Field(foreign_key="snippet.id", primary_key=True)
-    created_at: datetime = Field(
+    reaction: str  # LIKE / DISLIKE
+    updated_at: datetime = Field(
         default_factory=lambda: datetime.now(timezone.utc)
     )
 

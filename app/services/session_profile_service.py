@@ -47,7 +47,7 @@ def calculate_rocchio_update(
         InteractionType.ADD,
         InteractionType.LISTEN,
     }
-    negative_interactions = {InteractionType.UNLIKE}
+    negative_interactions = {InteractionType.DISLIKE}
 
     # 1. Determine if this interaction is positive or negative
     is_positive = interaction_type in positive_interactions or (

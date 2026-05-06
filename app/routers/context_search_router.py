@@ -80,7 +80,7 @@ def search_context_snippets(
     search_result = context_search_service.search_snippets(
         session, context_search_request.query
     )
-    search_result = snippet_like_service.apply_like_state_to_reads(
+    search_result = snippet_like_service.hydrate_reactions(
         session, search_result, learner_id
     )
     end = time.time()

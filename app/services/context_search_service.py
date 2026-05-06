@@ -42,8 +42,8 @@ def search_bricks_literal(
             cefr_level, 
             is_public
         FROM brick
-        WHERE to_tsvector('english', target_text || ' ' || native_text) @@ websearch_to_tsquery('english', :val)
-        ORDER BY ts_rank(to_tsvector('english', target_text), websearch_to_tsquery('english', :val)) DESC
+        WHERE to_tsvector('simple', target_text || ' ' || native_text) @@ websearch_to_tsquery('simple', :val)
+        ORDER BY ts_rank(to_tsvector('simple', target_text), websearch_to_tsquery('simple', :val)) DESC
     """)
 
     results = session.exec(statement, params={"val": keyword})
@@ -66,8 +66,8 @@ def search_snippets_literal(
             l.full_name 
         FROM snippet s
         JOIN learner l ON s.creator_id = l.id 
-        WHERE to_tsvector('english', s.content) @@ websearch_to_tsquery('english', :val)
-        ORDER BY ts_rank(to_tsvector('english', s.content), websearch_to_tsquery('english', :val)) DESC
+        WHERE to_tsvector('simple', s.content) @@ websearch_to_tsquery('simple', :val)
+        ORDER BY ts_rank(to_tsvector('simple', s.content), websearch_to_tsquery('simple', :val)) DESC
     """)
 
     raw_rows = session.exec(statement, params={"val": keyword}).all()

@@ -1,46 +1,45 @@
 from sqlmodel import Session, select
 
-from app.database import Snippet, SnippetLike
+from app.database import Snippet, SnippetReaction
 from app.schemas import SnippetRead
 
 
-def apply_like_state(
+def get_reaction_map(
+    session: Session,
+    snippet_ids: list[int],
+    learner_id: int | None,
+) -> dict[int, str]:
+    if not learner_id or not snippet_ids:
+        return {}
+
+    rows = session.exec(
+        select(SnippetReaction.snippet_id, SnippetReaction.reaction).where(
+            SnippetReaction.learner_id == learner_id,
+            SnippetReaction.snippet_id.in_(snippet_ids),
+        )
+    ).all()
+
+    return {snippet_id: reaction for snippet_id, reaction in rows}
+
+
+def attach_reactions(
     session: Session,
     snippets: list[Snippet],
     learner_id: int | None,
 ) -> list[SnippetRead]:
-
-    # Anonymous user -> all False
-    if not learner_id:
-        return [
-            SnippetRead.model_validate(s, update={"is_liked": False})
-            for s in snippets
-        ]
-
-    # Get snippet IDs
     snippet_ids = [s.id for s in snippets]
+    reaction_map = get_reaction_map(session, snippet_ids, learner_id)
 
-    # Fetch liked IDs in one query
-    liked_ids = set(
-        session.exec(
-            select(SnippetLike.snippet_id).where(
-                SnippetLike.learner_id == learner_id,
-                SnippetLike.snippet_id.in_(snippet_ids),
-            )
-        ).all()
-    )
-
-    # Map to response
     return [
         SnippetRead.model_validate(
             s,
-            update={"is_liked": (s.id in liked_ids)},
+            update={"reaction": reaction_map.get(s.id)},
         )
         for s in snippets
     ]
 
 
-def apply_like_state_to_reads(
+def hydrate_reactions(
     session: Session,
     snippets: list[SnippetRead],
     learner_id: int | None,
@@ -49,25 +48,10 @@ def apply_like_state_to_reads(
     if not snippets:
         return []
 
-    # Anonymous -> all False
-    if not learner_id:
-        for s in snippets:
-            s.is_liked = False
-        return snippets
-
     snippet_ids = [s.id for s in snippets]
+    reaction_map = get_reaction_map(session, snippet_ids, learner_id)
 
-    liked_ids = set(
-        session.exec(
-            select(SnippetLike.snippet_id).where(
-                SnippetLike.learner_id == learner_id,
-                SnippetLike.snippet_id.in_(snippet_ids),
-            )
-        ).all()
-    )
-
-    # mutate in-place (clean + efficient)
     for s in snippets:
-        s.is_liked = s.id in liked_ids
+        s.reaction = reaction_map.get(s.id)
 
     return snippets

@@ -28,7 +28,7 @@ def get_random_snippets(
 ) -> SnippetPage:
     snippets = snippet_service.get_random_snippets(session, page_size)
     learner_id = learner.id if learner else None
-    snippets = snippet_like_service.apply_like_state(
+    snippets = snippet_like_service.attach_reactions(
         session, snippets, learner_id
     )
     snippet_page = SnippetPage(items=snippets, total=len(snippets))
@@ -48,7 +48,7 @@ def get_recommended_snippets(
         session, session_id, page_size
     )
     learner_id = learner.id if learner else None
-    snippets = snippet_like_service.apply_like_state(
+    snippets = snippet_like_service.attach_reactions(
         session, snippets, learner_id
     )
     snippet_page = SnippetPage(items=snippets, total=len(snippets))

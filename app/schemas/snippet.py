@@ -19,7 +19,7 @@ class SnippetRead(SnippetBase):
     audio_path: str
     created_at: datetime
     creator: LearnerRead
-    is_liked: bool = False
+    reaction: str | None = None  # LIKE / DISLIKE / None
 
 
 class SnippetPage(SQLModel):

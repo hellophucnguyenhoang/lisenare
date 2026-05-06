@@ -19,7 +19,7 @@ class Settings(BaseSettings):
     # Security
     secret_key: str
     jwt_algorithm: str
-    access_token_expire_minutes: int = 60
+    access_token_expire_minutes: int = 10
     otp_expire_minutes: int = 5
     google_app_email_address: str
     google_app_password: str

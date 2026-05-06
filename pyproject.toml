@@ -5,6 +5,7 @@ description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
+    "alembic>=1.18.4",
     "fastapi[standard]>=0.120.1",
     "fastdtw>=0.3.4",
     "ffmpeg-python>=0.2.0",
