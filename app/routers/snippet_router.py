@@ -47,11 +47,19 @@ def get_recommended_snippets(
     snippets = snippet_service.get_recommended_snippets(
         session, session_id, page_size
     )
+
+    total_page = len(snippets)
+    if total_page < page_size:
+        additional_snippets = snippet_service.get_random_snippets(
+            session, limit=page_size - total_page
+        )
+        snippets.extend(additional_snippets)
+
     learner_id = learner.id if learner else None
     snippets = snippet_like_service.attach_reactions(
         session, snippets, learner_id
     )
-    snippet_page = SnippetPage(items=snippets, total=len(snippets))
+    snippet_page = SnippetPage(items=snippets, total=total_page)
     print(f"{snippet_page.total = }")
     return snippet_page
 
