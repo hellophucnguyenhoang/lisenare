@@ -104,6 +104,7 @@ def handle_interaction_and_update_profile(
             session, data.snippet_id
         )
         if embedding is not None:
+            print("retrieve embedding not none")
             session_profile_service.update_session_profile(
                 db_session=session,
                 session_id=data.session_id,
