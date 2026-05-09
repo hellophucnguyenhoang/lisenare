@@ -91,6 +91,7 @@ class Learner(SQLModel, table=True):
         back_populates="learner"
     )
     historyanswerquestions: list["HistoryAnswerQuestion"] = Relationship(back_populates="learners")
+    thetalearnerlessons: list["ThetaLearnerLesson"] = Relationship(back_populates="learner")
 
 class Collection(SQLModel, table=True):
     id: int | None = Field(default=None, primary_key=True)
@@ -287,6 +288,8 @@ class Lesson(SQLModel, table=True):
 
     concepts: list["Concept"] = Relationship(back_populates="lesson")
     exercises: list["Exercise"] = Relationship(back_populates="lesson")
+    thetalearnerlessons: list["ThetaLearnerLesson"] = Relationship(back_populates="lesson")
+
 
 
 # Concept (Core node)
@@ -342,11 +345,11 @@ class ConceptRelation(SQLModel, table=True):
 class Exercise(SQLModel, table=True):
     id: int | None = Field(default=None, primary_key=True)
     name: str
-
+    difficulty: float | None = Field(default=0.0)
     lesson_id: int = Field(default=None, foreign_key="lesson.id")
     lesson: Lesson | None = Relationship(back_populates="exercises")
-
     questions: list["Question"] = Relationship(back_populates="exercise")
+
 
 
 class Question(SQLModel, table=True):
@@ -359,7 +362,7 @@ class Question(SQLModel, table=True):
 
     type: str | None = None
     score: float | None = None
-    difficulty: float = 0.0
+    difficulty: float | None = Field(default=0.0)
     exercise_id: int = Field(default=None, foreign_key="exercise.id")
     exercise: Exercise | None = Relationship(back_populates="questions")
     historyanswerquestions: list["HistoryAnswerQuestion"] = Relationship(back_populates="questions")
@@ -380,6 +383,16 @@ class HistoryAnswerQuestion(SQLModel, table=True):
     timesecond: datetime | None = None 
     questions : Question = Relationship(back_populates="historyanswerquestions")
     learners : Learner = Relationship(back_populates="historyanswerquestions")
+
+class ThetaLearnerLesson(SQLModel, table=True):
+    id: int | None = Field(default=None, primary_key=True)
+    learner_id: int = Field(foreign_key="learner.id")
+    lesson_id: int = Field(foreign_key="lesson.id")
+    theta: float | None = Field(default=0)
+
+    lesson: Lesson | None = Relationship(back_populates="thetalearnerlessons")
+    learner: Learner | None = Relationship(back_populates="thetalearnerlessons")
+
 
 
 sqlite_url = f"sqlite:///{settings.db_path}"
@@ -660,7 +673,6 @@ def init_from_attach_dbs(session: Session):
     )
     print(f"Attached {settings.ytb_subtitle_db_path}")
 
-
 def transfer_knowledge_graph_data():
     engine_old = create_engine(
         f"sqlite:///{BASE_DIR}/knowledge_graph.db", echo=False
@@ -671,18 +683,23 @@ def transfer_knowledge_graph_data():
         "exercise": Exercise,
         "question": Question,
     }
+
     with Session(engine_old) as session_old:
         all_data = {}
         for table_name, model in dict_mapping.items():
-            all_data[table_name] = [
-                r.model_dump() for r in session_old.exec(select(model)).all()
-            ]
+            # Đọc raw, không dùng ORM
+            rows = session_old.exec(text(f"SELECT * FROM {table_name}")).all()
+            columns = session_old.exec(text(f"PRAGMA table_info({table_name})")).all()
+            col_names = [col[1] for col in columns]
+            all_data[table_name] = [dict(zip(col_names, row)) for row in rows]
 
     with Session(engine) as session_new:
         try:
             for table_name, model in dict_mapping.items():
+                valid_fields = model.model_fields.keys()
                 for data in all_data[table_name]:
-                    session_new.add(model(**data))
+                    filtered = {k: v for k, v in data.items() if k in valid_fields}
+                    session_new.add(model(**filtered))
             session_new.commit()
             print("Knowledge graph data transferred successfully.")
         except Exception as e:
