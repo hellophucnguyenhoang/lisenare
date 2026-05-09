@@ -3,8 +3,9 @@ from sqlmodel import Session, asc, desc, func, select
 
 from app.database import Brick, Collection, Review
 from app.schemas import CollectionSort, CollectionStatus
+from utils import text_utils
 
-from . import brick_service, text_service
+from . import brick_service
 
 
 def get_collections(
@@ -182,7 +183,7 @@ def update_collection_difficulty(session: Session, collection_id: int):
 
     if bricks:
         sum_score = sum(
-            text_service.log_frequency(b.target_text) for b in bricks
+            text_utils.log_frequency(b.target_text) for b in bricks
         )
         collection = session.get(Collection, collection_id)
         if collection:

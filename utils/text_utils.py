@@ -1,4 +1,84 @@
+import math
 import re
+from difflib import get_close_matches
+
+import enchant
+import nltk
+import spacy
+from nltk.stem import LancasterStemmer
+from wordfreq import word_frequency
+
+dict_checker = enchant.Dict("en_US")
+nltk.download("punkt")
+nlp = spacy.load("en_core_web_sm")
+
+
+def log_frequency(text: str, lang="en") -> float:
+    # Tokenize the sentence and get the frequency of every token,
+    # then aggregate them using the Harmonic Mean
+    # Formula: 1 / (1/f1 + 1/f2 + ...)
+    content_freq = word_frequency(text, lang)
+    return math.log10(content_freq + 1e-9)
+
+
+def calculate_rarity(text: str, lang="en") -> float:
+    """
+    Calculate lexical rarity score of a text.
+
+    Returns:
+        float in range [0, 1]
+        Higher means less common / rarer.
+    """
+    log_freq = log_frequency(text, lang)
+    return -log_freq / 9
+
+
+def lemmatize_to_set(text: str) -> set[str]:
+    """
+    Convert text into a set of normalized lemmas.
+    """
+    doc = nlp(text)
+
+    lemmas = {token.lemma_.lower() for token in doc if token.is_alpha}
+
+    return lemmas
+
+
+def get_lenient_stems(text: str) -> set[str]:
+    """
+    Uses the aggressive Lancaster Stemmer to ensure UK/US and
+    tense variations match correctly.
+    """
+    stemmer = LancasterStemmer()
+
+    # Tokenize: lowercase and keep only words
+    words = re.findall(r"\b\w+\b", text.lower())
+
+    # Apply aggressive stemming
+    return {stemmer.stem(word) for word in words}
+
+
+def normalize_target_term(word: str) -> tuple[str, bool]:
+    word = word.strip()
+
+    # 1. Perfect match
+    if dict_checker.check(word):
+        return word, True
+
+    # 2. Fix typos
+    suggestions = dict_checker.suggest(word)
+    if suggestions:
+        matches = get_close_matches(word, suggestions, n=1, cutoff=0.7)
+        if matches:
+            # FIX: matches is a list, so return the string matches[0]
+            return matches[0], True
+
+    # 3. Not English
+    return word, False
+
+
+def is_valid_english(text: str) -> bool:
+    return dict_checker.check(text)
 
 
 def normalize_currency(text: str) -> str:

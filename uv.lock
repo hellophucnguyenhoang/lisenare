@@ -693,12 +693,33 @@ wheels = [
 ]
 
 [[package]]
+name = "en-core-web-sm"
+version = "3.8.0"
+source = { url = "https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.8.0/en_core_web_sm-3.8.0-py3-none-any.whl" }
+wheels = [
+    { url = "https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.8.0/en_core_web_sm-3.8.0-py3-none-any.whl", hash = "sha256:1932429db727d4bff3deed6b34cfc05df17794f4a52eeb26cf8928f7c1a0fb85" },
+]
+
+[[package]]
 name = "et-xmlfile"
 version = "2.0.0"
 source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/d3/38/af70d7ab1ae9d4da450eeec1fa3918940a5fafb9055e934af8d6eb0c2313/et_xmlfile-2.0.0.tar.gz", hash = "sha256:dab3f4764309081ce75662649be815c4c9081e88f0837825f90fd28317d4da54", size = 17234, upload-time = "2024-10-25T17:25:40.039Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/c1/8b/5fe2cc11fee489817272089c4203e679c63b570a5aaeb18d852ae3cbba6a/et_xmlfile-2.0.0-py3-none-any.whl", hash = "sha256:7a91720bc756843502c3b7504c77b8fe44217c85c537d85037f0f536151b2caa", size = 18059, upload-time = "2024-10-25T17:25:39.051Z" },
+]
+
+[[package]]
+name = "fakeredis"
+version = "2.35.1"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "redis" },
+    { name = "sortedcontainers" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/43/50/b748233c02fa77e5105238190cc9bb58b852eb1c8b1d0763230d3a5b745a/fakeredis-2.35.1.tar.gz", hash = "sha256:5bae5eba7b9d93cb968944ac40936373cf2397ff71667d4b595df65c3d2e413f", size = 189118, upload-time = "2026-04-12T17:05:58.539Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/6f/27/b8b057a23f7777177e92d3a602fd866751b6b45014964548997e92e048fd/fakeredis-2.35.1-py3-none-any.whl", hash = "sha256:67d97e11f562b7870e11e5c30cf182270bfb2dd37f6707dba47cc6d91628d1b9", size = 129678, upload-time = "2026-04-12T17:05:56.86Z" },
 ]
 
 [[package]]
@@ -1477,6 +1498,8 @@ version = "0.1.0"
 source = { virtual = "." }
 dependencies = [
     { name = "alembic" },
+    { name = "en-core-web-sm" },
+    { name = "fakeredis" },
     { name = "fastapi", extra = ["standard"] },
     { name = "fastdtw" },
     { name = "ffmpeg-python" },
@@ -1497,6 +1520,7 @@ dependencies = [
     { name = "psycopg2-binary" },
     { name = "pwdlib", extra = ["argon2"] },
     { name = "pydantic-settings" },
+    { name = "pyenchant" },
     { name = "pyjwt" },
     { name = "pytest" },
     { name = "python-dotenv" },
@@ -1519,6 +1543,8 @@ dependencies = [
 [package.metadata]
 requires-dist = [
     { name = "alembic", specifier = ">=1.18.4" },
+    { name = "en-core-web-sm", url = "https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.8.0/en_core_web_sm-3.8.0-py3-none-any.whl" },
+    { name = "fakeredis", specifier = ">=2.35.1" },
     { name = "fastapi", extras = ["standard"], specifier = ">=0.120.1" },
     { name = "fastdtw", specifier = ">=0.3.4" },
     { name = "ffmpeg-python", specifier = ">=0.2.0" },
@@ -1539,6 +1565,7 @@ requires-dist = [
     { name = "psycopg2-binary", specifier = ">=2.9.12" },
     { name = "pwdlib", extras = ["argon2"], specifier = ">=0.3.0" },
     { name = "pydantic-settings", specifier = ">=2.11.0" },
+    { name = "pyenchant", specifier = ">=3.3.0" },
     { name = "pyjwt", specifier = ">=2.10.1" },
     { name = "pytest", specifier = ">=9.0.2" },
     { name = "python-dotenv", specifier = ">=1.2.1" },
@@ -2701,6 +2728,17 @@ wheels = [
 ]
 
 [[package]]
+name = "pyenchant"
+version = "3.3.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/36/ad/64925c937e41be75c7067c85757b3d45b148e9111187b37693269f583156/pyenchant-3.3.0.tar.gz", hash = "sha256:825288246b5debc9436f91967650974ef0d5636458502619e322c476f1283891", size = 60696, upload-time = "2025-09-14T16:23:12.113Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/38/b0/35926bad6885fb7bc24aa7e1b45e6d86540c6c57ee4abc4fed1ef58d4ec0/pyenchant-3.3.0-py3-none-any.whl", hash = "sha256:3da00b1d01314d85aac733bb997415d7a3e875666dc81735ddcf320aa36b7a70", size = 58363, upload-time = "2025-09-14T16:23:04.297Z" },
+    { url = "https://files.pythonhosted.org/packages/d6/7f/1d7b8ad86c2a841d940df7b965fa727e052b95d539e4c563da685c25d0d2/pyenchant-3.3.0-py3-none-win32.whl", hash = "sha256:1d55e075645a6edbb3c590fb42f9e02b4d455e4affe28a2227d5cb6d4868e626", size = 37787278, upload-time = "2025-09-14T16:23:06.629Z" },
+    { url = "https://files.pythonhosted.org/packages/ad/ae/5624803b62ecb0a20248f0d28ed3f78c78746a032582a016d4b2890c7899/pyenchant-3.3.0-py3-none-win_amd64.whl", hash = "sha256:04a5bd0e022ebe2e8c6d9e498ec3d650602e264ec5486e9c6a1b7f99c9507c49", size = 37427576, upload-time = "2025-09-14T16:23:09.574Z" },
+]
+
+[[package]]
 name = "pygments"
 version = "2.19.2"
 source = { registry = "https://pypi.org/simple" }
@@ -3432,6 +3470,15 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/a2/87/a6771e1546d97e7e041b6ae58d80074f81b7d5121207425c964ddf5cfdbd/sniffio-1.3.1.tar.gz", hash = "sha256:f4324edc670a0f49750a81b895f35c3adb843cca46f0530f79fc1babb23789dc", size = 20372, upload-time = "2024-02-25T23:20:04.057Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/e9/44/75a9c9421471a6c4805dbf2356f7c181a29c1879239abab1ea2cc8f38b40/sniffio-1.3.1-py3-none-any.whl", hash = "sha256:2f6da418d1f1e0fddd844478f41680e794e6051915791a034ff65e5f100525a2", size = 10235, upload-time = "2024-02-25T23:20:01.196Z" },
+]
+
+[[package]]
+name = "sortedcontainers"
+version = "2.4.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/e8/c4/ba2f8066cceb6f23394729afe52f3bf7adec04bf9ed2c820b39e19299111/sortedcontainers-2.4.0.tar.gz", hash = "sha256:25caa5a06cc30b6b83d11423433f65d1f9d76c4c6a0c90e3379eaa43b9bfdb88", size = 30594, upload-time = "2021-05-16T22:03:42.897Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/32/46/9cb0e58b2deb7f82b84065f37f3bffeb12413f947f9388e4cac22c4621ce/sortedcontainers-2.4.0-py2.py3-none-any.whl", hash = "sha256:a163dcaede0f1c021485e957a39245190e74249897e2ae4b2aa38595db237ee0", size = 29575, upload-time = "2021-05-16T22:03:41.177Z" },
 ]
 
 [[package]]

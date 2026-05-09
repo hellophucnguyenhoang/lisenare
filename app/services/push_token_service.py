@@ -42,7 +42,7 @@ def send_push_notification(
     tokens, titles, bodies, data_objs=None
 ) -> list[str] | None:
     if len(tokens) > 90:
-        print()
+        print("Too many tokens to send push notification")
         return None
 
     headers = {
@@ -137,7 +137,6 @@ def get_eligible_learner_ids(session: Session) -> list[int]:
         # Only learners where at least one token is "ready" to receive
         .where(
             or_(
-                True,
                 PushToken.last_sent_at.is_(None),
                 PushToken.last_sent_at <= twelve_hours_ago,
             )
@@ -158,7 +157,7 @@ def send_notifications_to_learners(
     session: Session,
     learner_ids: list[int],
 ):
-    # 1. Get all relevant tokens for these learners
+    # Get all relevant tokens for these learners
     statement = (
         select(PushToken)
         .where(PushToken.learner_id.in_(learner_ids))

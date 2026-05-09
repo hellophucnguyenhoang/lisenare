@@ -1,8 +1,15 @@
+import json
+
+import fakeredis
 from google import genai
+from ollama import chat
 
 from app.config import settings
 
 client = genai.Client(api_key=settings.gemini_api_key)
+
+r = fakeredis.FakeRedis()
+SESSION_EXPIRY = 3600  # 60 minutes in seconds
 
 
 def generate_response_stream(user_message: str):
@@ -12,6 +19,35 @@ def generate_response_stream(user_message: str):
     )
     for chunk in response:
         yield chunk.text
+
+
+def generate_chat_stream(session_id: str, user_message: str):
+    session_key = f"chat:{session_id}"
+
+    # 1. Retrieve history from Redis
+    raw_history = r.get(session_key)
+    # If no history exists, start with a system prompt
+    messages = (
+        json.loads(raw_history) if raw_history else []
+    )  # [] or [{"role": "system", "content": "You are a helpful assistant."}]
+
+    # 2. Add the new user message
+    messages.append({"role": "user", "content": user_message})
+
+    # 3. Stream from Ollama
+    stream = chat(model="gemma3:1b", messages=messages, stream=True)
+
+    full_response = ""
+    for chunk in stream:
+        content = chunk["message"]["content"]
+        full_response += content
+        yield content
+
+    # 4. Add the assistant's response to history and save
+    messages.append({"role": "assistant", "content": full_response})
+
+    # resets the countdown every time a message is sent
+    r.setex(session_key, SESSION_EXPIRY, json.dumps(messages))
 
 
 def generate_response_stream_fake(user_message: str):

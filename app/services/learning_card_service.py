@@ -1,3 +1,4 @@
+import math
 import random
 from collections import defaultdict
 from datetime import datetime, timedelta, timezone
@@ -8,8 +9,9 @@ from fsrs import Card, Scheduler
 from sqlalchemy import Float, cast
 from sqlmodel import Session, case, func, select
 
-from app.database import LearningCard
+from app.database import Brick, LearningCard
 from utils.db_utils import apply_time_filter
+from utils.text_utils import calculate_rarity, get_lenient_stems
 
 from .review_service import (
     get_daily_review_counts,
@@ -302,3 +304,74 @@ def downsample_points(data: list[dict], max_points: int = 50):
         result[-1] = data[-1]
 
     return result
+
+
+def get_learner_seen_stems(
+    session: Session,
+    learner_id: int,
+) -> set[str]:
+    """
+    Get all unique stems the learner has seen.
+    """
+
+    statement = (
+        select(Brick.target_text)
+        .join(LearningCard, LearningCard.brick_id == Brick.id)
+        .where(LearningCard.learner_id == learner_id)
+    )
+
+    sentences = session.exec(statement).all()
+
+    seen_stems = set()
+
+    for sentence in sentences:
+        seen_stems.update(get_lenient_stems(sentence))
+
+    return seen_stems
+
+
+def calculate_sentence_familiarity(
+    session: Session,
+    learner_id: int,
+    sentence: str,
+) -> float:
+    """
+    Calculate how familiar/easy a sentence is for a learner.
+
+    Score range:
+        [0, 1]
+
+    Higher means:
+        - fewer unknown words
+        - unknown words are more common
+
+    Formula:
+        familiarity = (1 - unknown_ratio) * (1 - avg_unknown_rarity)
+    """
+
+    sentence_stems = get_lenient_stems(sentence)
+
+    if not sentence_stems:
+        return 0.0
+
+    learner_seen_stems = get_learner_seen_stems(
+        session=session,
+        learner_id=learner_id,
+    )
+
+    unknown_stems = sentence_stems - learner_seen_stems
+
+    unknown_ratio = len(unknown_stems) / len(sentence_stems)
+    print(f"{unknown_ratio=}")
+    # No unknown words -> perfectly familiar
+    if not unknown_stems:
+        return 1.0
+
+    avg_unknown_rarity = sum(
+        calculate_rarity(word) for word in unknown_stems
+    ) / len(unknown_stems)
+    print(f"{avg_unknown_rarity=}")
+
+    familiarity = math.exp(-unknown_ratio - avg_unknown_rarity)
+    print(f"{familiarity=}|{sentence=}")
+    return familiarity

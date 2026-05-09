@@ -2,14 +2,11 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends
 from sqlmodel import Session
-from wordfreq import word_frequency
 
 import app.http_client as http_client
 from app.database import Learner, get_session
 from app.schemas import (
     ReviewCreate,
-    TextFrequencyRequest,
-    TextFrequencyResponse,
     WordSegmentSecond,
 )
 from app.services import (
@@ -86,16 +83,3 @@ async def translate(
         r.json()
     )
     return sentence_translate_respond
-
-
-@router.post("/frequency")
-def get_text_frequency(
-    text_frequency_request: TextFrequencyRequest,
-) -> TextFrequencyResponse:
-    # Tokenize the sentence and get the frequency of every token,
-    # then aggregate them using the Harmonic Mean
-    # Formula: 1 / (1/f1 + 1/f2 + ...)
-    frequency = word_frequency(
-        text_frequency_request.english_sentence, lang="en"
-    )
-    return TextFrequencyResponse(frequency=frequency)
