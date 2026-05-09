@@ -15,3 +15,4 @@ def get_exercise_by_lesson_id(
     statement = select(Exercise).where(Exercise.lesson_id == lesson_id)
     results = session.exec(statement)
     return results.all()
+
