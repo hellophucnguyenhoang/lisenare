@@ -1,10 +1,11 @@
 #!/bin/bash
-ollama serve &
 
+# start Ollama in the background and wait a moment for services to warm up
+ollama serve &
 sleep 5
 
 ollama pull mahonzhan/all-MiniLM-L6-v2
-
+ollama pull gemma3:1b
 
 # Start the AI model server in the background
 # Port (8001) is internal only

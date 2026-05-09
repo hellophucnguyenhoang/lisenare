@@ -1,13 +1,6 @@
 import difflib
-import math
 
 from jiwer import cer
-from wordfreq import word_frequency
-
-
-def log_frequency(text: str, lang="en") -> float:
-    content_freq = word_frequency(text, lang)
-    return math.log10(content_freq + 1e-9)
 
 
 class TextService:

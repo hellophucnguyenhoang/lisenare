@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pandas as pd
 from pydantic import EmailStr
-from sqlalchemy import CheckConstraint, Index, inspect
+from sqlalchemy import CheckConstraint, DateTime, Index, inspect
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlmodel import (
     Field,
@@ -17,6 +17,7 @@ from sqlmodel import (
 )
 
 from schemas.cefr import CEFR_MAPPING, CEFRLevel
+from utils import text_utils
 
 from . import security
 from .config import settings
@@ -28,7 +29,6 @@ from .schemas import (
     SentenceStructure,
     UnitType,
 )
-from .services import text_service
 
 
 class BrickMetadataGrammarPoint(SQLModel, table=True):
@@ -63,7 +63,8 @@ class Account(SQLModel, table=True):
     hashed_password: str = Field(unique=True)
     email: EmailStr | None = Field(default=None, index=True, unique=True)
     last_login_at: datetime = Field(
-        default_factory=lambda: datetime.now(timezone.utc)
+        default_factory=lambda: datetime.now(timezone.utc),
+        sa_type=DateTime(timezone=True),
     )
     learner_id: int = Field(foreign_key="learner.id", unique=True)
     learner: "Learner" = Relationship(back_populates="account")
@@ -72,7 +73,9 @@ class Account(SQLModel, table=True):
 class PushToken(SQLModel, table=True):
     id: int | None = Field(default=None, primary_key=True)
     token: str = Field(index=True, unique=True)
-    last_sent_at: datetime | None = None
+    last_sent_at: datetime | None = Field(
+        default=None, sa_type=DateTime(timezone=True)
+    )
     device_name: str | None = None
     last_ticket_id: str | None = None
     learner_id: int = Field(foreign_key="learner.id")
@@ -108,7 +111,8 @@ class Collection(SQLModel, table=True):
     )
     difficulty_score: float
     created_at: datetime = Field(
-        default_factory=lambda: datetime.now(timezone.utc)
+        default_factory=lambda: datetime.now(timezone.utc),
+        sa_type=DateTime(timezone=True),
     )
     creator_id: int = Field(foreign_key="learner.id")
     creator: Learner = Relationship(back_populates="collections")
@@ -128,7 +132,8 @@ class Brick(SQLModel, table=True):
     cefr_level: CEFRLevel | None = None
     is_public: bool = True
     last_edit_at: datetime = Field(
-        default_factory=lambda: datetime.now(timezone.utc)
+        default_factory=lambda: datetime.now(timezone.utc),
+        sa_type=DateTime(timezone=True),
     )
     creator_id: int = Field(foreign_key="learner.id")
     creator: Learner = Relationship(back_populates="bricks")
@@ -185,7 +190,8 @@ class BrickOverride(SQLModel, table=True):
     native_text: str | None = None
     target_audio_path: str | None = None
     last_edit_at: datetime = Field(
-        default_factory=lambda: datetime.now(timezone.utc)
+        default_factory=lambda: datetime.now(timezone.utc),
+        sa_type=DateTime(timezone=True),
     )
 
 
@@ -199,7 +205,8 @@ class Review(SQLModel, table=True):
         ge=1, le=4
     )  # Again = 1, Hard = 2, Good = 3, Easy = 4
     reviewed_at: datetime = Field(
-        default_factory=lambda: datetime.now(timezone.utc)
+        default_factory=lambda: datetime.now(timezone.utc),
+        sa_type=DateTime(timezone=True),
     )
     user_target_text: str | None = None
     user_target_audio_path: str | None = None
@@ -214,9 +221,10 @@ class LearningCard(SQLModel, table=True):
     )
     brick: "Brick" = Relationship(back_populates="learning_cards")
     fsrs_card_dict: dict = Field(default={}, sa_type=JSONB)
-    due: datetime
+    due: datetime = Field(sa_type=DateTime(timezone=True))
     created_at: datetime = Field(
-        default_factory=lambda: datetime.now(timezone.utc)
+        default_factory=lambda: datetime.now(timezone.utc),
+        sa_type=DateTime(timezone=True),
     )
 
 
@@ -228,7 +236,8 @@ class OTP(SQLModel, table=True):
         default_factory=lambda: (
             datetime.now(timezone.utc)
             + timedelta(minutes=settings.otp_expire_minutes)
-        )
+        ),
+        sa_type=DateTime(timezone=True),
     )
     used: bool = False
 
@@ -240,7 +249,8 @@ class Snippet(SQLModel, table=True):
     creator_id: int = Field(default=None, foreign_key="learner.id")
     creator: Learner = Relationship()
     created_at: datetime = Field(
-        default_factory=lambda: datetime.now(timezone.utc)
+        default_factory=lambda: datetime.now(timezone.utc),
+        sa_type=DateTime(timezone=True),
     )
     is_public: bool = True
     translation: str | None = None  # for dynamic translation
@@ -281,7 +291,8 @@ class SnippetInteraction(SQLModel, table=True):
     duration: float | None = None  # for TIME_SPENT
 
     created_at: datetime = Field(
-        default_factory=lambda: datetime.now(timezone.utc)
+        default_factory=lambda: datetime.now(timezone.utc),
+        sa_type=DateTime(timezone=True),
     )
 
     learner_id: int | None = Field(default=None, foreign_key="learner.id")
@@ -294,7 +305,8 @@ class SnippetReaction(SQLModel, table=True):
     snippet_id: int = Field(foreign_key="snippet.id", primary_key=True)
     reaction: str  # LIKE / DISLIKE
     updated_at: datetime = Field(
-        default_factory=lambda: datetime.now(timezone.utc)
+        default_factory=lambda: datetime.now(timezone.utc),
+        sa_type=DateTime(timezone=True),
     )
 
 
@@ -303,7 +315,8 @@ class SessionProfile(SQLModel, table=True):
     profile_vector: bytes
     interaction_count: int = Field(default=0)
     updated_at: datetime = Field(
-        default_factory=lambda: datetime.now(timezone.utc)
+        default_factory=lambda: datetime.now(timezone.utc),
+        sa_type=DateTime(timezone=True),
     )
 
 
@@ -428,7 +441,8 @@ class BrokenBrickReport(SQLModel, table=True):
     filename: str = Field(index=True, unique=True)
     description: str | None = None
     reported_at: datetime = Field(
-        default_factory=lambda: datetime.now(timezone.utc)
+        default_factory=lambda: datetime.now(timezone.utc),
+        sa_type=DateTime(timezone=True),
     )
 
 
@@ -543,7 +557,7 @@ def init_bricks(session: Session):
 
         # difficulty score: Concat all text then calculate
         full_text = " ".join(collection_data["en_source_text"].astype(str))
-        log_frequency = text_service.log_frequency(full_text)
+        log_frequency = text_utils.log_frequency(full_text)
 
         return collection_name, group_name, log_frequency
 
@@ -613,7 +627,7 @@ def init_snippets(session: Session):
                     content=row["text"],
                     audio_path=str(audio_path),
                     creator_id=creator_id,
-                    log_frequency=text_service.log_frequency(row["text"]),
+                    log_frequency=text_utils.log_frequency(row["text"]),
                     audio_duration=float(row["duration"]),
                 )
             )

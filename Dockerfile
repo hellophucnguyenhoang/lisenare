@@ -8,6 +8,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libespeak-ng-dev \
     curl \
     zstd \
+    libenchant-2-dev \
     && rm -rf /var/lib/apt/lists/*
 
 # Install Ollama

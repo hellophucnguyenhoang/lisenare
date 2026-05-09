@@ -13,6 +13,7 @@ from .routers import (
     chat_router,
     collection_router,
     context_search_router,
+    explanation_router,
     grammar_router,
     learner_router,
     learning_card_router,
@@ -65,6 +66,7 @@ app.include_router(chat_router.router)
 app.include_router(brick_router.router)
 app.include_router(collection_router.router)
 app.include_router(context_search_router.router)
+app.include_router(explanation_router.router)
 app.include_router(learner_router.router)
 app.include_router(learning_card_router.router)
 app.include_router(push_token_router.router)
