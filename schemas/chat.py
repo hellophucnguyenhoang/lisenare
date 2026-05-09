@@ -20,4 +20,5 @@ class ChatRequest(SQLModel):
 
 
 class ChatLearnerRequest(SQLModel):
+    chat_session_id: str
     learner_question: str

@@ -35,6 +35,7 @@ async def send_bulk_notifications(
     """
     Endpoint to be called by a Scheduler like Cron job.
     It cleans old/broken tokens by checking previous tickets and sends new notifications.
+    Only learners with the last successfully sent time is at least 12 hours are sent.
     """
     learner_ids = push_token_service.get_eligible_learner_ids(session)
     if not learner_ids:
