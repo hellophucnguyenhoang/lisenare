@@ -37,7 +37,6 @@ class Settings(BaseSettings):
 
     # load value from the .env file
     model_config = SettingsConfigDict(env_file=".env")
-    hf_home: str = "D:/Nam4-hk2/KhoaLuanTotNghiep/lisenare/.cache/huggingface"
 
 
 settings = Settings()

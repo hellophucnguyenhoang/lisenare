@@ -1,6 +1,6 @@
-from sqlmodel import Session, select
+from sqlmodel import Session, select, join
 
-from app.database import Lesson
+from app.database import Lesson, Exercise, Question
 
 
 def get_all_lesson_by_topic_id(session: Session, topic_id: int):
@@ -19,3 +19,13 @@ def get_all_lesson(session: Session):
     statement = select(Lesson)
     results = session.exec(statement)
     return results.all()
+
+def get_lesson_by_question(session: Session, question_id: int):
+    statement = select(Lesson).join(Exercise, Lesson.id == Exercise.lesson_id).join(Question, Question.exercise_id == Exercise.id).where(Question.id == question_id)
+    lesson = session.exec(statement).first()
+    return lesson
+
+def get_lesson_by_exercise(session: Session, exercise_id: int):
+    statement = select(Lesson).join(Exercise, Lesson.id == Exercise.lesson_id)
+    lesson = session.exec(statement).first()
+    return lesson
