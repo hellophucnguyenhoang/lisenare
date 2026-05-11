@@ -1,6 +1,6 @@
 from typing import Annotated
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 from sqlmodel import Session
 
 import app.http_client as http_client
@@ -21,6 +21,7 @@ from schemas.sentence import (
     SentenceTranslateRequest,
     SentenceTranslateResponse,
 )
+from schemas.text import WavStreamingResponse
 
 router = APIRouter(prefix="/text", tags=["Text Features"])
 
@@ -83,3 +84,19 @@ async def translate(
         r.json()
     )
     return sentence_translate_respond
+
+
+@router.get(
+    "/tts-stream",
+    response_class=WavStreamingResponse,
+    description="Only works for SHORT TEXT only.",
+)
+async def proxy_tts_stream(
+    data: str = Query(description="Base64 encoded JSON string"),
+):
+    # Update to a POST + GET for longer text
+    async with http_client.get_client().stream(
+        "GET", "/text/tts-stream", params={"data": data}
+    ) as r:
+        async for chunk in r.aiter_bytes():
+            yield chunk

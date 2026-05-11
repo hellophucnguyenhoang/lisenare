@@ -16,6 +16,7 @@ dependencies = [
     "google-genai>=1.71.0",
     "httpx>=0.28.1",
     "jiwer>=4.0.0",
+    "kokoro>=0.9.4",
     "langchain-ollama>=1.0.1",
     "langchain-postgres>=0.0.17",
     "librosa>=0.11.0",
