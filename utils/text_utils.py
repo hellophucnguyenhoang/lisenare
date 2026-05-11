@@ -81,6 +81,54 @@ def is_valid_english(text: str) -> bool:
     return dict_checker.check(text)
 
 
+def refined_spell_fix(sentence: str) -> str:
+    words = sentence.split()
+    corrected_words = []
+
+    for word in words:
+        # Clean the word (remove punctuation)
+        clean_word = word.strip(".,!?;:()\"'")
+
+        # Only process words that are strictly English characters
+        # This will skip "Tôi", "tươi", or words with numbers/symbols
+        if not re.fullmatch(r"[a-zA-Z]+", clean_word):
+            corrected_words.append(word)
+            continue
+
+        lower_word = clean_word.lower()
+
+        # If it's already a correct English word, keep it
+        if dict_checker.check(lower_word):
+            corrected_words.append(word)
+            continue
+
+        # Get suggestions for English-only typos
+        suggestions = dict_checker.suggest(lower_word)
+
+        if suggestions:
+            # Filter suggestions, must be English letters only
+            valid_suggestions = [
+                s for s in suggestions if re.fullmatch(r"[a-zA-Z]+", s)
+            ]
+
+            matches = get_close_matches(
+                lower_word, valid_suggestions, n=1, cutoff=0.8
+            )
+
+            if matches:
+                best_match = matches[0].lower()
+                # Match original capitalization
+                if word[0].isupper():
+                    best_match = best_match.capitalize()
+                corrected_words.append(best_match)
+                continue
+
+        # Fallback: Keep original
+        corrected_words.append(word)
+
+    return " ".join(corrected_words)
+
+
 def normalize_currency(text: str) -> str:
     # "$5" -> "5 dollars"
     return re.sub(r"\$(\d+)", r"\1 dollars", text)

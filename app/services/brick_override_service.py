@@ -5,13 +5,15 @@ from sqlalchemy.orm import selectinload
 from sqlmodel import Session, select
 
 from app.database import Brick, BrickOverride, Collection
+from utils import text_utils
+
+from . import collection_service
 
 
 def save_override_for_brick(
     session: Session,
     learner_id: int,
     brick_id: int,
-    native_text: str | None = None,
 ) -> BrickOverride:
     brick = session.get(Brick, brick_id)
     if not brick:
@@ -25,18 +27,35 @@ def save_override_for_brick(
         (learner_id, brick_id),
     )
     if not override:
+        difficulty_score = text_utils.log_frequency(brick.target_text)
+
+        # Create learner-owned collection copy
+        collection = Collection(
+            name=brick.collection.name,
+            group_name=brick.collection.group_name,
+            creator_id=learner_id,
+            difficulty_score=difficulty_score,
+        )
+        session.add(collection)
+
+        # Flush so collection.id is generated
+        session.flush()
+
         override = BrickOverride(
             learner_id=learner_id,
             brick_id=brick_id,
-            collection_id=brick.collection_id,
+            collection_id=collection.id,
+            native_text=brick.native_text,
+            target_audio_path=brick.target_audio_path,
         )
         session.add(override)
 
-    if native_text is not None:
-        override.native_text = native_text
     override.last_edit_at = datetime.now(timezone.utc)
     session.commit()
     session.refresh(override)
+    collection_service.update_collection_difficulty(
+        session, override.collection_id, learner_id
+    )
     return override
 
 
@@ -46,6 +65,9 @@ def create_overrides_for_group(
     group_name: str,
     group_creator_id: int = 1,  # 1 is the hard coded default system creator
 ) -> int:
+    # This function does not create collections for override bricks
+    # because these are system bricks and user only have the permission to
+    # change audio and native_text
     statement = (
         select(Collection)
         .where(

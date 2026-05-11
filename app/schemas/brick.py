@@ -3,6 +3,7 @@ from enum import Enum
 
 from sqlmodel import Field, SQLModel
 
+from app.schemas.learner import LearnerRead
 from schemas.cefr import CEFRLevel
 
 # ---------- Enums ----------
@@ -137,6 +138,7 @@ class BrickRead(BrickBase):
     last_edit_at: datetime
     brick_metadata_id: int
     brick_metadata: BrickMetadataRead
+    creator: LearnerRead
 
 
 class BrickReadSimple(SQLModel):

@@ -7,6 +7,8 @@ from sqlmodel import Session, func, select
 from app.database import SessionProfile, Snippet, SnippetInteraction
 from app.services.context_search_service import context_search_service
 
+from . import context_search_service as search_service
+
 
 def get_random_snippets(
     session: Session,
@@ -82,6 +84,15 @@ def create_snippet(
     session.add(snippet)
     session.commit()
     session.refresh(snippet)
+
+    search_service.add_item_to_vector_store(
+        search_service=search_service,
+        item=snippet,
+        store_key="snippets",
+        text_getter=lambda s: s.content,
+        metadata_getter=lambda s: {"snippet_id": s.id},
+        id_prefix="Snippet",
+    )
     return snippet
 
 
