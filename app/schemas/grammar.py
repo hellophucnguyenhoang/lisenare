@@ -2,6 +2,7 @@ from sqlmodel import SQLModel
 from datetime import datetime
 from pydantic import BaseModel
 from typing import Optional
+from sqlmodel import Session
 # Model nhận data từ FE (không lưu DB trực tiếp)
 class AnswerRecord(SQLModel):
     question_id: int
@@ -19,6 +20,7 @@ class Message(BaseModel):
     content: str
 
 class QuestionContext(BaseModel):
+    order_id: int | None = None
     question_id: int
     question: str
     user_answer: Optional[str] = None
@@ -26,6 +28,7 @@ class QuestionContext(BaseModel):
 class Context(BaseModel):
     exercise_id: int
     exercise_name: str
+    current_question_id: str | None = None
     questions: list[QuestionContext]
 
 class ChatRequest(BaseModel):
@@ -40,4 +43,14 @@ class SuggestRequest(BaseModel):
 
 def get_answered_questions(request: ChatRequest | SuggestRequest) -> list[QuestionContext]:
     return [q for q in request.context.questions if q.user_answer is not None]
+# question cho chatbot
+
+class QuestionInput(BaseModel):
+    id: int
+    order_id: int | None = None
+    question: str
+    type: str | None = None
+    answer: str
+    correct_answer: str
+    difficulty: float
 
