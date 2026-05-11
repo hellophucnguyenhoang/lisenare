@@ -5,7 +5,7 @@ from langchain_core.documents import Document
 from langchain_ollama import OllamaEmbeddings
 from langchain_postgres import PGVector
 from numpy.typing import NDArray
-from sqlmodel import Session, select, text
+from sqlmodel import Session, or_, select, text
 
 from app.config import settings
 from app.database import Brick, Snippet, YouTubeSubtitle
@@ -169,6 +169,7 @@ class ContextSearchService:
         self, text: str, mmr: bool = True
     ) -> list[BrickContextSearch]:
         docs = self._fetch_docs("bricks", text, mmr)
+        print(f"brick semantic: {len(docs)}")
         return [
             BrickContextSearch(
                 brick_id=d.metadata["brick_id"],
@@ -179,15 +180,32 @@ class ContextSearchService:
         ]
 
     def search_bricks(
-        self, session: Session, query: str
+        self, session: Session, query: str, searcher_id: int | None = None
     ) -> list[BrickContextSearch]:
         literal_results = search_bricks_literal(session, query)
         semantic_results = self.search_bricks_semantic(query, mmr=True)
+
+        # Build the visibility filter
+        # Everyone sees public bricks
+        filters = [Brick.is_public]
+
+        # Logged-in users also see their own private bricks
+        if searcher_id is not None:
+            filters.append(Brick.creator_id == searcher_id)
+
+        # Using or_ (*) unpacks the list into: (is_public) OR (creator_id == searcher_id)
+        visible_brick_ids = set(
+            session.exec(select(Brick.id).where(or_(*filters))).all()
+        )
+
         seen = set()
         combined = []
 
         for res in literal_results + semantic_results:
-            if res.target_text not in seen:
+            if (
+                res.target_text not in seen
+                and res.brick_id in visible_brick_ids
+            ):
                 combined.append(res)
                 seen.add(res.target_text)
 
@@ -401,3 +419,47 @@ def initialize_embeddings(
 
     print("All data synced with custom metadata!")
     create_vector_indexes(session)
+
+
+def add_item_to_vector_store(
+    search_service: ContextSearchService,
+    item,  # This is your Brick or Snippet instance
+    store_key: str,
+    text_getter,
+    metadata_getter,
+    id_prefix: str,
+):
+    """Adds a single model instance to the LangChain vector store."""
+    store = search_service.stores[store_key]
+
+    # Generate the ID exactly like your sync_model_to_langchain function
+    doc_id = f"{id_prefix}_{item.id}"
+
+    document = Document(
+        page_content=text_getter(item),
+        metadata=metadata_getter(item),
+    )
+
+    # Add to the store
+    store.add_documents([document], ids=[doc_id])
+    print(f"[{store_key}] Successfully embedded item ID: {doc_id}")
+
+
+def delete_item_from_vector_store(
+    search_service: ContextSearchService,
+    item_id: int,
+    store_key: str,
+    id_prefix: str,
+):
+    """Removes a single item from the LangChain vector store."""
+    store = search_service.stores[store_key]
+
+    # Reconstruct the ID exactly as it was stored
+    doc_id = f"{id_prefix}_{item_id}"
+
+    try:
+        # LangChain stores usually provide a .delete() method for IDs
+        store.delete(ids=[doc_id])
+        print(f"[{store_key}] Successfully deleted embedding for ID: {doc_id}")
+    except Exception as e:
+        print(f"[{store_key}] Error deleting ID {doc_id}: {e}")
