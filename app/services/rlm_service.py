@@ -1,8 +1,7 @@
-from repl_env import REPLEnvironment
-from llm import call_llm
-from theta_learner_lesson_service import computeP, theta_to_level
+from .repl_env_service import REPLEnvironment
+from .llm_service import call_llm
+from .theta_learner_lesson_service import theta_to_level
 import re
-import json
 
 
 # ============================================================
@@ -41,12 +40,9 @@ class RLMLogger:
             print(f"── STDOUT ──")
             print(stdout[:300] + "..." if len(stdout) > 300 else stdout)
 
-    def log_irt(self, qid, is_correct, prob, theta_before, theta_after):
-        if self.verbose:
-            print(f"\n[IRT UPDATE]")
-            print(f"  Q{qid} | correct={is_correct} | "
-                  f"P={prob:.2f} | "
-                  f"theta: {theta_before:.3f} → {theta_after:.3f}")
+    def log_current_change(self, before, after):
+        if self.verbose and before != after:
+            print(f"\n[CURRENT_QUESTION] {before} → {after}")
 
     def log_final(self, answer: str, source: str):
         if self.verbose:
@@ -58,146 +54,203 @@ logger = RLMLogger(verbose=True)
 
 
 # ============================================================
-# SYSTEM PROMPT — CHỈ CHỨA METADATA, KHÔNG CÓ DATA THẬT
-#   System prompt chỉ chứa metadata ngắn:
-#     - Có bao nhiêu câu hỏi
-#     - ID nào có sẵn
-#     - Theta hiện tại là bao nhiêu
-#     - ...
-#   Data thật (list_question, detected_answers) sống trong REPL.
-#   LLM muốn biết nội dung câu hỏi → phải viết code để đọc.
+# SYSTEM PROMPT
 # ============================================================
 SYSTEM_PROMPT = """
 You are a friendly English tutor chatbot. You support both English and Vietnamese.
-You are tasked with answering student queries using an interactive REPL environment.
+You answer student queries using an interactive REPL environment.
 
-You can access, transform, and analyze data interactively in a REPL environment
-that can recursively query sub-LLMs, which you are STRONGLY ENCOURAGED to use
-as much as possible. You will be queried iteratively until you provide a final answer.
+You are STRONGLY ENCOURAGED to delegate work to sub-LLMs via llm_query().
+You will be queried iteratively until you call FINAL(answer).
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-REPL ENVIRONMENT — AVAILABLE VARIABLES & TOOLS
+REPL ENVIRONMENT — VARIABLES & FUNCTIONS
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 Write Python code inside ```python ... ``` blocks.
 
-Variables available in REPL (access by writing code — NOT pre-loaded in this prompt):
-  - context          : full conversation history as string
-  - list_question    : list[dict] with keys: id, question, type, answer, correct_answer, difficulty
-  - detected_answers : list[dict] of already answered questions
-  - theta            : float — current student ability
-  - topic            : str — current topic name
+READ-ONLY variables (do NOT redeclare):
+  - context              : str       — full conversation history
+  - list_question        : list[QuestionInput] with attrs id, order_id, question, type, answer, correct_answer, difficulty
+  - current_question_id  : str | None — q.id (as string) of question being shown/discussed RIGHT NOW
+  - theta                : float     — student ability level (STATIC; for adapting
+                                       explanation difficulty, NOT updated by this system)
+  - topic                : str       — current topic name
 
 Functions:
-  - llm_query(prompt) → str : call a sub-LLM. Use for grammar analysis, hints, explanations.
-  - FINAL(answer)           : set the final answer to return to user. Call when done.
+  - llm_query(prompt) → str
+        Call a sub-LLM. Use for grammar analysis, hints, explanations,
+        and for generating the natural-language reply to the student.
+
+  - set_current(qid)  → bool
+        Tell the system which question is now being shown to the student.
+        ALWAYS pass q.order_id as a string: set_current(str(q.order_id)).
+        order_id is the display number on the frontend (1, 2, 3, ...).
+        Returns True on success, False if qid is not in list_question.
+        CALL THIS whenever you decide to show, switch to, or move on to
+        a new question. Do NOT call it when the user is just chatting,
+        greeting, or asking off-topic things.
+
+  - FINAL(answer)     → None
+        Set the final reply to the student. Call once when done.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 CURRENT SESSION METADATA
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-[These are metadata only — to access full data, write code to read REPL variables]
-
-  Topic            : {topic}
-  Student theta    : {theta} ({level})
-  Total questions  : {total_questions}
-  Available IDs    : {available_ids}
-  Already answered : {answered_ids}
-  History length   : {context_length} chars
-  History preview  : "{context_preview}..."
+  Topic                 : {topic}
+  Student theta         : {theta} ({level})
+  Total questions       : {total_questions}
+  Available IDs         : {available_ids}
+  Currently discussing  : {current_question_id}
+  History length        : {context_length} chars
+  History preview (tail): "{context_preview}"
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-HOW TO ACCESS DATA (examples)
+HOW TO USE theta
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+theta is a static indicator of the student's level (range roughly -3 to 3):
+  -3 to -1.5 : Beginner          → giải thích thật chậm, nhiều ví dụ cơ bản
+  -1.5 to -0.5 : Elementary      → ngữ pháp đơn giản, từ vựng quen thuộc
+  -0.5 to 0.5  : Intermediate    → có thể dùng thuật ngữ ngữ pháp
+   0.5 to 1.5  : Upper-Inter.    → ví dụ phức tạp hơn, ít cầm tay chỉ việc
+   1.5 to 3    : Advanced        → giải thích ngắn gọn, thử thách
+Adjust hint depth, vocabulary, and example complexity accordingly.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+TYPICAL PATTERNS
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-# Peek at a specific question:
+# Pattern 1 — Student asks about a specific question (e.g. "câu 4 làm sao"):
 ```python
-q = next((q for q in list_question if q["id"] == "2"), None)
-print(q)
+q = next((q for q in list_question if q.order_id == 4), None)
+hint = llm_query(
+    f"Bạn là gia sư tiếng Anh. Đưa ra gợi ý kiểu Socratic cho câu hỏi {{topic}} "
+    f"sau, KHÔNG tiết lộ đáp án. Trình độ học viên theta={{theta}} "
+    f"(điều chỉnh độ khó giải thích cho phù hợp).\\n"
+    f"Câu hỏi: {{q.question}}\\nĐáp án đúng: {{q.correct_answer}}\\n\\n"
+    f"YÊU CẦU NGÔN NGỮ: Trả lời hoàn toàn bằng tiếng Việt. Chỉ dùng tiếng "
+    f"Anh cho nội dung câu hỏi gốc và thuật ngữ ngữ pháp trong ngoặc. "
+    f"Không viết song ngữ, không dịch lại sang tiếng Anh."
+)
+set_current(str(q.order_id))
+FINAL(hint)
 ```
 
-# Find questions not yet answered:
+# Pattern 2 — Student asks for the NEXT question:
 ```python
-answered = [a["question_id"] for a in detected_answers]
-remaining = [q for q in list_question if q["id"] not in answered]
-print(f"Remaining: {{len(remaining)}}")
+order_ids = [str(q.order_id) for q in list_question]
+if current_question_id is None:
+    next_q = list_question[0]
+else:
+    idx = order_ids.index(current_question_id)
+    next_q = list_question[idx + 1] if idx + 1 < len(list_question) else None
+
+if next_q is None:
+    FINAL("Bạn đã làm hết các câu rồi! 🎉")
+else:
+    hint = llm_query(
+        f"Bạn là gia sư tiếng Anh. Giới thiệu câu hỏi {{topic}} sau cho "
+        f"học viên (trình độ theta={{theta}}) và đưa gợi ý ngắn (không "
+        f"tiết lộ đáp án).\\n"
+        f"Câu hỏi: {{next_q.question}}\\n\\n"
+        f"YÊU CẦU NGÔN NGỮ: Trả lời hoàn toàn bằng tiếng Việt. Giữ nguyên "
+        f"câu hỏi tiếng Anh khi trích dẫn. Thuật ngữ ngữ pháp đặt trong "
+        f"ngoặc, ví dụ: thì hiện tại tiếp diễn (Present Continuous). "
+        f"Không viết song ngữ, không dịch lại lời giải thích."
+    )
+    set_current(str(next_q.order_id))
+    FINAL(hint)
 ```
 
-# Evaluate a student answer using sub-LLM:
+# Pattern 3 — Student is chatting / greeting / off-topic:
 ```python
-q = next((q for q in list_question if q["id"] == "1"), None)
-analysis = llm_query(
-    f"Question: {{q['question']}}\\n"
-    f"Correct answer: {{q['correct_answer']}}\\n"
-    f"Student answered: is running\\n"
-    f"Is this correct? Explain briefly."
+# Do NOT call set_current — current_question_id should not change.
+reply = llm_query(
+    f"Học viên vừa nói: '...'. Hãy phản hồi thân thiện rồi nhẹ nhàng "
+    f"đưa cuộc trò chuyện quay lại bài học về {{topic}}. Câu đang thảo "
+    f"luận có id: {{current_question_id}}.\\n\\n"
+    f"YÊU CẦU NGÔN NGỮ: Trả lời hoàn toàn bằng tiếng Việt. Không chào "
+    f"hai lần bằng hai ngôn ngữ. Không dịch lại sang tiếng Anh."
 )
-response = llm_query(
-    f"Based on: {{analysis}}\\n"
-    f"Generate a friendly tutor reply for student at theta={{theta}}."
+FINAL(reply)
+```
+
+# Pattern 4 — Student submits an answer (just give feedback, no scoring):
+```python
+q = next((q for q in list_question if str(q.order_id) == current_question_id), None)
+feedback = llm_query(
+    f"Câu hỏi: {{q.question}}\\nĐáp án đúng: {{q.correct_answer}}\\n"
+    f"Học viên trả lời: <their answer>\\n"
+    f"Trình độ học viên theta={{theta}}.\\n"
+    f"Hãy đưa phản hồi: nói rõ đúng/sai, giải thích lý do, đưa đáp án "
+    f"đúng nếu sai. Trả lời hoàn toàn bằng tiếng Việt; chỉ tiếng Anh cho "
+    f"câu hỏi gốc, đáp án mẫu, và thuật ngữ ngữ pháp trong ngoặc."
 )
-FINAL(response)
+FINAL(feedback)
 ```
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 STRICT RULES
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-1. NEVER hallucinate question content — always read from list_question via code
-2. NEVER redeclare list_question, detected_answers, context, theta, topic in code
-3. To find next question, always compute from list_question in code
-4. If question ID not in the Available IDs list above → say so politely
-5. Always use llm_query() for grammar evaluation — never guess
+1. NEVER hallucinate question content — always read from list_question.
+2. NEVER reassign protected variables (list_question, context, theta, topic,
+   current_question_id). Any such assignment is silently discarded.
+3. To change which question is being discussed, you MUST call set_current(qid).
+   Reassigning current_question_id in code does NOTHING.
+4. Do NOT call set_current() when:
+     - the user is just greeting / chatting / asking their own name
+     - the user asks a general grammar question not tied to a specific item
+   In those cases, leave current_question_id unchanged.
+5. "câu tiếp theo" / "next question" means the question AFTER
+   current_question_id in list_question order — NOT "first unanswered".
+6. Always use llm_query() for grammar evaluation and hint generation —
+   never guess in your own voice.
+7. Use theta to ADAPT explanation depth, vocabulary, and example complexity.
+   theta is STATIC — do not try to update it.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-CLASSIFY USER MESSAGE
+LANGUAGE POLICY (STRICT)
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-CASE A — Related to list_question (MUST use REPL + llm_query):
-  A1: First-time answer → evaluate via llm_query → DETECTED_JSON
-  A2: Re-answering     → check retry_count → hints or evaluate → DETECTED_JSON
-  A3: Already answered → report old result, no update
-  A4: Asking hint      → Socratic method via llm_query, never reveal answer
-  A5: Multiple Qs      → read each from list_question via code
-  A6: Next question    → compute from list_question in code
+The reply to the student MUST be in Vietnamese. English is allowed ONLY for:
+  - the original question text being shown (verbatim from list_question)
+  - the correct/sample answer being shown
+  - English grammar terms in parentheses, e.g. "thì hiện tại tiếp diễn (Present Continuous)"
+  - short inline examples like "He is running."
 
-CASE B — Not related to list_question:
-  B1: Greeting / small talk → reply naturally
-  B2: Grammar theory        → use llm_query() to explain, adapted to theta
-  B3: Off-topic             → politely decline
-  B4: Unclear               → ask for clarification
+DO NOT:
+  - write the same sentence twice in two languages (no "Chào bạn! Hello!")
+  - translate your own Vietnamese explanations into English
+  - mix two full languages line-by-line
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-OUTPUT FORMAT
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-For CASE A — always include:
-DETECTED_JSON: [{{"question_id": "...", "user_answer": "...", "is_correct": true/false/null}}]
-For wrong first attempt — also include:
-RETRY: {{"question_id": "...", "retry_count": 1}}
-For CASE B — just reply naturally, no special tags.
-
-Language: Vietnamese input → reply Vietnamese + English terms. English input → reply English.
+When you call llm_query() to generate the student-facing reply, ALWAYS
+include this instruction in the sub-prompt:
+  "Trả lời hoàn toàn bằng tiếng Việt. Chỉ dùng tiếng Anh cho nội dung câu
+   hỏi gốc, đáp án mẫu, hoặc thuật ngữ ngữ pháp trong ngoặc. Không viết
+   song ngữ, không dịch lại câu giải thích sang tiếng Anh."
 """
 
 
 # ============================================================
-# ACTION PROMPTS (iteration-aware)
+# ACTION PROMPTS
 # ============================================================
 FIRST_ACTION_PROMPT = """Think step-by-step on what to do to answer: "{question}"
 
 You have NOT interacted with the REPL yet.
-Your FIRST action: write Python code to READ data from REPL variables (list_question, detected_answers, etc.)
-then use llm_query() to analyze or generate content.
+Your FIRST action: write Python code to READ data from REPL variables
+(list_question, current_question_id, ...) and use llm_query() to analyse
+or generate content. If appropriate, call set_current(qid) and FINAL(answer)
+inside the same code block.
 
-Do NOT answer yet — explore data first.
-Your next action:"""
+Do NOT answer in plain text yet — explore data first."""
 
 CONTINUE_ACTION_PROMPT = """The history above shows your previous REPL interactions.
 
 Continue to answer: "{question}"
 
-Use llm_query() to delegate grammar analysis, answer evaluation, explanation to sub-LLMs.
-When done, call FINAL(answer) inside code.
-Your next action:"""
+Use llm_query() for any natural-language generation, set_current(qid) when
+switching the active question, and FINAL(answer) when done."""
 
 FINAL_ACTION_PROMPT = """Based on all information gathered, provide a final answer now.
-If you haven't called FINAL() yet, do so. Otherwise write your complete answer directly."""
+If you haven't called FINAL() yet, do so. Otherwise write your reply directly."""
 
 
 # ============================================================
@@ -207,29 +260,13 @@ def extract_code(text: str):
     match = re.search(r"```python\n(.*?)```", text, re.DOTALL)
     return match.group(1).strip() if match else None
 
-def extract_detected_json(text: str) -> list:
-    match = re.search(r"DETECTED_JSON:\s*(\[.*?\])", text, re.DOTALL)
-    if match:
-        try:
-            return json.loads(match.group(1))
-        except:
-            return []
-    return []
-
-def extract_retry(text: str) -> dict:
-    match = re.search(r"RETRY:\s*(\{.*?\})", text, re.DOTALL)
-    if match:
-        try:
-            return json.loads(match.group(1))
-        except:
-            return {}
-    return {}
 
 def is_complete_answer(text: str) -> bool:
     has_no_code    = "```python" not in text
     has_no_final   = "FINAL("    not in text
     is_substantial = len(text.strip()) > 50
     return has_no_code and has_no_final and is_substantial
+
 
 def _build_action_prompt(question: str, iteration: int, max_iterations: int) -> str:
     if iteration >= max_iterations - 1:
@@ -238,6 +275,7 @@ def _build_action_prompt(question: str, iteration: int, max_iterations: int) -> 
         return FIRST_ACTION_PROMPT.format(question=question)
     else:
         return CONTINUE_ACTION_PROMPT.format(question=question)
+
 
 def _logged_llm_query(prompt: str) -> str:
     response = call_llm(prompt)
@@ -250,28 +288,26 @@ def _logged_llm_query(prompt: str) -> str:
 # ============================================================
 def run_rlm(question: str, session) -> str:
     logger.new_turn(question)
-
-    # Khởi tạo REPL — data thật (list_question, theta, ...) sống ở đây
     env = REPLEnvironment(session)
-
     meta = env.get_metadata()
 
     system_prompt = SYSTEM_PROMPT.format(
-        topic            = meta["topic"],
-        theta            = meta["theta"],
-        level            = theta_to_level(meta["theta"]),
-        total_questions  = meta["total_questions"],
-        available_ids    = meta["available_ids"],
-        answered_ids     = meta["answered_ids"],
-        context_length   = meta["context_length"],
-        context_preview  = meta["context_preview"],
+        topic               = meta["topic"],
+        theta               = meta["theta"],
+        level               = theta_to_level(meta["theta"]),
+        total_questions     = meta["total_questions"],
+        available_ids       = meta["available_ids"],
+        current_question_id = meta["current_question_id"],
+        context_length      = meta["context_length"],
+        context_preview     = meta["context_preview"],
     )
 
     hist = [system_prompt]
     max_iterations = 7
 
+    cqid_before_turn = session.current_question_id
+
     for i in range(max_iterations):
-        # Refresh REPL với state mới nhất (theta có thể đã thay đổi)
         env.refresh()
 
         action_prompt = _build_action_prompt(question, i, max_iterations)
@@ -282,62 +318,39 @@ def run_rlm(question: str, session) -> str:
         logger.log_llm_call("root", full_prompt, response)
         hist.append(response)
 
-        # Xử lý DETECTED_JSON → cập nhật IRT
-        detected = extract_detected_json(response)
-        for d in detected:
-            if d.get("user_answer") and d.get("is_correct") is not None:
-                q = session.get_question_by_id(d["question_id"])
-                if q:
-                    theta_before = session.theta
-                    p = computeP(session.theta, q["difficulty"])
-                    session.record_answer(
-                        d["question_id"],
-                        d["user_answer"],
-                        d["is_correct"]
-                    )
-                    logger.log_irt(
-                        d["question_id"],
-                        d["is_correct"],
-                        p,
-                        theta_before,
-                        session.theta
-                    )
-
-        # Xử lý RETRY
-        retry = extract_retry(response)
-        if retry:
-            print(f"[RETRY] Q{retry.get('question_id')} | "
-                  f"attempt={retry.get('retry_count')}")
-
-        # Ưu tiên 1: có code → chạy TRƯỚC (RLM style)
-        # Phải chạy code trước để REPL truy cập được list_question,
-        # và để FINAL() bên trong code được gọi đúng cách.
+        # ---- Ưu tiên 1: có code → exec (set_current/FINAL nằm trong đây) ----
         code = extract_code(response)
         if code:
             stdout = env.execute(code, _logged_llm_query)
             logger.log_repl(code, stdout)
             hist.append(f"[REPL OUTPUT]:\n{stdout}")
             if env.final_answer:
+                logger.log_current_change(cqid_before_turn, session.current_question_id)
                 logger.log_final(env.final_answer, "REPL.FINAL()")
                 return env.final_answer
             continue
 
-        # Ưu tiên 2: FINAL() đã set từ vòng trước
+        # ---- Ưu tiên 2: FINAL() đã set từ vòng trước ----
         if env.final_answer:
+            logger.log_current_change(cqid_before_turn, session.current_question_id)
             logger.log_final(env.final_answer, "REPL.FINAL()")
             return env.final_answer
 
-        # Ưu tiên 3: FINAL("...") trong text (fallback hiếm)
+        # ---- Ưu tiên 3: FINAL("...") trong text (fallback) ----
         final_match = re.search(r'FINAL\("(.+?)"\)', response, re.DOTALL)
         if final_match:
-            logger.log_final(final_match.group(1), "text.FINAL()")
-            return final_match.group(1)
+            final_text = final_match.group(1)
+            logger.log_current_change(cqid_before_turn, session.current_question_id)
+            logger.log_final(final_text, "text.FINAL()")
+            return final_text
 
-        # Ưu tiên 4: CASE B — không code, không FINAL → trả lời trực tiếp
+        # ---- Ưu tiên 4: trả lời text trực tiếp ----
         if is_complete_answer(response):
+            logger.log_current_change(cqid_before_turn, session.current_question_id)
             logger.log_final(response, "direct_answer")
             return response
 
     result = env.final_answer or response
+    logger.log_current_change(cqid_before_turn, session.current_question_id)
     logger.log_final(result, "fallback")
     return result

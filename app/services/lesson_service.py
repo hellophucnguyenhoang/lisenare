@@ -26,6 +26,6 @@ def get_lesson_by_question(session: Session, question_id: int):
     return lesson
 
 def get_lesson_by_exercise(session: Session, exercise_id: int):
-    statement = select(Lesson).join(Exercise, Lesson.id == Exercise.lesson_id)
+    statement = select(Lesson).join(Exercise, Lesson.id == Exercise.lesson_id).where(Exercise.id == exercise_id)
     lesson = session.exec(statement).first()
     return lesson
