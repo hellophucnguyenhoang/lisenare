@@ -52,7 +52,7 @@ def find_target_question(
 
     response = call_llm(prompt)
 
-    match = re.search(r'-?\d+', response.text.strip())
+    match = re.search(r'-?\d+', response.strip())
     if not match:
         return None
 

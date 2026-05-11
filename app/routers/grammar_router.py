@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends
 from sqlmodel import Session
-from app.schemas import SubmitRequest, ChatRequest, get_answered_questions, SuggestRequest
+from app.schemas import SubmitRequest, ChatRequest, get_answered_questions, SuggestRequest, RuntimeSession, RLMOutput, QuestionInput, QuestionContext
 from app.database import HistoryAnswerQuestion, Lesson
 from app.database import get_session
 from datetime import datetime
@@ -12,9 +12,9 @@ from app.services.topic_service import build_learning_tree
 from app.services.history_answer_question_service import insert_list_history_answer_question, get_difficulty_and_respone
 from app.services.theta_learner_lesson_service import insert_or_update_theta, get_theta_by_leaner_and_lesson, update_theta, computeP
 from app.services.lesson_service import get_lesson_by_question, get_lesson_by_exercise
-from app.services.chatbot_service import find_target_question, get_hint, get_hint_stream
+from app.services.chatbot_service import  get_hint_stream
 from fastapi.responses import StreamingResponse
-
+from app.services.rlm_service import run_rlm
 router = APIRouter(prefix="/grammar", tags=["Grammars"])
 
 
@@ -50,16 +50,21 @@ def submit_exercise(data : SubmitRequest, session: Session = Depends(get_session
 
 @router.post("/chat")
 def grammar_chat(body: ChatRequest, session: Session = Depends(get_session)) -> StreamingResponse:
-    question_target = find_target_question(body.messages, body.context.questions)
-    question = get_question_by_id(session=session, id = question_target.question_id)
-    question_content = question_target.question
-    correct_answer = question.correct_answer
-    choice = question.answer
-    theta_new, prob, lesson = resolve_theta_and_prob(body, session, question)
-    return StreamingResponse(
-        get_hint_stream(theta=theta_new, prob=prob, lesson=lesson.name, question=question_content, correct_answer=correct_answer, choice=choice),
-        media_type="text/plain"
-    )
+    print(f"body: {body}")
+    exercise_id = body.context.exercise_id
+    lesson = get_lesson_by_exercise(session=session, exercise_id=exercise_id)
+    lesson_name = lesson.name
+    questions = [convert_content_to_input(question, session=session) for question in body.context.questions]
+    insert_or_update_theta(session, learner_id=body.learner_id, lesson_id=lesson.id)
+    theta = get_theta_by_leaner_and_lesson(session, learner_id=body.learner_id, lesson_id=lesson.id)
+    history = body.messages
+    current_question_id = body.context.current_question_id
+    rlm_input = RuntimeSession(questions, lesson_name, theta, history, current_question_id)
+    question = body.messages[-1].content
+    answer = run_rlm(question, rlm_input)
+    print(f"current question id: {rlm_input.current_question_id}")
+    return RLMOutput(answer=answer, current_question_id=rlm_input.current_question_id)
+
 
 @router.post("/suggest")
 def suggest_answer(body: SuggestRequest, session: Session = Depends(get_session)) -> StreamingResponse:
@@ -83,3 +88,16 @@ def resolve_theta_and_prob(body, session, question) -> tuple[float, float, Lesso
     theta_new = update_theta(theta, items=db_items + items, responses=db_responds + responds)
     prob = computeP(theta_new, 1, b=question.difficulty)
     return theta_new, prob, lesson
+
+def convert_content_to_input(question: QuestionContext, session: Session):
+    id = question.question_id
+    question_input = get_question_by_id(session=session, id=id)
+    return QuestionInput(id=question_input.id,
+                         order_id=question.order_id, 
+                         question=question_input.question, 
+                         answer=question_input.answer, 
+                         type=question_input.type,
+                         correct_answer=question_input.correct_answer, 
+                         difficulty=question_input.difficulty)
+    
+
