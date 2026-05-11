@@ -18,6 +18,7 @@ from app.services.context_search_service import (
     context_search_service,
     initialize_embeddings,
 )
+from utils import text_utils
 
 router = APIRouter(prefix="/context-search", tags=["Context Search"])
 
@@ -56,11 +57,17 @@ def search_context_videos(
 @router.post("/bricks-search")
 def search_context_bricks(
     session: Annotated[Session, Depends(get_session)],
+    learner: Annotated[
+        Learner | None, Depends(auth_service.decode_token_get_optional_learner)
+    ],
     context_search_request: ContextSearchRequest,
 ) -> list[BrickContextSearch]:
+    learner_id = learner.id if learner else None
     start = time.time()
     search_result = context_search_service.search_bricks(
-        session, context_search_request.query
+        session,
+        text_utils.refined_spell_fix(context_search_request.query),
+        learner_id,
     )
     end = time.time()
     print(f"brick search time: {(end - start) * 1000} ms")

@@ -1,7 +1,7 @@
 from sqlalchemy.exc import IntegrityError
 from sqlmodel import Session, asc, desc, func, select
 
-from app.database import Brick, Collection, Review
+from app.database import Brick, BrickOverride, Collection, Review
 from app.schemas import CollectionSort, CollectionStatus
 from utils import text_utils
 
@@ -177,19 +177,41 @@ def get_pending_collection_group_stats(
     ]
 
 
-def update_collection_difficulty(session: Session, collection_id: int):
-    statement = select(Brick).where(Brick.collection_id == collection_id)
-    bricks = session.exec(statement).all()
+def update_collection_difficulty(
+    session: Session, collection_id: int, learner_id: int
+):
+    # Fetch the collection object (to update it later)
+    collection = session.get(Collection, collection_id)
+    if not collection:
+        return
 
-    if bricks:
-        sum_score = sum(
-            text_utils.log_frequency(b.target_text) for b in bricks
+    # Get target_text from overrides
+    # Joining with Brick ensures we get the text in the same trip
+    override_texts = session.exec(
+        select(Brick.target_text)
+        .join(BrickOverride, BrickOverride.brick_id == Brick.id)
+        .where(
+            BrickOverride.collection_id == collection_id,
+            BrickOverride.learner_id == learner_id,
         )
-        collection = session.get(Collection, collection_id)
-        if collection:
-            collection.difficulty_score = sum_score
-            session.add(collection)
-            session.commit()
+    ).all()
+
+    # Get target_text from original bricks
+    brick_texts = session.exec(
+        select(Brick.target_text).where(
+            Brick.collection_id == collection_id,
+            Brick.creator_id == learner_id,
+        )
+    ).all()
+
+    # Combine all strings
+    combined_text = " ".join(override_texts + brick_texts)
+
+    # Update and commit
+    if combined_text.strip():
+        collection.difficulty_score = text_utils.log_frequency(combined_text)
+        session.add(collection)
+        session.commit()
 
 
 def delete_empty_collection(session: Session, collection_id: int):

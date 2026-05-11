@@ -1,4 +1,3 @@
-import json
 import random
 from typing import Annotated
 
@@ -6,13 +5,11 @@ from fastapi import (
     APIRouter,
     Depends,
     File,
-    Form,
     HTTPException,
     Query,
     UploadFile,
     status,
 )
-from pydantic import ValidationError
 from sqlmodel import Session
 
 from app.config import settings
@@ -29,10 +26,12 @@ from app.schemas import (
 )
 from app.services import (
     auth_service,
+    brick_override_service,
     brick_service,
     broken_brick_report_service,
 )
 from utils import file_utils
+from utils.form_utils import JsonFormBody
 
 router = APIRouter(prefix="/bricks", tags=["Bricks"])
 
@@ -109,24 +108,16 @@ def check_target_text_exists(
     return {"exists": exists}
 
 
-@router.get("/public/by-id/{brick_id}", response_model=BrickRead)
-def get_public_brick(
-    session: Annotated[Session, Depends(get_session)],
-    brick_id: int,
-):
-    # Pass learner_id=None to indicate guest access
-    return brick_service.get_brick(session, brick_id, learner_id=None)
-
-
 @router.get("/by-id/{brick_id}", response_model=BrickRead)
-def get_private_brick(
+def get_brick_details(
     session: Annotated[Session, Depends(get_session)],
     learner: Annotated[
-        Learner, Depends(auth_service.decode_token_get_learner)
+        Learner, Depends(auth_service.decode_token_get_optional_learner)
     ],
     brick_id: int,
 ):
-    return brick_service.get_brick(session, brick_id, learner.id)
+    learner_id = learner.id if learner else None
+    return brick_service.get_brick(session, brick_id, learner_id)
 
 
 @router.get("/learn/{collection_id}", response_model=BrickLearnRead)
@@ -154,20 +145,10 @@ async def create_brick(
         Learner, Depends(auth_service.decode_token_get_learner)
     ],
     audio_file: Annotated[UploadFile, File()],
-    brick_data: Annotated[
-        str,
-        Form(description="A serialized string of a BrickCreateRequest object"),
+    request_data: Annotated[
+        BrickCreateRequest, Depends(JsonFormBody(BrickCreateRequest))
     ],
 ):
-    try:
-        data_dict = json.loads(brick_data)
-        request_data = BrickCreateRequest.model_validate(data_dict)
-    except (json.JSONDecodeError, ValidationError) as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Dữ liệu không hợp lệ: {str(e)}",
-        )
-
     creator_id = learner.id
     learner_audio_path, _ = await file_utils.save_cloud_upload_file(
         file=audio_file,
@@ -190,6 +171,25 @@ async def create_brick(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=str(e),
         )
+
+
+@router.post("/override/{brick_id}")
+def save_brick_override(
+    session: Annotated[Session, Depends(get_session)],
+    learner: Annotated[
+        Learner, Depends(auth_service.decode_token_get_learner)
+    ],
+    brick_id: int,
+) -> StatusResponse:
+    brick_override_service.save_override_for_brick(
+        session,
+        learner_id=learner.id,
+        brick_id=brick_id,
+    )
+    return StatusResponse(
+        status=StatusResponseType.SUCCESS,
+        message="Brick override saved successfully",
+    )
 
 
 @router.post("/report/{filename}")
@@ -227,21 +227,29 @@ For creativity encouragement, target_text is globally unique, and
 non-author learners can only override native_text field.
 """,
 )
-def update_brick(
+async def update_brick(
     session: Annotated[Session, Depends(get_session)],
     learner: Annotated[
         Learner, Depends(auth_service.decode_token_get_learner)
     ],
     brick_id: int,
-    brick_update: BrickUpdate,
+    brick_update: Annotated[BrickUpdate, Depends(JsonFormBody(BrickUpdate))],
+    audio_file: Annotated[UploadFile | None, File()] = None,
 ):
-    # TODO: Create a complete new brick when the target text is new
-    # TODO: Let user update target audio in the override version
+    learner_audio_path = None
+    if audio_file:
+        learner_audio_path, _ = await file_utils.save_cloud_upload_file(
+            file=audio_file,
+            base_dir=settings.brick_audios_folder,
+            filename_prefix=f"ln{learner.id}upd",
+        )
+
     return brick_service.update_brick(
         session=session,
         brick_id=brick_id,
         brick_update=brick_update,
         learner_id=learner.id,
+        target_audio_path=learner_audio_path,
     )
 
 
@@ -255,11 +263,13 @@ def delete_brick(
 ):
     result = brick_service.delete_brick(session, learner.id, brick_id)
 
-    message = (
-        "Original brick and all metadata deleted."
-        if result == "BRICK_DELETED"
-        else "Your personal override for this brick was removed."
-    )
+    message = "Your personal override for this brick was removed."
+
+    if result == "BRICK_DELETED":
+        message = "Original brick and all metadata deleted."
+
+    elif result == "OWNERSHIP_TRANSFERRED":
+        message = "The ownership of the brick was transferred."
 
     return {
         "status": StatusResponseType.SUCCESS,
