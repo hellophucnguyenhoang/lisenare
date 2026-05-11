@@ -5,10 +5,6 @@ class STTResponse(SQLModel):
     transcript: str
 
 
-class TTSRequest(SQLModel):
-    text: str
-
-
 class TimestampChunk(SQLModel):
     text: str
     timestamp: tuple[float | None, float | None]

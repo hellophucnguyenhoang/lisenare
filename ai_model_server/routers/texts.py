@@ -1,4 +1,9 @@
-from fastapi import APIRouter
+import base64
+import io
+import json
+
+import soundfile as sf
+from fastapi import APIRouter, Query
 
 from ai_model_server.services.readmepp_service import readmepp_service
 from ai_model_server.services.text_service import text_service
@@ -12,6 +17,7 @@ from schemas.sentence import (
     SentenceTranslateRequest,
     SentenceTranslateResponse,
 )
+from schemas.text import WavStreamingResponse
 
 router = APIRouter(prefix="/text", tags=["Text Features"])
 
@@ -47,3 +53,17 @@ def predict_cefr(cefr_request: CEFRRequest) -> CEFRResponse:
         cefr_request.english_sentence, return_index=False
     )
     return CEFRResponse(cefr_level=pred)
+
+
+@router.get("/tts-stream", response_class=WavStreamingResponse)
+def stream_audio_get(
+    data: str = Query(description="Base64 encoded JSON string"),
+):
+    decoded_json = json.loads(base64.b64decode(data))
+    text = decoded_json.get("text", "")
+
+    generator = text_service.tts_pipeline(text, voice="af_heart")
+    for _, _, audio in generator:
+        buffer = io.BytesIO()
+        sf.write(buffer, audio, 24000, format="WAV")
+        yield buffer.getvalue()
