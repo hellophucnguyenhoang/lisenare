@@ -1,6 +1,7 @@
 import string
 
 import torch
+from kokoro import KPipeline
 from sentence_transformers import SentenceTransformer, util
 from transformers import AutoModelForSeq2SeqLM, AutoTokenizer
 
@@ -25,6 +26,12 @@ class TextService:
         self.trans_model = AutoModelForSeq2SeqLM.from_pretrained(
             self.trans_model_name
         ).to(self.device)
+
+        # 3. Load text to speech model
+        self.tts_pipeline = KPipeline(
+            lang_code="a", repo_id="hexgrad/Kokoro-82M", device=self.device
+        )
+        print(f"Running Kokoro on: {self.device}")
 
     def get_similarity(self, s1: str, s2: str) -> float:
         """Computes semantic similarity score between two sentences."""
