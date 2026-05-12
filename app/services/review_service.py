@@ -12,7 +12,7 @@ from .spaced_repetition_service import similarity_to_fsrs
 
 def save_review(
     session: Session, learner_id: int, review_create: ReviewCreate
-) -> None:
+) -> int:
     db_review = Review(
         **review_create.model_dump(),
         learner_id=learner_id,
@@ -22,6 +22,15 @@ def save_review(
     )
     session.add(db_review)
     session.commit()
+
+    # used for triggering the scheduler optimization task
+    statement = select(func.count(Review.id)).where(
+        Review.learner_id == learner_id,
+        Review.fsrs_log_dict.is_not(None),  # Excludes NULLs
+        Review.fsrs_log_dict != {},  # Excludes empty objects
+    )
+    total_review_count = session.exec(statement).one()
+    return total_review_count
 
 
 def review_exists(session: Session, learner_id: int, brick_id: int) -> bool:
