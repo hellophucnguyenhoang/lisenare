@@ -1,15 +1,16 @@
 import math
 import random
+import traceback
 from collections import defaultdict
 from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 
 from fastapi import HTTPException, status
-from fsrs import Card, Scheduler
+from fsrs import Card, Optimizer, ReviewLog, Scheduler
 from sqlalchemy import Float, cast
 from sqlmodel import Session, case, func, select
 
-from app.database import Brick, LearningCard
+from app.database import Brick, LearnerSetting, LearningCard, Review, engine
 from utils.db_utils import apply_time_filter
 from utils.text_utils import calculate_rarity, get_lenient_stems
 
@@ -20,7 +21,119 @@ from .review_service import (
 )
 from .spaced_repetition_service import similarity_to_fsrs
 
-scheduler = Scheduler()  # use default scheduler
+
+def get_scheduler_for_learner(session: Session, learner_id: int) -> Scheduler:
+    """
+    Loads a personalized FSRS scheduler for a specific learner.
+    Falls back to a default scheduler if no settings exist.
+    """
+    # Fetch user-specific settings from the LearnerSetting table
+    settings = session.get(LearnerSetting, learner_id)
+
+    if settings and settings.fsrs_weights:
+        # Initialize with optimized parameters and retention
+        return Scheduler(
+            settings.fsrs_weights,
+            settings.target_retention,
+        )
+
+    # Fallback to default scheduler if the user hasn't been optimized yet
+    return Scheduler()
+
+
+def optimize_user_scheduler(learner_id: int):
+    print(f"Start optimizing scheduler for the learner {learner_id}")
+    with Session(engine) as session:
+        # 1. Load all reviews to train the optimizer
+        statement = select(Review).where(Review.learner_id == learner_id)
+        reviews = session.exec(statement).all()
+
+        fsrs_logs = [
+            ReviewLog.from_dict(r.fsrs_log_dict)
+            for r in reviews
+            if r.fsrs_log_dict
+        ]
+        log_count = len(fsrs_logs)
+        print(f"Found {log_count} valid FSRS logs")
+
+        if log_count < 100:
+            print(
+                f"Optimization aborted: Not enough logs ({len(fsrs_logs)} < 100)"
+            )
+            return
+
+        # 2. Run Optimizer
+        try:
+            optimizer = Optimizer(fsrs_logs)
+            # Weights can usually be computed with ~100+ logs
+            optimal_params = optimizer.compute_optimal_parameters()
+            print(f"Done computing optimal params for {learner_id = }")
+
+            # Retention requires 512. Check count before calling.
+            optimal_retention = 0.9  # Default
+            if log_count >= 512:
+                try:
+                    optimal_retention = optimizer.compute_optimal_retention(
+                        optimal_params
+                    )
+                    print(
+                        f"Done computing optimal retention for {learner_id = }"
+                    )
+                except ValueError as e:
+                    print(f"Retention optimization failed, using 0.9: {e}")
+            else:
+                print(
+                    f"Skipping retention optimization for learner {learner_id} (Need 512, have {log_count})"
+                )
+
+            # 3. Save Settings
+            settings = session.get(
+                LearnerSetting, learner_id
+            ) or LearnerSetting(learner_id=learner_id)
+            settings.fsrs_weights = optimal_params
+            settings.target_retention = optimal_retention
+            session.add(settings)
+
+            # 4. Reschedule all cards for this learner
+            optimal_scheduler = Scheduler(optimal_params, optimal_retention)
+
+            # Fetch all learning cards for this user
+            card_statement = select(LearningCard).where(
+                LearningCard.learner_id == learner_id
+            )
+            learning_cards = session.exec(card_statement).all()
+
+            for db_card in learning_cards:
+                # Filter logs specific to THIS card (brick)
+                card_logs = [
+                    ReviewLog.from_dict(r.fsrs_log_dict)
+                    for r in reviews
+                    if r.brick_id == db_card.brick_id and r.fsrs_log_dict
+                ]
+
+                if not card_logs:
+                    continue
+
+                # Re-initialize a fresh card and replay the history with the new weights
+                # Note: reschedule_card typically needs the card and its specific log history
+                fresh_card = Card()
+                # Use the card_id from the first log entry for this card
+                fresh_card.card_id = card_logs[0].card_id
+                rescheduled_card = optimal_scheduler.reschedule_card(
+                    fresh_card, card_logs
+                )
+
+                # Update the database card with new stability/difficulty/due date
+                db_card.fsrs_card_dict = rescheduled_card.to_dict()
+                db_card.due = rescheduled_card.due
+                session.add(db_card)
+
+            session.commit()
+            print(f"Successfully optimized for learner {learner_id}")
+
+        except Exception as e:
+            print(f"Optimization failed for learner {learner_id}: {e}")
+            traceback.print_exc()
 
 
 def update_learning_card(
@@ -43,7 +156,26 @@ def update_learning_card(
         card = Card.from_dict(db_learning_card.fsrs_card_dict)
 
     rating = similarity_to_fsrs(score, is_answer_revealed)
+
+    statement = select(LearnerSetting).where(
+        LearnerSetting.learner_id == learner_id
+    )
+    scheduler = get_scheduler_for_learner(session, learner_id)
     card, review_log = scheduler.review_card(card, rating)
+
+    # save the log for the optimizer
+    # IMPORTANT NOTE: assume that the review_service.save_review() was called
+    # before this function update_learning_card() be called so there is a review with
+    # no fsrs_log_dict to update
+    # You might need to pass this log back to save_review or update the Review row here
+    db_review = session.exec(
+        select(Review)
+        .where(Review.learner_id == learner_id, Review.brick_id == brick_id)
+        .order_by(
+            Review.reviewed_at.desc()
+        )  # the latest review haven't had the log
+    ).first()
+    db_review.fsrs_log_dict = review_log.to_dict()
 
     # create if needed
     if db_learning_card is None:
@@ -89,6 +221,7 @@ def get_total_memorized(
     rows = session.exec(statement).all()
     total = 0.0
 
+    scheduler = get_scheduler_for_learner(session, learner_id)
     for fsrs_card_dict in rows:
         card = Card.from_dict(fsrs_card_dict)
         retrievability = scheduler.get_card_retrievability(card)

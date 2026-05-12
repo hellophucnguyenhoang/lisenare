@@ -256,7 +256,9 @@ def get_brick_fsrs(
     pending_bricks_subq = get_pending_bricks_subquery(learner_id)
 
     new_stmt = (
-        select(Brick, BrickOverride.native_text)
+        select(
+            Brick, BrickOverride.native_text, BrickOverride.target_audio_path
+        )
         .join(pending_bricks_subq, pending_bricks_subq.c.id == Brick.id)
         .join(BrickMetadata)
         .join(BrickOverride, override_join, isouter=True)

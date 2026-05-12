@@ -102,6 +102,12 @@ class Learner(SQLModel, table=True):
     push_tokens: list["PushToken"] = Relationship(back_populates="learner")
 
 
+class LearnerSetting(SQLModel, table=True):
+    learner_id: int = Field(foreign_key="learner.id", primary_key=True)
+    fsrs_weights: list[float] | None = Field(default=None, sa_type=JSONB)
+    target_retention: float = Field(default=0.9)
+
+
 class Collection(SQLModel, table=True):
     id: int | None = Field(default=None, primary_key=True)
     name: str
@@ -208,6 +214,7 @@ class Review(SQLModel, table=True):
         default_factory=lambda: datetime.now(timezone.utc),
         sa_type=DateTime(timezone=True),
     )
+    fsrs_log_dict: dict = Field(default={}, sa_type=JSONB)
     user_target_text: str | None = None
     user_target_audio_path: str | None = None
     brick: Brick = Relationship(back_populates="reviews")

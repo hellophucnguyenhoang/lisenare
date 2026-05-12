@@ -1,6 +1,6 @@
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, BackgroundTasks, Depends, Query
 from sqlmodel import Session
 
 import app.http_client as http_client
@@ -39,6 +39,7 @@ async def compare(
     learner: Annotated[
         Learner, Depends(auth_service.decode_token_get_learner)
     ],
+    background_tasks: BackgroundTasks,
     sentence_compare_request: SentenceCompareRequest,
 ) -> SentenceCompareResponse:
     r = await http_client.get_client().post(
@@ -55,13 +56,21 @@ async def compare(
             ),
             first_score=sentence_compare_response.score,
             user_target_text=sentence_compare_request.sentence1,
-            # Haven't store user's audio yet for simplicity
         )
-        review_service.save_review(
+        review_count = review_service.save_review(
             session=session,
             learner_id=learner.id,
             review_create=review_create,
         )
+        print(f"Review saved, {review_count = }")
+        if review_count > 100 and review_count % 200 == 0:
+            background_tasks.add_task(
+                learning_card_service.optimize_user_scheduler,
+                learner.id,
+            )
+            print(
+                f"Triggering background optimization for learner {learner.id}"
+            )
         learning_card_service.update_learning_card(
             session=session,
             learner_id=learner.id,
