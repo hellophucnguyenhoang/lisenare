@@ -68,6 +68,7 @@ def create_overrides_for_group(
     # This function does not create collections for override bricks
     # because these are system bricks and user only have the permission to
     # change audio and native_text
+    # That means, learner does not owns the system collection
     statement = (
         select(Collection)
         .where(

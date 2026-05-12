@@ -1,6 +1,6 @@
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, UploadFile
+from fastapi import APIRouter, BackgroundTasks, Depends, UploadFile
 from phonemizer import phonemize
 from phonemizer.separator import Separator
 from sqlmodel import Session
@@ -54,6 +54,7 @@ async def evaluate_audio(
     learner: Annotated[
         Learner, Depends(auth_service.decode_token_get_learner)
     ],
+    background_tasks: BackgroundTasks,
     target_brick_id: int,
     learner_file: UploadFile,
 ):
@@ -117,12 +118,21 @@ async def evaluate_audio(
             user_target_text=learner_text,
             user_target_audio_path=learner_audio_path,
         )
-        review_service.save_review(
+        review_count = review_service.save_review(
             session=session,
             learner_id=learner.id,
             review_create=review_create,
         )
-        print("Review saved.")
+        print(f"Review saved, {review_count = }")
+        if review_count > 100 and review_count % 200 == 0:
+            background_tasks.add_task(
+                learning_card_service.optimize_user_scheduler,
+                learner.id,
+            )
+            print(
+                f"Triggering background optimization for learner {learner.id}"
+            )
+
         reviewed_brick = brick_service.get_brick(
             session, target_brick_id, learner.id
         )
