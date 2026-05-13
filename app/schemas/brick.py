@@ -176,3 +176,12 @@ class BrickAudioPage(SQLModel):
     offset: int
     limit: int
     total: int
+
+
+class AutoBrickRequest(SQLModel):
+    native_text: str
+
+
+class AutoBrickResponse(SQLModel):
+    target_text: str
+    tts_url: str
