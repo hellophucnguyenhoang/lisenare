@@ -1,24 +1,10 @@
 import json
 
 import fakeredis
-from google import genai
 from ollama import chat
-
-from app.config import settings
-
-client = genai.Client(api_key=settings.gemini_api_key)
 
 r = fakeredis.FakeRedis()
 SESSION_EXPIRY = 3600  # 60 minutes in seconds
-
-
-def generate_response_stream(user_message: str):
-    response = client.models.generate_content_stream(
-        model="gemini-2.5-flash-lite",
-        contents=[user_message],
-    )
-    for chunk in response:
-        yield chunk.text
 
 
 def generate_chat_stream(session_id: str, user_message: str):
