@@ -9,10 +9,12 @@ from .collection import *
 from .context_search import *
 from .explanation import *
 from .forced_alignment import *
+from .grammar import *
 from .learner import *
 from .learning_card import *
 from .push_token import *
 from .review import *
+from .session_chat import *
 from .snippet import *
 from .snippet_interaction import *
 from .status import *
