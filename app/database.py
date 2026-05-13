@@ -444,8 +444,12 @@ class YouTubeSubtitle(SQLModel, table=True):
 
 
 class BrokenBrickReport(SQLModel, table=True):
-    id: int | None = Field(default=None, primary_key=True)
-    filename: str = Field(index=True, unique=True)
+    learner_id: int = Field(
+        foreign_key="learner.id", primary_key=True, ondelete="CASCADE"
+    )
+    brick_id: int = Field(
+        foreign_key="brick.id", primary_key=True, ondelete="CASCADE"
+    )
     description: str | None = None
     reported_at: datetime = Field(
         default_factory=lambda: datetime.now(timezone.utc),

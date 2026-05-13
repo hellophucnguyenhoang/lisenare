@@ -192,22 +192,25 @@ def save_brick_override(
     )
 
 
-@router.post("/report/{filename}")
-def report_broken_audio(
+@router.post("/report/{brick_id}")
+def report_broken_brick(
     session: Annotated[Session, Depends(get_session)],
-    filename: str,
+    learner: Annotated[
+        Learner, Depends(auth_service.decode_token_get_learner)
+    ],
+    brick_id: int,
     description: str | None = None,
 ) -> StatusResponse:
-    result = broken_brick_report_service.save_report(
-        session, filename, description
+    broken_brick_report_service.save_report(
+        session,
+        learner.id,
+        brick_id,
+        description,
     )
-    if result is None:
-        return StatusResponse(
-            status=StatusResponseType.EXISTED, message="Already reported."
-        )
 
     return StatusResponse(
-        status=StatusResponseType.SUCCESS, message=f"Reported {filename}"
+        status=StatusResponseType.SUCCESS,
+        message=f"Reported {brick_id}",
     )
 
 
