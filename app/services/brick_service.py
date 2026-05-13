@@ -16,7 +16,7 @@ from app.database import (
 )
 from app.schemas import BrickCreate, BrickCreateRequest, BrickUpdate, UnitType
 
-from . import collection_service
+from . import broken_brick_report_service, collection_service
 from . import context_search_service as search_service
 
 
@@ -199,13 +199,15 @@ def get_brick_fsrs(
     collection_ids: list[int] | None = None,
 ) -> Brick | None:
     now = datetime.now(timezone.utc)
-    broken_files = set()  # get_broken_filenames()
+    broken_brick_ids = broken_brick_report_service.get_reported_brick_ids(
+        session, learner_id
+    )
 
     def apply_filters(stmt):
         if collection_ids:
             stmt = stmt.where(Brick.collection_id.in_(collection_ids))
-        if broken_files:
-            stmt = stmt.where(~Brick.target_audio_path.in_(broken_files))
+        if broken_brick_ids:
+            stmt = stmt.where(Brick.id.not_in(broken_brick_ids))
         return stmt
 
     def resolve_override(result):
