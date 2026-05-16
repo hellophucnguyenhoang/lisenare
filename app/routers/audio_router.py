@@ -1,8 +1,6 @@
 from typing import Annotated
 
 from fastapi import APIRouter, BackgroundTasks, Depends, UploadFile
-from phonemizer import phonemize
-from phonemizer.separator import Separator
 from sqlmodel import Session
 
 import app.http_client as http_client
@@ -90,16 +88,11 @@ async def evaluate_audio(
         "/audio/transcripts", files=learner_files
     )
 
-    sep = Separator(phone=" ", word="  ")
-    teacher_text, learner_text = text_utils.normalize_for_pronunciation(
-        target_brick.target_text, learner_result.json()["transcript"]
+    teacher_ipa, learner_ipa, _, normalized_learner_text = (
+        text_utils.analyze_phoneme(
+            target_brick.target_text, learner_result.json()["transcript"]
+        )
     )
-    teacher_ipa = phonemize(teacher_text, separator=sep)
-    learner_ipa = phonemize(learner_text, separator=sep)
-    print(f"{teacher_text = }")
-    print(f"{learner_text = }")
-    print(f"teacher_ipa:{teacher_ipa}")
-    print(f"learner_ipa:{learner_ipa}")
 
     result = text_service.evaluate_ipa_pronunciation(
         teacher_ipa=teacher_ipa, learner_ipa=learner_ipa
@@ -115,7 +108,7 @@ async def evaluate_audio(
             brick_id=target_brick_id,
             is_answer_revealed=is_answer_revealed_assumed,
             first_score=result["accuracy_score"],
-            user_target_text=learner_text,
+            user_target_text=normalized_learner_text,
             user_target_audio_path=learner_audio_path,
         )
         review_count = review_service.save_review(

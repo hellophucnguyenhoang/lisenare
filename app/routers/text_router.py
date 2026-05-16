@@ -15,6 +15,7 @@ from app.services import (
     learning_card_service,
     review_service,
 )
+from app.services.text_service import text_service
 from schemas.sentence import (
     SentenceCompareRequest,
     SentenceCompareResponse,
@@ -22,6 +23,7 @@ from schemas.sentence import (
     SentenceTranslateResponse,
 )
 from schemas.text import WavStreamingResponse
+from utils import text_utils
 
 router = APIRouter(prefix="/text", tags=["Text Features"])
 
@@ -33,52 +35,74 @@ def forced_align(
     return forced_alignment_service.align(session, audio_path)
 
 
-@router.post("/semantic-comparison")
-async def compare(
+@router.post("/sentence-comparison")
+async def compare_learner_pronunciation(
     session: Annotated[Session, Depends(get_session)],
-    learner: Annotated[
+    current_learner: Annotated[
         Learner, Depends(auth_service.decode_token_get_learner)
     ],
     background_tasks: BackgroundTasks,
-    sentence_compare_request: SentenceCompareRequest,
+    comparison_payload: SentenceCompareRequest,
 ) -> SentenceCompareResponse:
-    r = await http_client.get_client().post(
+    # 1. Fetch external semantic evaluation
+    http_response = await http_client.get_client().post(
         "/text/semantic-comparison",
-        json=sentence_compare_request.model_dump(mode="json"),
+        json=comparison_payload.model_dump(mode="json"),
     )
-    sentence_compare_response = SentenceCompareResponse.model_validate(
-        r.json()
+    evaluation_result = SentenceCompareResponse.model_validate(
+        http_response.json()
     )
-    if sentence_compare_request.review_base:
-        review_create = ReviewCreate(
-            **sentence_compare_request.review_base.model_dump(
-                exclude_none=True
-            ),
-            first_score=sentence_compare_response.score,
-            user_target_text=sentence_compare_request.sentence1,
+
+    # 2. Extract and analyze linguistic phonemes
+    reference_ipa, learner_ipa, _, _ = text_utils.analyze_phoneme(
+        comparison_payload.sentence2,
+        comparison_payload.sentence1,
+    )
+    phoneme_analysis = text_service.evaluate_ipa_pronunciation(
+        teacher_ipa=reference_ipa, learner_ipa=learner_ipa
+    )
+
+    # 3. Update evaluation if phoneme tracking yields a higher accuracy score
+    phoneme_accuracy = phoneme_analysis["accuracy_score"]
+    if phoneme_accuracy > evaluation_result.score:
+        evaluation_result.score = phoneme_accuracy
+        evaluation_result.correct = (
+            phoneme_accuracy > evaluation_result.threshold
         )
-        review_count = review_service.save_review(
+
+    # 4. Handle persistence and scheduling optimization if tracking data is provided
+    if comparison_payload.review_base:
+        review_metadata = ReviewCreate(
+            **comparison_payload.review_base.model_dump(exclude_none=True),
+            first_score=evaluation_result.score,
+            user_target_text=comparison_payload.sentence1,
+        )
+        total_saved_reviews = review_service.save_review(
             session=session,
-            learner_id=learner.id,
-            review_create=review_create,
+            learner_id=current_learner.id,
+            review_create=review_metadata,
         )
-        print(f"Review saved, {review_count = }")
-        if review_count > 100 and review_count % 200 == 0:
+        print(f"Review saved, {total_saved_reviews = }")
+
+        # Optimize spacing intervals periodically
+        if total_saved_reviews > 100 and total_saved_reviews % 200 == 0:
             background_tasks.add_task(
                 learning_card_service.optimize_user_scheduler,
-                learner.id,
+                current_learner.id,
             )
             print(
-                f"Triggering background optimization for learner {learner.id}"
+                f"Triggering background optimization for learner {current_learner.id}"
             )
+
         learning_card_service.update_learning_card(
             session=session,
-            learner_id=learner.id,
-            brick_id=sentence_compare_request.review_base.brick_id,
-            score=sentence_compare_response.score,
-            is_answer_revealed=sentence_compare_request.review_base.is_answer_revealed,
+            learner_id=current_learner.id,
+            brick_id=comparison_payload.review_base.brick_id,
+            score=evaluation_result.score,
+            is_answer_revealed=comparison_payload.review_base.is_answer_revealed,
         )
-    return sentence_compare_response
+
+    return evaluation_result
 
 
 @router.post("/translations")
