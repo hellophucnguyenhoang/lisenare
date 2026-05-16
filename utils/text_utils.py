@@ -6,6 +6,8 @@ import enchant
 import nltk
 import spacy
 from nltk.stem import LancasterStemmer
+from phonemizer import phonemize
+from phonemizer.separator import Separator
 from wordfreq import word_frequency
 
 dict_checker = enchant.Dict("en_US")
@@ -189,3 +191,24 @@ def normalize_for_pronunciation(teacher_text: str, learner_text: str):
     learner_text = replace_numbers_by_teacher(teacher_text, learner_text)
 
     return teacher_text, learner_text
+
+
+def analyze_phoneme(
+    target_text: str, learner_text: str
+) -> tuple[str, str, str, str]:
+    sep = Separator(phone=" ", word="  ")
+    normalized_teacher_text, normalized_learner_text = (
+        normalize_for_pronunciation(target_text, learner_text)
+    )
+    teacher_ipa = phonemize(normalized_teacher_text, separator=sep)
+    learner_ipa = phonemize(normalized_learner_text, separator=sep)
+    print(f"{normalized_teacher_text = }")
+    print(f"{normalized_learner_text = }")
+    print(f"teacher_ipa:{teacher_ipa}")
+    print(f"learner_ipa:{learner_ipa}")
+    return (
+        teacher_ipa,
+        learner_ipa,
+        normalized_teacher_text,
+        normalized_learner_text,
+    )

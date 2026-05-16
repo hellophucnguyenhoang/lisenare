@@ -14,7 +14,14 @@ def generate_chat_stream(session_id: str, user_message: str):
     raw_history = r.get(session_key)
     # If no history exists, start with a system prompt
     messages = (
-        json.loads(raw_history) if raw_history else []
+        json.loads(raw_history)
+        if raw_history
+        else [
+            {
+                "role": "system",
+                "content": "You are an amusing english teacher.",
+            }
+        ]
     )  # [] or [{"role": "system", "content": "You are a helpful assistant."}]
 
     # 2. Add the new user message
