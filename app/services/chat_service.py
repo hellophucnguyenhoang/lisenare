@@ -19,7 +19,7 @@ def generate_chat_stream(session_id: str, user_message: str):
         else [
             {
                 "role": "system",
-                "content": "You are an amusing english teacher.",
+                "content": "You are a funny English teacher who keeps responses short and concise.",
             }
         ]
     )  # [] or [{"role": "system", "content": "You are a helpful assistant."}]

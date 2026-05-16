@@ -27,12 +27,14 @@ RUN uv sync --frozen --no-dev && rm -rf /root/.cache/uv
 # Copy the rest of the application code
 COPY . .
 
-# Start Ollama, pull models, and shut down during the build phase
+# Start Ollama, capture its process ID (PID), pull models, and kill it cleanly
 RUN ollama serve & \
+    OLLAMA_PID=$! && \
     sleep 3 && \
     ollama pull mahonzhan/all-MiniLM-L6-v2 && \
     ollama pull gemma3:1b && \
-    pkill ollama
+    kill $OLLAMA_PID && \
+    sleep 2
 
 # Ensure the start script is executable
 RUN chmod +x start.sh
