@@ -3,6 +3,7 @@ import random
 import traceback
 from collections import defaultdict
 from datetime import datetime, timedelta, timezone
+from typing import Literal
 from zoneinfo import ZoneInfo
 
 from fastapi import HTTPException, status
@@ -11,6 +12,7 @@ from sqlalchemy import Float, cast
 from sqlmodel import Session, case, func, select
 
 from app.database import Brick, LearnerSetting, LearningCard, Review, engine
+from app.schemas import TimeSeriesPoint
 from utils.db_utils import apply_time_filter
 from utils.text_utils import calculate_rarity, get_lenient_stems
 
@@ -195,15 +197,29 @@ def get_average_stability(
 ) -> float:
     stability_as_text = LearningCard.fsrs_card_dict["stability"].astext
 
-    statement = select(func.avg(cast(stability_as_text, Float))).where(
-        LearningCard.learner_id == learner_id
+    # Reviews within the requested time range
+    review_subquery = (
+        select(Review.brick_id)
+        .where(Review.learner_id == learner_id)
+        .distinct()
     )
 
-    statement = apply_time_filter(
-        statement, LearningCard.created_at, tz_name, days
+    review_subquery = apply_time_filter(
+        review_subquery,
+        Review.reviewed_at,
+        tz_name,
+        days,
+    ).subquery()
+
+    # Average stability of cards that were reviewed
+    statement = (
+        select(func.avg(cast(stability_as_text, Float)))
+        .where(LearningCard.learner_id == learner_id)
+        .where(LearningCard.brick_id.in_(select(review_subquery.c.brick_id)))
     )
 
     result = session.exec(statement).one()
+
     return round(result, 2) if result is not None else 0.0
 
 
@@ -333,7 +349,7 @@ def get_learning_timeseries(
         return {
             "metric": "total_learning",
             "unit": "cards",
-            "data": to_cumulative(rows),  # cumulative
+            "data": to_cumulative(rows),
         }
 
     elif metric == "reviews":
@@ -416,7 +432,64 @@ def get_learning_timeseries_mock(
     }
 
 
-def downsample_points(data: list[dict], max_points: int = 50):
+def fill_missing_days(
+    points: list[TimeSeriesPoint],
+    days: int | None = None,
+    fill_strategy: Literal["zero", "carry"] = "zero",
+) -> list[TimeSeriesPoint]:
+    """
+    Fill missing dates in a timeseries.
+
+    Strategies:
+    - zero:
+        missing days become 0
+
+    - carry:
+        missing days reuse previous value
+        useful for cumulative metrics
+    """
+
+    if not points:
+        return []
+
+    # Ensure sorted
+    points = sorted(points, key=lambda p: p.date)
+
+    point_map = {p.date: p.value for p in points}
+
+    start_date = points[0].date
+    end_date = points[-1].date
+
+    filled: list[TimeSeriesPoint] = []
+
+    current = start_date
+    previous_value = 0.0
+
+    while current <= end_date:
+        if current in point_map:
+            value = point_map[current]
+            previous_value = value
+        else:
+            if fill_strategy == "zero":
+                value = 0.0
+            elif fill_strategy == "carry":
+                value = previous_value
+            else:
+                raise ValueError(f"Unsupported fill strategy: {fill_strategy}")
+
+        filled.append(
+            TimeSeriesPoint(
+                date=current,
+                value=value,
+            )
+        )
+
+        current += timedelta(days=1)
+
+    return filled
+
+
+def downsample_points(data: list[TimeSeriesPoint], max_points: int = 40):
     """
     Reduce number of points while keeping overall shape.
     """
