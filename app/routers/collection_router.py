@@ -1,37 +1,23 @@
 from typing import Annotated
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 from sqlmodel import Session
 
 from app.database import Learner, get_session
 from app.schemas import (
-    BrickReadSimple,
     CollectionRead,
-    CollectionSort,
-    CollectionStatus,
-    GroupStats,
-    OverrideGroupsCreate,
-    OverrideGroupsResponse,
+    CollectionRenameRequest,
+    OverrideCreateGroupsRequest,
+    OverrideCreateGroupsResponse,
+    OverrideDeleteGroupsResponse,
 )
 from app.services import (
     auth_service,
     brick_override_service,
-    brick_service,
     collection_service,
 )
-from schemas.cefr import CEFRLevel
 
 router = APIRouter(prefix="/collections", tags=["Collections"])
-
-
-@router.get("", response_model=list[CollectionRead])
-def get_collections(
-    session: Annotated[Session, Depends(get_session)],
-    learner: Annotated[
-        Learner, Depends(auth_service.decode_token_get_learner)
-    ],
-):
-    return collection_service.get_collections(session, learner.id)
 
 
 @router.get("/pending", response_model=list[CollectionRead])
@@ -40,71 +26,100 @@ def get_pending_collections(
     learner: Annotated[
         Learner, Depends(auth_service.decode_token_get_learner)
     ],
-    group_name: str = CEFRLevel.A1,
-    status: CollectionStatus = CollectionStatus.ALL,
-    sort_by: CollectionSort = CollectionSort.recommended,
-    limit: int = 20,
-    page: int = 1,
 ):
-    # Calculate offset: (page 1 - 1) * 20 = 0; (page 2 - 1) * 20 = 20
-    offset = (page - 1) * limit
     return collection_service.get_pending_collections(
-        session, learner.id, group_name, status, sort_by, limit, offset
+        session,
+        learner.id,
     )
 
 
-@router.get("/pending-groups")
-def get_pending_groups(
+@router.post("/overrides", response_model=OverrideCreateGroupsResponse)
+def create_collection_overrides(
     session: Annotated[Session, Depends(get_session)],
     learner: Annotated[
         Learner, Depends(auth_service.decode_token_get_learner)
     ],
+    payload: OverrideCreateGroupsRequest,
 ):
-    return collection_service.get_pending_groups(session, learner.id)
+    print(f"{payload=}")
+    total_created = 0
+    details = {}
+    for collection_id in payload.collection_ids:
+        created_count, cloned_id = brick_override_service.create_overrides(
+            session=session,
+            learner_id=learner.id,
+            collection_id=collection_id,
+        )
+        if cloned_id is not None:
+            details[collection_id] = {
+                "cloned_collection_id": cloned_id,
+                "created_count": created_count,
+            }
+            total_created += created_count
+
+    return {
+        "total": total_created,
+        "details": details,
+    }
 
 
-@router.get("/pending-bricks", response_model=list[BrickReadSimple])
-def get_pending_bricks_collection(
+@router.get("/reserved-name")
+def check_reserved_collection_name(
+    name: str = Query(min_length=1),
+) -> bool:
+    return collection_service.is_reserved_collection_name(name)
+
+
+@router.patch("/{collection_id}/name", response_model=CollectionRead)
+def rename_collection(
+    collection_id: int,
+    payload: CollectionRenameRequest,
+    session: Annotated[Session, Depends(get_session)],
+    learner: Annotated[
+        Learner,
+        Depends(auth_service.decode_token_get_learner),
+    ],
+):
+    return collection_service.rename_collection(
+        session=session,
+        learner_id=learner.id,
+        collection_id=collection_id,
+        new_name=payload.name,
+    )
+
+
+@router.delete("/overrides")
+def delete_collection_overrides(
+    session: Annotated[Session, Depends(get_session)],
+    learner: Annotated[
+        Learner, Depends(auth_service.decode_token_get_learner)
+    ],
+    collection_ids: list[int] = Query(),
+) -> OverrideDeleteGroupsResponse:
+    total_deleted = 0
+    details = {}
+    for collection_id in collection_ids:
+        deleted_count = brick_override_service.delete_overrides(
+            session=session,
+            learner_id=learner.id,
+            collection_id=collection_id,
+        )
+        details[collection_id] = deleted_count
+        total_deleted += deleted_count
+    return OverrideDeleteGroupsResponse(
+        total=total_deleted,
+        details=details,
+    )
+
+
+@router.delete("/{collection_id}")
+def delete_collection(
     session: Annotated[Session, Depends(get_session)],
     learner: Annotated[
         Learner, Depends(auth_service.decode_token_get_learner)
     ],
     collection_id: int,
-):
-    return brick_service.get_pending_bricks(session, learner.id, collection_id)
-
-
-@router.get("/stats", response_model=list[GroupStats])
-def get_pending_collection_group_stats(
-    session: Annotated[Session, Depends(get_session)],
-    learner: Annotated[
-        Learner, Depends(auth_service.decode_token_get_learner)
-    ],
-):
-    return collection_service.get_pending_collection_group_stats(
-        session, learner.id
-    )
-
-
-@router.post("/overrides")
-def create_group_overrides(
-    session: Annotated[Session, Depends(get_session)],
-    learner: Annotated[
-        Learner, Depends(auth_service.decode_token_get_learner)
-    ],
-    payload: OverrideGroupsCreate,
-) -> OverrideGroupsResponse:
-    total_created = 0
-    details = {}
-    for group_name in payload.group_names:
-        created_count = brick_override_service.create_overrides_for_group(
-            session=session,
-            learner_id=learner.id,
-            group_name=group_name,
-        )
-        details[group_name] = created_count
-        total_created += created_count
-    return OverrideGroupsResponse(
-        total_created=total_created,
-        details=details,
+) -> int:
+    return collection_service.delete_collection(
+        session, learner.id, collection_id
     )

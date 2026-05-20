@@ -10,10 +10,6 @@ class SnippetBase(SQLModel):
     translation: str | None = None
 
 
-class SnippetCreate(SnippetBase):
-    pass
-
-
 class SnippetRead(SnippetBase):
     id: int
     audio_path: str

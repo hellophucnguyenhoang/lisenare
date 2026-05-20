@@ -1,13 +1,20 @@
 from sqlmodel import SQLModel
 
-from schemas.cefr import CEFR_MAPPING
+
+class OverrideCreateGroupsRequest(SQLModel):
+    collection_ids: list[int]
 
 
-class OverrideGroupsCreate(SQLModel):
-    group_names: list[str] = list(CEFR_MAPPING.values())
-    group_creator_id: int = 1
+class OverrideCreateDetail(SQLModel):
+    cloned_collection_id: int
+    created_count: int
 
 
-class OverrideGroupsResponse(SQLModel):
-    total_created: int
-    details: dict[str, int]
+class OverrideCreateGroupsResponse(SQLModel):
+    total: int
+    details: dict[int, OverrideCreateDetail]
+
+
+class OverrideDeleteGroupsResponse(SQLModel):
+    total: int
+    details: dict[int, int]

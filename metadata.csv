@@ -1,4 +1,4 @@
-id,source_audio_path,en_source_text,vi_translation,cefr_level,unit_type,structure,function,grammar_points,match_count,collection_id,no_conflict_match_count,matching_ids
+id,source_audio_path,en_source_text,vi_translation,cefr_level,unit_type,structure,function,grammar_points,match_count,lesson_id,no_conflict_match_count,matching_ids
 sent_0,S-FYtkOqTlU_sentence_106.wav,Accurately.,Chính xác.,A2,word,,,adverb,1,col_1,1,sent_7249
 sent_1,d448ERf2gJk_sentence_905.wav,Adequately.,Đủ tốt.,A2,word,,,adverb,1,col_52,1,sent_6584
 sent_2,qH5cnyKSL9w_sentence_509.wav,Alphabetically.,Theo thứ tự bảng chữ cái.,A2,word,,,adverb,1,col_53,1,sent_4703

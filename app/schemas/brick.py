@@ -128,9 +128,11 @@ class BrickBase(SQLModel):
     target_text: str
     target_audio_path: str
     cefr_level: CEFRLevel | None = None
+    target_text_log_freq: float
     is_public: bool = True
     creator_id: int
-    collection_id: int | None = None
+    collection_id: int
+    lesson_id: str | None = None
 
 
 class BrickRead(BrickBase):
@@ -141,28 +143,20 @@ class BrickRead(BrickBase):
     creator: LearnerRead
 
 
-class BrickReadSimple(SQLModel):
-    id: int
-    target_text: str
-
-
 class BrickCreate(BrickBase):
     collection_name: str
-    group_name: str
 
 
 class BrickCreateRequest(SQLModel):
     native_text: str
     target_text: str
     is_public: bool = True
-    collection_name: str = "my collection"
-    group_name: str = "my group"
+    collection_name: str
     brick_metadata: BrickMetadataCreate
 
 
-class BrickLearnRead(SQLModel):
-    brick: BrickRead
-    total_bricks: int
+class BrickLearnRead(BrickRead):
+    learned: bool
 
 
 class BrickAudioData(SQLModel):
@@ -178,10 +172,13 @@ class BrickAudioPage(SQLModel):
     total: int
 
 
-class AutoBrickRequest(SQLModel):
-    native_text: str
+class BrickStatus(str, Enum):
+    LEARNED = "LEARNED"
+    NOT_LEARNED = "NOT_LEARNED"
 
 
-class AutoBrickResponse(SQLModel):
-    target_text: str
-    tts_url: str
+class BrickSort(str, Enum):
+    RECOMMENDED = "RECOMMENDED"
+    NEWEST = "NEWEST"
+    AZ = "AZ"
+    ZA = "ZA"
