@@ -7,12 +7,10 @@ class ExplanationRequest(SQLModel):
 
 class ExplanationResponse(SQLModel):
     target_term: str = Field(
-        ...,
         description="The word, phrase, or sentence the learner wants to understand.",
     )
 
     explanation: str = Field(
-        ...,
         description="One short explanation sentence.",
     )
 

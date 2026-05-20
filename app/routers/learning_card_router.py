@@ -65,7 +65,10 @@ def get_learning_timeseries(
             metric,
         )
     )
-    result.data = learning_card_service.downsample_points(
-        result.data, max_points=40
+    result.data = learning_card_service.fill_missing_days(
+        result.data,
+        days,
+        fill_strategy="zero" if metric == "reviews" else "carry",
     )
+    result.data = learning_card_service.downsample_points(result.data)
     return result

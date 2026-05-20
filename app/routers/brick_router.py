@@ -20,6 +20,8 @@ from app.schemas import (
     BrickCreateRequest,
     BrickLearnRead,
     BrickRead,
+    BrickSort,
+    BrickStatus,
     BrickUpdate,
     StatusResponse,
     StatusResponseType,
@@ -34,6 +36,25 @@ from utils import file_utils
 from utils.form_utils import JsonFormBody
 
 router = APIRouter(prefix="/bricks", tags=["Bricks"])
+
+
+@router.get("/pending")
+def get_pending_bricks(
+    session: Annotated[Session, Depends(get_session)],
+    learner: Annotated[
+        Learner, Depends(auth_service.decode_token_get_learner)
+    ],
+    collection_id: int,
+    status: BrickStatus | None = None,
+    sort_by: BrickSort = BrickSort.RECOMMENDED,
+    limit: int = 20,
+    page: int = 1,
+) -> list[BrickLearnRead]:
+    print(collection_id)
+    offset = (page - 1) * limit
+    return brick_service.get_pending_bricks(
+        session, learner.id, [collection_id], status, sort_by, offset, limit
+    )
 
 
 @router.get("/fsrs", response_model=BrickRead)
@@ -64,25 +85,26 @@ def get_brick_audios(
     learner: Annotated[
         Learner, Depends(auth_service.decode_token_get_learner)
     ],
-    group_names: Annotated[list[str] | None, Query()] = None,
+    collection_ids: Annotated[list[int] | None, Query()] = None,
     offset: Annotated[int, Query(ge=0)] = 0,
     limit: Annotated[int, Query(ge=0, le=100)] = 20,
     shuffle_page: Annotated[bool, Query()] = False,
 ) -> BrickAudioPage:
-    print(f"{group_names = }")
+    print(f"{collection_ids = }")
     pending_bricks = brick_service.get_pending_bricks(
         session=session,
         learner_id=learner.id,
-        group_names=group_names,
+        collection_ids=collection_ids,
         offset=offset,
         limit=limit,
     )
     if shuffle_page:
         random.shuffle(pending_bricks)
+
     total = brick_service.count_pending_bricks(
         session=session,
         learner_id=learner.id,
-        group_names=group_names,
+        collection_ids=collection_ids,
     )
     return BrickAudioPage(
         items=[
@@ -118,24 +140,6 @@ def get_brick_details(
 ):
     learner_id = learner.id if learner else None
     return brick_service.get_brick(session, brick_id, learner_id)
-
-
-@router.get("/learn/{collection_id}", response_model=BrickLearnRead)
-def get_brick_in_collection_learn(
-    session: Annotated[Session, Depends(get_session)],
-    learner: Annotated[
-        Learner, Depends(auth_service.decode_token_get_learner)
-    ],
-    collection_id: int,
-    brick_order: Annotated[int, Query(ge=1)] = 1,
-):
-    brick_learn = brick_service.get_brick_in_collection_learn(
-        session=session,
-        learner_id=learner.id,
-        collection_id=collection_id,
-        brick_order=brick_order,
-    )
-    return brick_learn
 
 
 @router.post("", response_model=BrickRead)
