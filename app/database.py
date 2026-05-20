@@ -17,7 +17,7 @@ from sqlmodel import (
 
 from schemas.cefr import CEFR_MAPPING, CEFRLevel
 from utils import text_utils
-
+from enum import Enum
 from . import security
 from .config import settings
 from .schemas import (
@@ -29,6 +29,9 @@ from .schemas import (
     UnitType,
 )
 
+class ExerciseType(str, Enum):
+    REVIEW = "review"      # ôn tập
+    PRACTICE = "practice"  # luyện tập\
 
 class BrickMetadataGrammarPoint(SQLModel, table=True):
     id: int | None = Field(default=None, primary_key=True)
@@ -409,12 +412,12 @@ class Exercise(SQLModel, table=True):
     difficulty: float | None = Field(default=0.0)
     lesson_id: int = Field(default=None, foreign_key="lesson.id")
     lesson: Lesson | None = Relationship(back_populates="exercises")
+    exercise_type: ExerciseType = ExerciseType.PRACTICE
     questions: list["Question"] = Relationship(back_populates="exercise")
 
 
 class Question(SQLModel, table=True):
     id: int | None = Field(default=None, primary_key=True)
-
     content: str | None = None
     question: str | None = None
     answer: str | None = None
