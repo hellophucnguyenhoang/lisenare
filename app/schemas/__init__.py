@@ -12,6 +12,7 @@ from .forced_alignment import *
 from .grammar import *
 from .learner import *
 from .learning_card import *
+from .practice import *
 from .push_token import *
 from .review import *
 from .session_chat import *
