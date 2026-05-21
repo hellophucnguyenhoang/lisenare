@@ -17,6 +17,7 @@ from .routers import (
     grammar_router,
     learner_router,
     learning_card_router,
+    practice_router,
     push_token_router,
     snippet_interaction_router,
     snippet_router,
@@ -43,6 +44,7 @@ origins = [
     "http://localhost:8000",
     "http://127.0.0.1:8000",
     "http://0.0.0.0:8000",
+    "http://192.168.100.109:8000"
 ]
 
 app.add_middleware(
@@ -74,3 +76,4 @@ app.include_router(snippet_interaction_router.router)
 app.include_router(snippet_router.router)
 app.include_router(text_router.router)
 app.include_router(grammar_router.router)
+app.include_router(practice_router.router)
