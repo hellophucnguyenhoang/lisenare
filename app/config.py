@@ -11,10 +11,15 @@ class Settings(BaseSettings):
 
     # Databases
     database_url: str
+    redis_url: str = "redis://localhost:6379/0"
+
+    # Practice session (adaptive practice with Redis)
+    practice_session_ttl: int = 7200
 
     # Servers and Cloud
     ai_model_server_url: str
     gcs_base_url: str
+    use_cloud_storage: bool = False
     google_app_email_address: str
     google_app_password: str
     gemini_api_key: str
