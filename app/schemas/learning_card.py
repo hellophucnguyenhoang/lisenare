@@ -14,7 +14,7 @@ class LearningCardStats(SQLModel):
 
 class TimeSeriesPoint(SQLModel):
     date: date  # "2026-04-01"
-    value: float  # cumulative value
+    value: float
 
 
 class LearningTimeSeries(SQLModel):

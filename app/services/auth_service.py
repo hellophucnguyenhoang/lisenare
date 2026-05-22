@@ -1,6 +1,6 @@
 from typing import Annotated
 
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, status
 from fastapi.security import OAuth2PasswordBearer
 from jwt import InvalidTokenError
 from sqlalchemy import not_
@@ -8,6 +8,7 @@ from sqlmodel import Session, select
 
 from app import security
 from app.database import OTP, Account, Learner, get_session
+from app.exceptions import ErrorCode, RequestException
 
 from . import account_service, learner_service
 
@@ -21,7 +22,12 @@ def authenticate_account(
     if not account or not security.verify_password(
         password, account.hashed_password
     ):
-        return None
+        raise RequestException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            debug_message="Incorrect username or password",
+            error_code=ErrorCode.INVALID_CREDENTIALS,
+            headers={"WWW-Authenticate": "Bearer"},
+        )
     return account
 
 
@@ -29,27 +35,28 @@ async def decode_token_get_learner(
     session: Annotated[Session, Depends(get_session)],
     token: Annotated[str, Depends(oauth2_scheme)],
 ) -> Learner:
-    credentials_exception = HTTPException(
+    # One general exception to avoid auth information leak
+    credentials_exception = RequestException(
         status_code=status.HTTP_401_UNAUTHORIZED,
-        detail="Could not validate credentials",
+        debug_message="Could not validate credentials",
+        error_code=ErrorCode.AUTH_FAILED,
         headers={"WWW-Authenticate": "Bearer"},
     )
+
     try:
         payload = security.decode_access_token(token)
         learner_id = payload.sub
+
         if not learner_id:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Not found learner_id in the sub of the token",
-            )
+            raise credentials_exception
+
     except InvalidTokenError:
         raise credentials_exception
+
     learner = learner_service.get_learner_by_id(session, learner_id)
     if not learner:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Learner not found for learner_id",
-        )
+        raise credentials_exception
+
     return learner
 
 
@@ -60,9 +67,17 @@ async def decode_token_get_optional_learner(
     try:
         if not token:
             return None
-        return await decode_token_get_learner(session=session, token=token)
-    except HTTPException:
-        return None
+
+        return await decode_token_get_learner(
+            session=session,
+            token=token,
+        )
+
+    except RequestException as exc:
+        if exc.status_code == status.HTTP_401_UNAUTHORIZED:
+            return None
+
+        raise
 
 
 def get_most_recent_unused_otp(session: Session, email: str) -> OTP:

@@ -8,7 +8,7 @@ def save_report(
     reporter_id: int,
     brick_id: int,
     description: str | None = None,
-) -> BrokenBrickReport:
+) -> bool:
     statement = select(BrokenBrickReport).where(
         BrokenBrickReport.learner_id == reporter_id,
         BrokenBrickReport.brick_id == brick_id,
@@ -18,8 +18,7 @@ def save_report(
         if description:
             existing.description = description
             session.commit()
-            session.refresh(existing)
-        return existing
+        return False
 
     new_report = BrokenBrickReport(
         learner_id=reporter_id,
@@ -28,8 +27,7 @@ def save_report(
     )
     session.add(new_report)
     session.commit()
-    session.refresh(new_report)
-    return new_report
+    return True
 
 
 def get_reported_brick_ids(session: Session, learner_id: int) -> set[int]:
