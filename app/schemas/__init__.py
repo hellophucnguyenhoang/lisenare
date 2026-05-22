@@ -57,7 +57,6 @@ from .review import ReviewBase, ReviewCreate
 from .session_chat import RLMOutput, RuntimeSession
 from .snippet import SnippetPage, SnippetRead
 from .snippet_interaction import InteractionType, SnippetInteractionCreate
-from .status import StatusResponse, StatusResponseType
 from .text import PronunciationAnalysisResponse
 
 __all__ = [
@@ -106,8 +105,6 @@ __all__ = [
     "SnippetInteractionCreate",
     "SnippetPage",
     "SnippetRead",
-    "StatusResponse",
-    "StatusResponseType",
     "SubmitRequest",
     "SuggestRequest",
     "TimeSeriesPoint",

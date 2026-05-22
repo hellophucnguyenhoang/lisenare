@@ -6,7 +6,9 @@ from fastapi import (
     Depends,
     File,
     Query,
+    Response,
     UploadFile,
+    status,
 )
 from sqlmodel import Session
 
@@ -22,8 +24,6 @@ from app.schemas import (
     BrickStatus,
     BrickUpdate,
     OverrideBrickRequest,
-    StatusResponse,
-    StatusResponseType,
 )
 from app.services import (
     auth_service,
@@ -162,46 +162,41 @@ async def create_brick(
     )
 
 
-@router.post("/override")
+@router.post("/override", status_code=status.HTTP_201_CREATED)
 def save_brick_override(
     session: Annotated[Session, Depends(get_session)],
     learner: Annotated[
         Learner, Depends(auth_service.decode_token_get_learner)
     ],
     payload: OverrideBrickRequest,
-) -> StatusResponse:
+) -> Response:
     brick_override_service.save_override_for_brick(
         session,
         learner_id=learner.id,
         brick_id=payload.brick_id,
         collection_name=payload.collection_name,
     )
-    return StatusResponse(
-        status=StatusResponseType.SUCCESS,
-        message="Brick override saved successfully",
-    )
+    return Response(status_code=status.HTTP_201_CREATED)
 
 
-@router.post("/report/{brick_id}")
+@router.post("/report/{brick_id}", status_code=status.HTTP_201_CREATED)
 def report_broken_brick(
     session: Annotated[Session, Depends(get_session)],
     learner: Annotated[
         Learner, Depends(auth_service.decode_token_get_learner)
     ],
     brick_id: int,
+    response: Response,  # Response Injection to change the status code
     description: str | None = None,
-) -> StatusResponse:
-    broken_brick_report_service.save_report(
-        session,
-        learner.id,
-        brick_id,
-        description,
+):
+    is_created = broken_brick_report_service.save_report(
+        session, learner.id, brick_id, description
     )
 
-    return StatusResponse(
-        status=StatusResponseType.SUCCESS,
-        message=f"Reported {brick_id}",
-    )
+    if not is_created:
+        response.status_code = status.HTTP_204_NO_CONTENT
+
+    return Response(status_code=response.status_code)
 
 
 @router.patch(
@@ -246,7 +241,7 @@ async def update_brick(
     )
 
 
-@router.delete("/{brick_id}", response_model=StatusResponse)
+@router.delete("/{brick_id}")
 def delete_brick(
     session: Annotated[Session, Depends(get_session)],
     learner: Annotated[
@@ -256,15 +251,9 @@ def delete_brick(
 ):
     result = brick_service.delete_brick(session, learner.id, brick_id)
 
-    message = "Your personal override for this brick was removed."
-
+    # Complete deletion of the entity -> 204 No Content
     if result == "BRICK_DELETED":
-        message = "Original brick and all metadata deleted."
+        return Response(status_code=status.HTTP_204_NO_CONTENT)
 
-    elif result == "OWNERSHIP_TRANSFERRED":
-        message = "The ownership of the brick was transferred."
-
-    return {
-        "status": StatusResponseType.SUCCESS,
-        "message": message,
-    }
+    # Ownership shifted or personal record dropped -> 200 OK
+    return Response(status_code=status.HTTP_200_OK)

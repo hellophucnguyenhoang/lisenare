@@ -1,7 +1,7 @@
 import time
 from typing import Annotated
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Response, status
 from sqlmodel import Session
 
 from app.database import Learner, get_session
@@ -9,8 +9,6 @@ from app.schemas import (
     BrickContextSearch,
     ContextSearchRequest,
     SnippetRead,
-    StatusResponse,
-    StatusResponseType,
     VideoContextSearchResult,
 )
 from app.services import auth_service, snippet_like_service
@@ -25,19 +23,17 @@ router = APIRouter(prefix="/context-search", tags=["Context Search"])
 
 @router.post(
     "/init-embeddings",
+    status_code=status.HTTP_201_CREATED,
     description="WARNING: This takes about 10 minutes to run.",
 )
 def init_embeddings(
     session: Annotated[Session, Depends(get_session)],
-) -> StatusResponse:
+) -> Response:
     start = time.time()
     initialize_embeddings(session, context_search_service)
     end = time.time()
     print(f"Initialization time: {(end - start)}s")
-    return StatusResponse(
-        status=StatusResponseType.SUCCESS,
-        message="All embeddings are initialized successfully",
-    )
+    return Response(status_code=status.HTTP_201_CREATED)
 
 
 @router.post("/videos-search")

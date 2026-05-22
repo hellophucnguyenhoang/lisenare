@@ -16,7 +16,9 @@ def get_learner_me(
         Learner, Depends(auth_service.decode_token_get_learner)
     ],
 ):
-    return learner
+    email = learner.account.email if learner.account else None
+
+    return LearnerRead(id=learner.id, full_name=learner.full_name, email=email)
 
 
 @router.patch("/me", response_model=LearnerRead)
