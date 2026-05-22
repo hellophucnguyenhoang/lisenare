@@ -64,6 +64,36 @@ async def http_exception_handler(request, exc: StarletteHTTPException):
     )
 
 
+# @app.exception_handler(RequestValidationError)
+# async def validation_exception_handler(
+#     request: Request,
+#     exc: RequestValidationError,
+# ):
+#     errors = exc.errors()
+
+#     debug_message = "Validation errors:"
+#     for error in errors:
+#         debug_message += f"\nField: {error['loc']}, Error: {error['msg']}"
+
+#     error_code = None
+
+#     if errors:
+#         first_error = errors[0]
+
+#         field_name = first_error["loc"][-1]
+#         error_type = first_error["type"]
+
+#         error_code = VALIDATION_ERROR_MAPPING.get((field_name, error_type))
+
+#     return JSONResponse(
+#         status_code=422,
+#         content={
+#             "debug_message": debug_message.strip(),
+#             "error_code": error_code,
+#         },
+#     )
+
+
 # The exception structure stays consistent
 # @app.exception_handler(Exception)
 # async def unexpected_exception_handler(request, exc: Exception):
@@ -81,7 +111,7 @@ origins = [
     "http://localhost:8000",
     "http://127.0.0.1:8000",
     "http://0.0.0.0:8000",
-    "http://192.168.100.109:8000"
+    "http://192.168.100.109:8000",
 ]
 
 app.add_middleware(
