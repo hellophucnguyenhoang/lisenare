@@ -1,11 +1,12 @@
 import re
 from collections.abc import Callable
 
-from fastapi import HTTPException, status
+from fastapi import status
 from ollama import generate
 from sqlmodel import Session
 
-from app.schemas import ExplanationResponse, ExplanationValidationError
+from app.exceptions import ErrorCode, RequestException
+from app.schemas import ExplanationResponse
 from utils.text_utils import (
     get_lenient_stems,
     is_valid_english,
@@ -201,9 +202,12 @@ def generate_vocab_item_for_learner(
     # Inside generate_vocab_item_for_learner:
     cleaned_word, is_english = normalize_target_term(target_term)
     if not is_english:
-        raise HTTPException(
+        raise RequestException(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-            detail=f"'{target_term}' is not a recognized English word.",
+            debug_message=(
+                f"Target term '{target_term}' is not a valid English word."
+            ),
+            error_code=ErrorCode.INVALID_EXPLANATION_RESPONSE,
         )
 
     # Now cleaned_word is a string, not a tuple
@@ -257,18 +261,28 @@ def validate_explanation_response(
     - every example MUST contain target term
 
     Raises:
-        ExplanationValidationError
+        RequestException
     """
 
     if not is_valid_english(response.target_term):
-        raise ExplanationValidationError(
-            f"Target term '{response.target_term}' is not a valid English word."
+        raise RequestException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            debug_message=(
+                f"Target term '{response.target_term}' "
+                "is not a valid English word."
+            ),
+            error_code=ErrorCode.INVALID_EXPLANATION_RESPONSE,
         )
 
     target_stems = get_lenient_stems(response.target_term)
 
     if not target_stems:
-        raise ExplanationValidationError("Target term has no valid stems.")
+        raise RequestException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            debug_message=(
+                f"Target term '{response.target_term}' has no valid stems."
+            ),
+        )
 
     #
     # Validate explanation
@@ -279,9 +293,12 @@ def validate_explanation_response(
     explanation_overlap = target_stems & explanation_stems
 
     if explanation_overlap:
-        raise ExplanationValidationError(
-            "Explanation contains target term stems: "
-            f"{sorted(explanation_overlap)}"
+        raise RequestException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            debug_message=(
+                "Explanation contains forbidden target term stems: "
+                f"{sorted(explanation_overlap)}"
+            ),
         )
 
     #
@@ -294,6 +311,10 @@ def validate_explanation_response(
         if not target_stems.issubset(example_stems):
             print(f"{target_stems=}")
             print(f"{example_stems=}")
-            raise ExplanationValidationError(
-                f"Example at index {i} does not fully contain target term: {example}"
+            raise RequestException(
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                debug_message=(
+                    f"Example at index {i} does not fully contain "
+                    f"target term '{response.target_term}': {example}"
+                ),
             )
