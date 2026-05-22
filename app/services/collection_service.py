@@ -1,136 +1,78 @@
+from fastapi import status
 from sqlalchemy.exc import IntegrityError
-from sqlmodel import Session, asc, desc, func, select
+from sqlmodel import Session, func, or_, select
 
 from app.database import Brick, BrickOverride, Collection, Review
-from app.schemas import CollectionSort, CollectionStatus
-from utils import text_utils
+from app.exceptions import RequestException
+from app.services import brick_override_service, brick_service
+from schemas.cefr import CEFR_MAPPING
 
-from . import brick_service
 
-
-def get_collections(
-    session: Session,
-    learner_id: int,
-) -> list[Collection]:
-    statement = select(Collection).where(Collection.creator_id == learner_id)
-    collections = session.exec(statement).all()
-    return collections
+def is_reserved_collection_name(name: str) -> bool:
+    cleaned_name = name.strip()
+    reserved_names = {"All", *CEFR_MAPPING.values()}
+    return cleaned_name in reserved_names
 
 
 def get_pending_collections(
     session: Session,
     learner_id: int,
-    group_name: str | None = None,
-    status: CollectionStatus = CollectionStatus.ALL,
-    sort_by: CollectionSort = CollectionSort.recommended,
-    limit: int | None = None,
-    offset: int | None = None,
 ) -> list:
-    # Get all the pending bricks
-    # Join with the Review to know the current learning state of them
-    # Aggregate their collection information
-    # Apply pagination and sorting
+    """
+    A pending collection is a collection contains his pending bricks.
 
-    pending_bricks_subq = brick_service.get_pending_bricks_subquery(learner_id)
-
+    Note: A pending brick can have many pending collections
+    because brick and brick override are not in the same collection.
+    """
     statement = (
         select(
             Collection,
-            func.count(func.distinct(pending_bricks_subq.c.id)).label(
-                "brick_count"
-            ),
+            func.count(func.distinct(Brick.id)).label("brick_count"),
             func.count(func.distinct(Review.brick_id)).label("learned_count"),
-            func.max(pending_bricks_subq.c.last_edit_at).label(
-                "latest_brick_edit"
-            ),
         )
-        .select_from(Collection)
+        .select_from(Brick)
         .join(
-            pending_bricks_subq,
-            Collection.id == pending_bricks_subq.c.collection_id,
+            BrickOverride,
+            (BrickOverride.brick_id == Brick.id)
+            & (BrickOverride.learner_id == learner_id),
+            isouter=True,
+        )
+        .join(
+            Collection,
+            Collection.id
+            == func.coalesce(
+                BrickOverride.collection_id,
+                Brick.collection_id,
+            ),
         )
         .join(
             Review,
-            (Review.learner_id == learner_id)
-            & (Review.brick_id == pending_bricks_subq.c.id),
+            (Review.brick_id == Brick.id) & (Review.learner_id == learner_id),
             isouter=True,
         )
+        .where(
+            or_(
+                Brick.creator_id == learner_id,
+                BrickOverride.learner_id == learner_id,
+            )
+        )
+        .group_by(Collection.id)
     )
-
-    if group_name:
-        statement = statement.where(Collection.group_name == group_name)
-
-    statement = statement.group_by(Collection.id)
-
-    total_bricks_count = func.count(func.distinct(pending_bricks_subq.c.id))
-    learned_bricks_count = func.count(func.distinct(Review.brick_id))
-
-    if status == CollectionStatus.NOT_STARTED:
-        # Chưa học brick nào
-        statement = statement.having(learned_bricks_count == 0)
-
-    elif status == CollectionStatus.IN_PROGRESS:
-        # Đã học ít nhất 1 brick VÀ chưa học hết
-        statement = statement.having(
-            (learned_bricks_count > 0)
-            & (learned_bricks_count < total_bricks_count)
-        )
-
-    elif status == CollectionStatus.COMPLETED:
-        # Số lượng brick đã học bằng tổng số brick
-        statement = statement.having(
-            (learned_bricks_count == total_bricks_count)
-            & (total_bricks_count > 0)  # Đảm bảo collection không trống
-        )
-
-    # --- Sorting Logic ---
-    if sort_by == CollectionSort.newest:
-        statement = statement.order_by(
-            desc("latest_brick_edit"), Collection.id
-        )
-    elif sort_by == CollectionSort.az:
-        # Sort by name A -> Z
-        statement = statement.order_by(asc(Collection.name), Collection.id)
-    elif sort_by == CollectionSort.za:
-        # Sort by name Z -> A
-        statement = statement.order_by(desc(Collection.name), Collection.id)
-    else:
-        # Default "recommended" sorting
-        statement = statement.order_by(
-            Collection.difficulty_score,
-            Collection.name,
-            Collection.id,
-        )
-
-    if limit is not None:
-        statement = statement.limit(limit)
-
-    if offset is not None:
-        statement = statement.offset(offset)
 
     results = session.exec(statement).all()
 
-    collections_with_count = []
-    for collection, brick_count, learned_count, _ in results:
-        data = collection.model_dump()
-        data["brick_count"] = brick_count
-        data["learned_count"] = learned_count
-        collections_with_count.append(data)
-
-    return collections_with_count
-
-
-def get_pending_groups(
-    session: Session,
-    learner_id: int,
-) -> list[str]:
-    collections_with_count = get_pending_collections(session, learner_id)
-    group_names = set([coll["group_name"] for coll in collections_with_count])
-    return list(group_names)
+    return [
+        {
+            **collection.model_dump(),
+            "brick_count": brick_count,
+            "learned_count": learned_count,
+        }
+        for collection, brick_count, learned_count in results
+    ]
 
 
 def get_or_create_collection(
-    session: Session, collection_name: str, group_name: str, creator_id: str
+    session: Session, collection_name: str, creator_id: str
 ) -> Collection:
     statement = select(Collection).where(
         Collection.name == collection_name, Collection.creator_id == creator_id
@@ -140,78 +82,13 @@ def get_or_create_collection(
     if not collection:
         collection = Collection(
             name=collection_name,
-            group_name=group_name,
             creator_id=creator_id,
-            difficulty_score=0.0,
         )
         session.add(collection)
         session.commit()
         session.refresh(collection)
 
     return collection
-
-
-def get_pending_collection_group_stats(
-    session: Session,
-    learner_id: int,
-) -> list[dict]:
-    pending_bricks_subq = brick_service.get_pending_bricks_subquery(learner_id)
-    statement = (
-        select(
-            Collection.group_name,
-            func.count(func.distinct(Collection.id)).label("collection_count"),
-        )
-        .join(
-            pending_bricks_subq,
-            Collection.id == pending_bricks_subq.c.collection_id,
-        )
-        .group_by(Collection.group_name)
-    )
-    results = session.exec(statement).all()
-    return [
-        {
-            "group_name": group_name,
-            "collection_count": collection_count,
-        }
-        for group_name, collection_count in results
-    ]
-
-
-def update_collection_difficulty(
-    session: Session, collection_id: int, learner_id: int
-):
-    # Fetch the collection object (to update it later)
-    collection = session.get(Collection, collection_id)
-    if not collection:
-        return
-
-    # Get target_text from overrides
-    # Joining with Brick ensures we get the text in the same trip
-    override_texts = session.exec(
-        select(Brick.target_text)
-        .join(BrickOverride, BrickOverride.brick_id == Brick.id)
-        .where(
-            BrickOverride.collection_id == collection_id,
-            BrickOverride.learner_id == learner_id,
-        )
-    ).all()
-
-    # Get target_text from original bricks
-    brick_texts = session.exec(
-        select(Brick.target_text).where(
-            Brick.collection_id == collection_id,
-            Brick.creator_id == learner_id,
-        )
-    ).all()
-
-    # Combine all strings
-    combined_text = " ".join(override_texts + brick_texts)
-
-    # Update and commit
-    if combined_text.strip():
-        collection.difficulty_score = text_utils.log_frequency(combined_text)
-        session.add(collection)
-        session.commit()
 
 
 def delete_empty_collection(session: Session, collection_id: int):
@@ -223,6 +100,22 @@ def delete_empty_collection(session: Session, collection_id: int):
     if not collection:
         return
 
+    # No need to check bricks because of the RESTRICT ON DELETE constraint
+    override_exists = (
+        session.scalar(
+            select(BrickOverride)
+            .where(BrickOverride.collection_id == collection_id)
+            .limit(1)
+        )
+        is not None
+    )
+
+    if override_exists:
+        print(
+            f"Collection {collection_id} kept because it still has overrides."
+        )
+        return
+
     try:
         session.delete(collection)
         session.commit()
@@ -232,6 +125,93 @@ def delete_empty_collection(session: Session, collection_id: int):
         # Forget about that delete attempt and go
         # back to the state we were in before I tried that
         session.rollback()
-        print(
-            f"Collection {collection_id} kept because it still has bricks or overrides."
+        print(f"Collection {collection_id} kept because it still has bricks.")
+
+
+def delete_collection(
+    session: Session,
+    learner_id: int,
+    collection_id: int,
+) -> int:
+    collection = session.get(Collection, collection_id)
+    if not collection:
+        raise RequestException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            debug_message=f"{collection_id=} not found",
         )
+
+    if collection.creator_id != learner_id:
+        raise RequestException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            debug_message=f"{learner_id=} not allowed to edit {collection_id=}",
+        )
+
+    # delete the brick overrides
+    deleted_override_count = brick_override_service.delete_overrides(
+        session, learner_id, collection_id
+    )
+
+    # delete the remaining bricks the learner owns
+    stmt = select(Brick).where(Brick.collection_id == collection_id)
+    bricks = session.exec(stmt).all()
+    deleted_owned_brick_count = 0
+    for brick in bricks:
+        brick_service.delete_brick(session, learner_id, brick.id)
+        deleted_owned_brick_count += 1
+
+    return deleted_override_count + deleted_owned_brick_count
+
+
+def delete_collections(
+    session: Session, learner_id: int, collection_ids: list[int]
+) -> int:
+    deleted_count = 0
+    for collection_id in collection_ids:
+        deleted_count += delete_collection(session, learner_id, collection_id)
+    return deleted_count
+
+
+def rename_collection(
+    session: Session,
+    learner_id: int,
+    collection_id: int,
+    new_name: str,
+) -> Collection:
+    collection = session.get(Collection, collection_id)
+
+    if not collection:
+        raise RequestException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            debug_message=f"{collection_id=} not found",
+        )
+
+    if collection.creator_id != learner_id:
+        raise RequestException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            debug_message=f"{learner_id=} not allowed to edit {collection_id=}",
+        )
+
+    cleaned_name = new_name.strip()
+
+    if not cleaned_name:
+        raise RequestException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            debug_message="Collection name cannot be empty",
+        )
+
+    reserved_names = set(CEFR_MAPPING.values())
+    reserved_names.add("All")
+
+    if cleaned_name in reserved_names:
+        raise RequestException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            debug_message=f"collection name {cleaned_name} is reserved",
+        )
+
+    collection.name = cleaned_name
+
+    session.add(collection)
+    session.commit()
+    session.refresh(collection)
+
+    return collection

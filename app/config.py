@@ -28,7 +28,7 @@ class Settings(BaseSettings):
     # Security
     secret_key: str
     jwt_algorithm: str
-    access_token_expire_minutes: int = 60
+    access_token_expire_minutes: int = 1000
     otp_expire_minutes: int = 5
 
     # Media
@@ -39,7 +39,7 @@ class Settings(BaseSettings):
     # Context search
     semantic_emb_dim: int = 384  # all-MiniLM-L6-v2
 
-    # Recommendation: LinUCB
+    # Recommendation: LinUCB (deprecated)
     post_features_path: str = "models/post_features.pkl"
     linucb_model_path: str = "models/linucb_weights.npz"
     item_feature_dim: int = 387

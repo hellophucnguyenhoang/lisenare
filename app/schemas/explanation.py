@@ -7,12 +7,10 @@ class ExplanationRequest(SQLModel):
 
 class ExplanationResponse(SQLModel):
     target_term: str = Field(
-        ...,
         description="The word, phrase, or sentence the learner wants to understand.",
     )
 
     explanation: str = Field(
-        ...,
         description="One short explanation sentence.",
     )
 
@@ -20,7 +18,3 @@ class ExplanationResponse(SQLModel):
         default_factory=list,
         description="Example sentences containing the target text.",
     )
-
-
-class ExplanationValidationError(Exception):
-    pass

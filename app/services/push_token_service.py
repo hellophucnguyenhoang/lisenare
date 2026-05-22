@@ -14,7 +14,7 @@ PUSH_NOTI_SEND_BATCH_SIZE = 90  # safe limit
 
 def register_push_token(
     session: Session, data: PushTokenRegister, learner_id: int
-) -> PushToken:
+) -> tuple[PushToken, bool]:
     # Check if this token is already registered in the system
     statement = select(PushToken).where(PushToken.token == data.token)
     db_token = session.exec(statement).first()
@@ -24,6 +24,7 @@ def register_push_token(
         db_token.learner_id = learner_id
         db_token.device_name = data.device_name
         # Note: We don't update last_sent_at here, only when a notification is sent
+        is_created = False
     else:
         # If it's a new device/token, create a new record
         db_token = PushToken(
@@ -32,10 +33,11 @@ def register_push_token(
             learner_id=learner_id,
         )
         session.add(db_token)
+        is_created = True
 
     session.commit()
     session.refresh(db_token)
-    return db_token
+    return db_token, is_created
 
 
 def send_push_notification(

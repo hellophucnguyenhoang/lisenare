@@ -2,17 +2,16 @@ import smtplib
 from datetime import datetime, timezone
 from email.message import EmailMessage
 
-from fastapi import BackgroundTasks, HTTPException, status
-from sqlmodel import Session, select
+from fastapi import BackgroundTasks, status
+from sqlmodel import Session, or_, select
 
 from app import security
 from app.config import settings
 from app.database import Account, Learner
+from app.exceptions import ErrorCode, RequestException
 from app.schemas import (
     LearnerAccountCreate,
     PasswordResetRequest,
-    StatusResponse,
-    StatusResponseType,
 )
 from app.services import auth_service
 
@@ -25,6 +24,22 @@ def get_account_by_username(session: Session, username: str) -> Account:
 def create_learner_account(
     session: Session, learner_account_create: LearnerAccountCreate
 ) -> Account:
+    existing_account = session.scalars(
+        select(Account).where(
+            or_(
+                Account.email == learner_account_create.email,
+                Account.username == learner_account_create.username,
+            )
+        )
+    ).first()
+
+    if existing_account:
+        raise RequestException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            debug_message="Username or email registration conflicts.",
+            error_code=ErrorCode.USERNAME_OR_EMAIL_TAKEN,
+        )
+
     learner = Learner(full_name=learner_account_create.full_name)
     hashed_password = security.get_password_hash(
         learner_account_create.password
@@ -48,13 +63,15 @@ def change_learner_account_password(
         select(Account).where(Account.learner_id == learner_id)
     ).first()
     if not account:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Account not found"
+        raise RequestException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            debug_message=f"Account for {learner_id=} not found",
         )
     if not security.verify_password(old_password, account.hashed_password):
-        raise HTTPException(
+        raise RequestException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="The old password is wrong",
+            debug_message="Wrong old password",
+            error_code=ErrorCode.INCORRECT_PASSWORD,
         )
     hashed_new_password = security.get_password_hash(new_password)
     account.hashed_password = hashed_new_password
@@ -84,39 +101,49 @@ def send_email_background(
     background_tasks.add_task(send_email, to_email, subject, body)
 
 
-def reset_account_password(
-    session: Session, request: PasswordResetRequest
-) -> StatusResponse:
+def reset_account_password(session: Session, request: PasswordResetRequest):
     account = get_account_by_username(session, request.username)
     if not account:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Account not found"
+        raise RequestException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            debug_message=(
+                f"Account not found for username={request.username}"
+            ),
+            error_code=ErrorCode.ACCOUNT_NOT_FOUND,
         )
 
     if not account.email:
-        raise HTTPException(
+        raise RequestException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Account does not have an email",
+            debug_message=(
+                f"Account username={request.username} does not have an email"
+            ),
+            error_code=ErrorCode.ACCOUNT_HAS_NO_EMAIL,
         )
 
     otp_entry = auth_service.get_most_recent_unused_otp(session, account.email)
 
     if not otp_entry:
-        raise HTTPException(
+        raise RequestException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="No valid OTP found",
+            debug_message=(f"No valid OTP found for email={account.email}"),
+            error_code=ErrorCode.OTP_NOT_FOUND,
         )
 
     if otp_entry.expires_at.replace(tzinfo=timezone.utc) < datetime.now(
         timezone.utc
     ):
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, detail="OTP expired"
+        raise RequestException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            debug_message=(f"Expired OTP for email={account.email}"),
+            error_code=ErrorCode.OTP_EXPIRED,
         )
 
     if not security.verify_otp(request.otp, otp_entry.hashed_code):
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid OTP"
+        raise RequestException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            debug_message=(f"Invalid OTP for email={account.email}"),
+            error_code=ErrorCode.INVALID_OTP,
         )
 
     otp_entry.used = True
@@ -125,7 +152,3 @@ def reset_account_password(
     session.add(otp_entry)
     session.add(account)
     session.commit()
-    return {
-        "status": StatusResponseType.SUCCESS,
-        "message": "Password has been reset successfully.",
-    }
