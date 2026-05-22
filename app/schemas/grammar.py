@@ -54,10 +54,6 @@ def get_answered_questions(
 ) -> list[QuestionContext]:
     return [q for q in request.context.questions if q.user_answer is not None]
 
-
-# question cho chatbot
-
-
 class QuestionInput(BaseModel):
     id: int
     order_id: int | None = None
