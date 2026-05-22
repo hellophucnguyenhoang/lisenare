@@ -25,7 +25,7 @@ class Settings(BaseSettings):
     # Security
     secret_key: str
     jwt_algorithm: str
-    access_token_expire_minutes: int = 1
+    access_token_expire_minutes: int = 1000
     otp_expire_minutes: int = 5
 
     # Media

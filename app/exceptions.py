@@ -11,6 +11,8 @@ class ErrorCode(str, Enum):
     INCORRECT_PASSWORD = "INCORRECT_PASSWORD"
     ACCOUNT_NOT_FOUND = "ACCOUNT_NOT_FOUND"
     ACCOUNT_HAS_NO_EMAIL = "ACCOUNT_HAS_NO_EMAIL"
+    USERNAME_OR_EMAIL_TAKEN = "USERNAME_OR_EMAIL_TAKEN"
+
     OTP_NOT_FOUND = "OTP_NOT_FOUND"
     OTP_EXPIRED = "OTP_EXPIRED"
     INVALID_OTP = "INVALID_OTP"
@@ -23,6 +25,14 @@ class ErrorCode(str, Enum):
     BRICK_OVERRIDE_ALREADY_EXISTS = "BRICK_OVERRIDE_ALREADY_EXISTS"
 
     INVALID_EXPLANATION_RESPONSE = "INVALID_EXPLANATION_RESPONSE"
+
+
+# VALIDATION_ERROR_MAPPING = {
+#     ("username", "string_too_short"): ErrorCode.USERNAME_TOO_SHORT,
+#     ("password", "string_too_short"): ErrorCode.PASSWORD_TOO_SHORT,
+#     ("email", "value_error"): ErrorCode.INVALID_EMAIL_FORMAT,
+#     ("new_password", "string_too_short"): ErrorCode.PASSWORD_TOO_SHORT,
+# }
 
 
 class RequestException(HTTPException):

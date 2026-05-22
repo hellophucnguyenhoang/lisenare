@@ -1,13 +1,11 @@
 from typing import Annotated
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Response, status
 from sqlmodel import Session
 
 from app.database import Learner, get_session
 from app.schemas import (
     SnippetInteractionCreate,
-    StatusResponse,
-    StatusResponseType,
 )
 from app.services import (
     auth_service,
@@ -19,23 +17,17 @@ router = APIRouter(
 )
 
 
-@router.post("")
+@router.post("", status_code=status.HTTP_201_CREATED)
 def create_interaction(
     session: Annotated[Session, Depends(get_session)],
     learner: Annotated[
         Learner | None, Depends(auth_service.decode_token_get_optional_learner)
     ],
     data: SnippetInteractionCreate,
-) -> StatusResponse:
-    interaction = (
-        snippet_interaction_service.handle_interaction_and_update_profile(
-            session=session,
-            data=data,
-            learner_id=learner.id if learner else None,
-        )
+) -> Response:
+    snippet_interaction_service.handle_interaction_and_update_profile(
+        session=session,
+        data=data,
+        learner_id=learner.id if learner else None,
     )
-
-    return StatusResponse(
-        status=StatusResponseType.SUCCESS,
-        message=f"Interaction type {interaction.type} created.",
-    )
+    return Response(status_code=status.HTTP_201_CREATED)

@@ -1,6 +1,6 @@
 from typing import Annotated
 
-from fastapi import APIRouter, BackgroundTasks, Body, Depends
+from fastapi import APIRouter, BackgroundTasks, Body, Depends, Response, status
 from sqlmodel import Session
 
 from app import security
@@ -11,7 +11,6 @@ from app.schemas import (
     PasswordChangeRequest,
     PasswordRecoveryResponse,
     PasswordResetRequest,
-    StatusResponse,
     Token,
 )
 from app.services import account_service, auth_service, otp_service
@@ -58,14 +57,13 @@ def forgot_password(
     )
 
 
-@router.post("/reset-password")
+@router.post("/reset-password", status_code=status.HTTP_204_NO_CONTENT)
 def reset_password(
     session: Annotated[Session, Depends(get_session)],
     password_reset_request: PasswordResetRequest,
-) -> StatusResponse:
-    return account_service.reset_account_password(
-        session, password_reset_request
-    )
+) -> Response:
+    account_service.reset_account_password(session, password_reset_request)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @router.patch("/me/password")

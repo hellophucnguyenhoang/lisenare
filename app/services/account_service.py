@@ -3,7 +3,7 @@ from datetime import datetime, timezone
 from email.message import EmailMessage
 
 from fastapi import BackgroundTasks, status
-from sqlmodel import Session, select
+from sqlmodel import Session, or_, select
 
 from app import security
 from app.config import settings
@@ -12,8 +12,6 @@ from app.exceptions import ErrorCode, RequestException
 from app.schemas import (
     LearnerAccountCreate,
     PasswordResetRequest,
-    StatusResponse,
-    StatusResponseType,
 )
 from app.services import auth_service
 
@@ -26,6 +24,22 @@ def get_account_by_username(session: Session, username: str) -> Account:
 def create_learner_account(
     session: Session, learner_account_create: LearnerAccountCreate
 ) -> Account:
+    existing_account = session.scalars(
+        select(Account).where(
+            or_(
+                Account.email == learner_account_create.email,
+                Account.username == learner_account_create.username,
+            )
+        )
+    ).first()
+
+    if existing_account:
+        raise RequestException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            debug_message="Username or email registration conflicts.",
+            error_code=ErrorCode.USERNAME_OR_EMAIL_TAKEN,
+        )
+
     learner = Learner(full_name=learner_account_create.full_name)
     hashed_password = security.get_password_hash(
         learner_account_create.password
@@ -87,9 +101,7 @@ def send_email_background(
     background_tasks.add_task(send_email, to_email, subject, body)
 
 
-def reset_account_password(
-    session: Session, request: PasswordResetRequest
-) -> StatusResponse:
+def reset_account_password(session: Session, request: PasswordResetRequest):
     account = get_account_by_username(session, request.username)
     if not account:
         raise RequestException(
@@ -140,7 +152,3 @@ def reset_account_password(
     session.add(otp_entry)
     session.add(account)
     session.commit()
-    return {
-        "status": StatusResponseType.SUCCESS,
-        "message": "Password has been reset successfully.",
-    }
