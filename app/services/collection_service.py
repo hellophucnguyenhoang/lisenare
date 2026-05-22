@@ -1,8 +1,9 @@
-from fastapi import HTTPException, status
+from fastapi import status
 from sqlalchemy.exc import IntegrityError
 from sqlmodel import Session, func, or_, select
 
 from app.database import Brick, BrickOverride, Collection, Review
+from app.exceptions import RequestException
 from app.services import brick_override_service, brick_service
 from schemas.cefr import CEFR_MAPPING
 
@@ -134,14 +135,15 @@ def delete_collection(
 ) -> int:
     collection = session.get(Collection, collection_id)
     if not collection:
-        raise HTTPException(
+        raise RequestException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Collection not found",
+            debug_message=f"{collection_id=} not found",
         )
 
     if collection.creator_id != learner_id:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN, detail="Not allowed"
+        raise RequestException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            debug_message=f"{learner_id=} not allowed to edit {collection_id=}",
         )
 
     # delete the brick overrides
@@ -160,6 +162,15 @@ def delete_collection(
     return deleted_override_count + deleted_owned_brick_count
 
 
+def delete_collections(
+    session: Session, learner_id: int, collection_ids: list[int]
+) -> int:
+    deleted_count = 0
+    for collection_id in collection_ids:
+        deleted_count += delete_collection(session, learner_id, collection_id)
+    return deleted_count
+
+
 def rename_collection(
     session: Session,
     learner_id: int,
@@ -169,32 +180,32 @@ def rename_collection(
     collection = session.get(Collection, collection_id)
 
     if not collection:
-        raise HTTPException(
+        raise RequestException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Collection not found",
+            debug_message=f"{collection_id=} not found",
         )
 
     if collection.creator_id != learner_id:
-        raise HTTPException(
+        raise RequestException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Not allowed",
+            debug_message=f"{learner_id=} not allowed to edit {collection_id=}",
         )
 
     cleaned_name = new_name.strip()
 
     if not cleaned_name:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Collection name cannot be empty",
+        raise RequestException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            debug_message="Collection name cannot be empty",
         )
 
     reserved_names = set(CEFR_MAPPING.values())
     reserved_names.add("All")
 
     if cleaned_name in reserved_names:
-        raise HTTPException(
+        raise RequestException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="This collection name is reserved by the system",
+            debug_message=f"collection name {cleaned_name} is reserved",
         )
 
     collection.name = cleaned_name

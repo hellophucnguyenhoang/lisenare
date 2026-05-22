@@ -18,7 +18,3 @@ class ExplanationResponse(SQLModel):
         default_factory=list,
         description="Example sentences containing the target text.",
     )
-
-
-class ExplanationValidationError(Exception):
-    pass

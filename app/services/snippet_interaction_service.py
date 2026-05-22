@@ -1,9 +1,10 @@
 from datetime import datetime, timezone
 
-from fastapi import HTTPException, status
+from fastapi import status
 from sqlmodel import Session
 
 from app.database import SnippetInteraction, SnippetReaction
+from app.exceptions import RequestException
 from app.schemas import InteractionType, SnippetInteractionCreate
 from app.services import session_profile_service
 from app.services.context_search_service import context_search_service
@@ -20,15 +21,15 @@ def create_interaction(
 ) -> SnippetInteraction:
 
     if interaction_type == InteractionType.TIME_SPENT and duration is None:
-        raise HTTPException(
+        raise RequestException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="TIME_SPENT requires duration",
+            debug_message="TIME_SPENT requires duration",
         )
 
     if interaction_type != InteractionType.TIME_SPENT and duration is not None:
-        raise HTTPException(
+        raise RequestException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="duration is for TIME_SPENT only",
+            debug_message="duration is for TIME_SPENT only",
         )
 
     if not learner_id and interaction_type in {
@@ -37,7 +38,7 @@ def create_interaction(
         InteractionType.REMOVE_REACTION,
         InteractionType.ADD,
     }:
-        raise HTTPException(
+        raise RequestException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"{InteractionType.LIKE}, \
                     {InteractionType.DISLIKE}, \
@@ -118,6 +119,6 @@ def handle_interaction_and_update_profile(
         session.commit()
         return interaction
 
-    except Exception as e:
+    except Exception:
         session.rollback()  # If anything fails, nothing is saved
-        raise e
+        raise

@@ -1,7 +1,12 @@
 from sqlmodel import SQLModel
 
 
-class OverrideCreateGroupsRequest(SQLModel):
+class OverrideBrickRequest(SQLModel):
+    brick_id: int
+    collection_name: str
+
+
+class OverrideCollectionsCreateRequest(SQLModel):
     collection_ids: list[int]
 
 
@@ -10,11 +15,11 @@ class OverrideCreateDetail(SQLModel):
     created_count: int
 
 
-class OverrideCreateGroupsResponse(SQLModel):
+class OverrideCollectionsCreateResponse(SQLModel):
     total: int
     details: dict[int, OverrideCreateDetail]
 
 
-class OverrideDeleteGroupsResponse(SQLModel):
+class OverrideCollectionsDeleteResponse(SQLModel):
     total: int
     details: dict[int, int]

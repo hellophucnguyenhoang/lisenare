@@ -1,10 +1,11 @@
 import numpy as np
-from fastapi import HTTPException, status
+from fastapi import status
 from sqlalchemy import case
 from sqlalchemy.orm import selectinload
 from sqlmodel import Session, func, select
 
 from app.database import SessionProfile, Snippet, SnippetInteraction
+from app.exceptions import RequestException
 from app.services.context_search_service import context_search_service
 
 from . import context_search_service as search_service
@@ -107,8 +108,8 @@ def get_snippet_by_audio_path(
     )
     snippet = session.exec(query).first()
     if not snippet:
-        raise HTTPException(
+        raise RequestException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Snippet with audio path '{audio_path}' not found",
+            debug_message=f"Snippet with audio path '{audio_path}' not found",
         )
     return snippet
