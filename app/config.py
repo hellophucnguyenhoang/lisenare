@@ -11,6 +11,8 @@ class Settings(BaseSettings):
 
     # Databases
     database_url: str
+    redis_url: str
+    practice_session_ttl: int = 7200
 
     # Servers and Cloud
     ai_model_server_url: str
@@ -34,7 +36,7 @@ class Settings(BaseSettings):
     # Context search
     semantic_emb_dim: int = 384  # all-MiniLM-L6-v2
 
-    # Recommendation: LinUCB
+    # Recommendation: LinUCB (deprecated)
     post_features_path: str = "models/post_features.pkl"
     linucb_model_path: str = "models/linucb_weights.npz"
     item_feature_dim: int = 387
