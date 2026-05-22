@@ -1,6 +1,6 @@
 from datetime import datetime, timezone
 
-from fastapi import HTTPException, status
+from fastapi import status
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import selectinload
 from sqlmodel import (
@@ -20,10 +20,10 @@ from app.database import (
     BrickMetadata,
     BrickMetadataGrammarPoint,
     BrickOverride,
-    Collection,
     LearningCard,
     Review,
 )
+from app.exceptions import ErrorCode, RequestException
 from app.schemas import (
     BrickCreate,
     BrickCreateRequest,
@@ -178,15 +178,38 @@ def count_pending_bricks(
     session: Session,
     learner_id: int,
     collection_ids: list[int] | None = None,
+    status: BrickStatus | None = None,  # Added status matching param
 ) -> int:
+    """
+    Counts the exact total number of pending bricks matching the filters,
+    accounting for status parameters across all pagination offsets.
+    """
+    # Build the same localized subquery to determine item mastery status
+    learned_subquery = (
+        exists()
+        .where(
+            and_(Review.brick_id == Brick.id, Review.learner_id == learner_id)
+        )
+        .label("learned")
+    )
+
+    # Match the outer join condition exactly to the fetching function
     statement = (
         select(func.count(Brick.id))
         .select_from(Brick)
-        .join(BrickOverride, isouter=True)
+        .join(
+            BrickOverride,
+            and_(
+                BrickOverride.brick_id == Brick.id,
+                BrickOverride.learner_id == learner_id,
+            ),
+            isouter=True,
+        )
     )
 
     conditions = []
 
+    # Apply core ownership verification rules
     conditions.append(
         or_(
             Brick.creator_id == learner_id,
@@ -194,16 +217,30 @@ def count_pending_bricks(
         )
     )
 
+    # Apply explicit array parsing targets
     if collection_ids:
-        statement = statement.join(Collection, isouter=True)
-        conditions.append(Collection.id.in_(collection_ids))
+        conditions.append(
+            or_(
+                Brick.collection_id.in_(collection_ids),
+                BrickOverride.collection_id.in_(collection_ids),
+            )
+        )
+
+    # Apply the missing mastery status filters
+    if status is not None:
+        if status == BrickStatus.LEARNED:
+            conditions.append(learned_subquery)
+        elif status == BrickStatus.NOT_LEARNED:
+            conditions.append(not_(learned_subquery))
 
     statement = statement.where(*conditions)
-    return session.exec(statement).one()
+
+    # Executing .scalar() safely pulls back the raw integer result directly
+    return session.scalar(statement) or 0
 
 
 def get_brick(
-    session: Session, id: int, learner_id: int | None = None
+    session: Session, brick_id: int, learner_id: int | None = None
 ) -> Brick:
     # 1. Build the base filters
     # Everyone can see public bricks
@@ -224,7 +261,7 @@ def get_brick(
         )
         .join(BrickOverride, isouter=True)
         .where(
-            Brick.id == id,
+            Brick.id == brick_id,
             or_(*filters),  # Unpacks the list into the OR condition
         )
     )
@@ -232,9 +269,9 @@ def get_brick(
     result = session.exec(statement).first()
 
     if not result:
-        # Note: Using 404 for private bricks keeps the DB structure more secure
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Brick not found"
+        raise RecursionError(
+            status_code=status.HTTP_404_NOT_FOUND,
+            de=f"{brick_id=} not found",
         )
 
     brick = result
@@ -360,9 +397,9 @@ def update_brick(
     )
     brick = session.exec(statement).first()
     if not brick:
-        raise HTTPException(
+        raise RequestException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Brick not found",
+            debug_message=f"{brick_id=} not found",
         )
 
     update_data = brick_update.model_dump(
@@ -416,14 +453,20 @@ def update_brick(
         }
         attempted_forbidden = forbidden_fields.intersection(update_data.keys())
         if attempted_forbidden:
-            raise HTTPException(
+            raise RequestException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail=f"Only the author can edit: {', '.join(attempted_forbidden)}. "
-                f"Change the English text to create your own version.",
+                debug_message=(
+                    f"Edit forbidden fields {', '.join(attempted_forbidden)}"
+                    f"of the {brick_id} not owned by learner {learner_id}"
+                ),
             )
 
         # Proceed with native_text override
-        override = session.get(BrickOverride, (learner_id, brick_id))
+        stmt = select(BrickOverride).where(
+            BrickOverride.learner_id == learner_id,
+            BrickOverride.brick_id == brick_id,
+        )
+        override = session.exec(stmt).first()
         if not override:
             override = BrickOverride(learner_id=learner_id, brick_id=brick_id)
 
@@ -455,13 +498,15 @@ def create_brick(
     creator_id: int,
     file_path: str,
 ) -> Brick:
-
     if collection_service.is_reserved_collection_name(
         request_data.collection_name
     ):
-        raise HTTPException(
+        raise RequestException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="reserved collection name",
+            debug_message=(
+                f"Reserved collection name: {request_data.collection_name}"
+            ),
+            error_code=ErrorCode.RESERVED_COLLECTION_NAME,
         )
 
     collection = collection_service.get_or_create_collection(
@@ -497,9 +542,20 @@ def create_brick(
     brick = Brick.model_validate(brick_create)
     brick.brick_metadata = brick_metadata
     session.add(brick)
-    session.commit()
+    try:
+        session.commit()
+
+    except IntegrityError:
+        session.rollback()
+
+        raise RequestException(
+            status_code=status.HTTP_409_CONFLICT,
+            debug_message=(
+                f"Duplicate brick target_text: {request_data.target_text}"
+            ),
+            error_code=ErrorCode.BRICK_ALREADY_EXISTS,
+        )
     session.refresh(brick)
-    print(f"brick={brick}")
 
     search_service.add_item_to_vector_store(
         search_service=search_service.context_search_service,
@@ -563,7 +619,10 @@ def _get_transfer_owner_id(
 def delete_brick(session: Session, learner_id: int, brick_id: int):
     brick = session.get(Brick, brick_id)
     if not brick:
-        raise HTTPException(status_code=404, detail="Brick not found")
+        raise RequestException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            debug_message=f"{brick_id=} not found",
+        )
     collection_id = brick.collection_id
     status_msg = ""
 
@@ -635,9 +694,10 @@ def delete_brick(session: Session, learner_id: int, brick_id: int):
 
         except IntegrityError:
             session.rollback()
-            raise HTTPException(
+            raise RequestException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Cannot delete this brick because other learners are using it.",
+                debug_message=f"Cannot delete brick {brick_id} since \
+                  other learners are using it.",
             )
 
     # Case 2: Non-creator deletes personal/override data only

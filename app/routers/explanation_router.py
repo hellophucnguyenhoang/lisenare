@@ -1,13 +1,12 @@
 from typing import Annotated
 
-from fastapi import APIRouter, Body, Depends, HTTPException, status
+from fastapi import APIRouter, Body, Depends
 from sqlmodel import Session
 
 from app.database import Learner, get_session
 from app.schemas import (
     ExplanationRequest,
     ExplanationResponse,
-    ExplanationValidationError,
 )
 from app.services import (
     auth_service,
@@ -27,23 +26,13 @@ def get_explanations(
     ],
     explanation_request: ExplanationRequest,
 ) -> ExplanationResponse:
-
     response = explanation_service.generate_vocab_item_for_learner(
         session=session,
         learner_id=learner.id,
         target_term=explanation_request.target_term,
     )
     print(f"simplified responses: {response=}")
-
-    try:
-        explanation_service.validate_explanation_response(response)
-
-    except ExplanationValidationError as e:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-            detail=str(e),
-        )
-
+    explanation_service.validate_explanation_response(response)
     return response
 
 

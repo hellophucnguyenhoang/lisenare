@@ -7,9 +7,9 @@ from app.database import Learner, get_session
 from app.schemas import (
     CollectionRead,
     CollectionRenameRequest,
-    OverrideCreateGroupsRequest,
-    OverrideCreateGroupsResponse,
-    OverrideDeleteGroupsResponse,
+    OverrideCollectionsCreateRequest,
+    OverrideCollectionsCreateResponse,
+    OverrideCollectionsDeleteResponse,
 )
 from app.services import (
     auth_service,
@@ -33,13 +33,13 @@ def get_pending_collections(
     )
 
 
-@router.post("/overrides", response_model=OverrideCreateGroupsResponse)
+@router.post("/overrides", response_model=OverrideCollectionsCreateResponse)
 def create_collection_overrides(
     session: Annotated[Session, Depends(get_session)],
     learner: Annotated[
         Learner, Depends(auth_service.decode_token_get_learner)
     ],
-    payload: OverrideCreateGroupsRequest,
+    payload: OverrideCollectionsCreateRequest,
 ):
     print(f"{payload=}")
     total_created = 0
@@ -95,7 +95,7 @@ def delete_collection_overrides(
         Learner, Depends(auth_service.decode_token_get_learner)
     ],
     collection_ids: list[int] = Query(),
-) -> OverrideDeleteGroupsResponse:
+) -> OverrideCollectionsDeleteResponse:
     total_deleted = 0
     details = {}
     for collection_id in collection_ids:
@@ -106,20 +106,22 @@ def delete_collection_overrides(
         )
         details[collection_id] = deleted_count
         total_deleted += deleted_count
-    return OverrideDeleteGroupsResponse(
+    return OverrideCollectionsDeleteResponse(
         total=total_deleted,
         details=details,
     )
 
 
-@router.delete("/{collection_id}")
-def delete_collection(
+@router.delete("")
+def delete_collections(
     session: Annotated[Session, Depends(get_session)],
     learner: Annotated[
         Learner, Depends(auth_service.decode_token_get_learner)
     ],
-    collection_id: int,
+    collection_ids: list[int] = Query(),
 ) -> int:
-    return collection_service.delete_collection(
-        session, learner.id, collection_id
+    return collection_service.delete_collections(
+        session,
+        learner.id,
+        collection_ids,
     )
