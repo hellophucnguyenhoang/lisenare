@@ -6,7 +6,7 @@ this authentication can be a third-party application.
 
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlmodel import Session
 
@@ -26,12 +26,6 @@ def login_for_access_token(
     account = auth_service.authenticate_account(
         session, form_data.username, form_data.password
     )
-    if not account:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Incorrect username or password",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
     data = {"sub": str(account.learner_id), "username": account.username}
     access_token = security.create_access_token(data=data)
     return Token(access_token=access_token)

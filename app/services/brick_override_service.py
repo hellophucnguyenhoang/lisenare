@@ -1,56 +1,92 @@
 from datetime import datetime, timezone
 
-from fastapi import HTTPException, status
+from fastapi import status
 from sqlalchemy.orm import selectinload
 from sqlmodel import Session, and_, delete, select
 
 from app.database import Brick, BrickOverride, Collection, LearningCard, Review
-from utils import text_utils
+from app.exceptions import ErrorCode, RequestException
+from app.services import collection_service
 
 
 def save_override_for_brick(
     session: Session,
     learner_id: int,
     brick_id: int,
+    collection_name: int,
 ) -> BrickOverride:
+    """
+    Create an override of a brick in a provided collection name for learner.
+    It creates a new collection or added to an existing one.
+    """
+
+    # validate reserved name
+    if collection_service.is_reserved_collection_name(collection_name):
+        raise RequestException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            debug_message=(f"Reserved collection name: {collection_name}"),
+            error_code=ErrorCode.RESERVED_COLLECTION_NAME,
+        )
+
+    # get brick
     brick = session.get(Brick, brick_id)
     if not brick:
-        raise HTTPException(
+        raise RequestException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Brick not found",
+            debug_message=f"{brick_id=} not found",
         )
 
-    override = session.get(
-        BrickOverride,
-        (learner_id, brick_id),
+    # find or create collection
+    stmt = select(Collection).where(
+        Collection.creator_id == learner_id,
+        Collection.name == collection_name,
     )
-    if not override:
-        difficulty_score = text_utils.log_frequency(brick.target_text)
 
-        # Create learner-owned collection copy
+    collection = session.exec(stmt).first()
+
+    if not collection:
         collection = Collection(
-            name=brick.collection.name,
+            name=collection_name,
             creator_id=learner_id,
-            difficulty_score=difficulty_score,
         )
-        session.add(collection)
 
-        # Flush so collection.id is generated
+        session.add(collection)
         session.flush()
 
+    # find or create override
+    stmt = select(BrickOverride).where(
+        BrickOverride.learner_id == learner_id,
+        BrickOverride.brick_id == brick_id,
+    )
+
+    override = session.exec(stmt).first()
+
+    if not override:
         override = BrickOverride(
             learner_id=learner_id,
             brick_id=brick_id,
-            collection_id=collection.id,
             native_text=brick.native_text,
             target_audio_path=brick.target_audio_path,
         )
-        session.add(override)
 
+        session.add(override)
+    else:
+        raise RequestException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            debug_message=(
+                "Brick override already exists for "
+                f"learner_id={override.learner_id}, "
+                f"brick_id={override.brick_id}"
+            ),
+            error_code=ErrorCode.BRICK_OVERRIDE_ALREADY_EXISTS,
+        )
+
+    # attach override to collection and update timestamp
+    override.collection_id = collection.id
     override.last_edit_at = datetime.now(timezone.utc)
     session.commit()
-    session.refresh(override)
 
+    session.refresh(override)
     return override
 
 
@@ -81,9 +117,11 @@ def create_overrides(
     user_collection = session.exec(user_col_statement).first()
 
     if user_collection:
-        raise HTTPException(
+        raise RequestException(
             status_code=status.HTTP_409_CONFLICT,
-            detail="Collection name already exits but no new collection name provided.",
+            debug_message=f"Learner {learner_id=} already \
+                have collection {collection.name}.",
+            error_code=ErrorCode.COLLECTION_ALREADY_EXISTS,
         )
 
     user_collection = Collection(

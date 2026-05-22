@@ -1,6 +1,6 @@
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends
 from sqlmodel import Session
 
 from app.database import Learner, get_session
@@ -27,20 +27,15 @@ def create_interaction(
     ],
     data: SnippetInteractionCreate,
 ) -> StatusResponse:
-
-    try:
-        interaction = (
-            snippet_interaction_service.handle_interaction_and_update_profile(
-                session=session,
-                data=data,
-                learner_id=learner.id if learner else None,
-            )
+    interaction = (
+        snippet_interaction_service.handle_interaction_and_update_profile(
+            session=session,
+            data=data,
+            learner_id=learner.id if learner else None,
         )
+    )
 
-        return StatusResponse(
-            status=StatusResponseType.SUCCESS,
-            message=f"Interaction type {interaction.type} created.",
-        )
-    except Exception as e:
-        print(f"create_interaction: {e}")
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    return StatusResponse(
+        status=StatusResponseType.SUCCESS,
+        message=f"Interaction type {interaction.type} created.",
+    )

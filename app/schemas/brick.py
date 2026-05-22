@@ -159,6 +159,11 @@ class BrickLearnRead(BrickRead):
     learned: bool
 
 
+class BrickPage(SQLModel):
+    items: list[BrickLearnRead]
+    total: int
+
+
 class BrickAudioData(SQLModel):
     audio_path: str
     target_text: str

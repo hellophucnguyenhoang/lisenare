@@ -14,6 +14,7 @@ from .brick import (
     BrickCreate,
     BrickCreateRequest,
     BrickLearnRead,
+    BrickPage,
     BrickRead,
     BrickSort,
     BrickStatus,
@@ -24,16 +25,16 @@ from .brick import (
     UnitType,
 )
 from .brick_override import (
-    OverrideCreateGroupsRequest,
-    OverrideCreateGroupsResponse,
-    OverrideDeleteGroupsResponse,
+    OverrideBrickRequest,
+    OverrideCollectionsCreateRequest,
+    OverrideCollectionsCreateResponse,
+    OverrideCollectionsDeleteResponse,
 )
 from .collection import CollectionRead, CollectionRenameRequest
 from .context_search import ContextSearchRequest, VideoContextSearchResult
 from .explanation import (
     ExplanationRequest,
     ExplanationResponse,
-    ExplanationValidationError,
 )
 from .forced_alignment import WordSegmentSecond
 from .grammar import (
@@ -67,6 +68,7 @@ __all__ = [
     "BrickCreateRequest",
     "BrickLearnRead",
     "CollectionRenameRequest",
+    "BrickPage",
     "BrickRead",
     "BrickSort",
     "BrickStatus",
@@ -76,7 +78,6 @@ __all__ = [
     "ContextSearchRequest",
     "ExplanationRequest",
     "ExplanationResponse",
-    "ExplanationValidationError",
     "GrammarPoint",
     "InteractionType",
     "LearnerAccountCreate",
@@ -85,9 +86,10 @@ __all__ = [
     "LearningCardStats",
     "LearningTimeSeries",
     "Message",
-    "OverrideCreateGroupsRequest",
-    "OverrideCreateGroupsResponse",
-    "OverrideDeleteGroupsResponse",
+    "OverrideBrickRequest",
+    "OverrideCollectionsCreateRequest",
+    "OverrideCollectionsCreateResponse",
+    "OverrideCollectionsDeleteResponse",
     "PasswordChangeRequest",
     "PasswordRecoveryResponse",
     "PasswordResetRequest",

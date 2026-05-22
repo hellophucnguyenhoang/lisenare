@@ -5,10 +5,8 @@ from fastapi import (
     APIRouter,
     Depends,
     File,
-    HTTPException,
     Query,
     UploadFile,
-    status,
 )
 from sqlmodel import Session
 
@@ -18,11 +16,12 @@ from app.schemas import (
     BrickAudioData,
     BrickAudioPage,
     BrickCreateRequest,
-    BrickLearnRead,
+    BrickPage,
     BrickRead,
     BrickSort,
     BrickStatus,
     BrickUpdate,
+    OverrideBrickRequest,
     StatusResponse,
     StatusResponseType,
 )
@@ -49,15 +48,21 @@ def get_pending_bricks(
     sort_by: BrickSort = BrickSort.RECOMMENDED,
     limit: int = 20,
     page: int = 1,
-) -> list[BrickLearnRead]:
-    print(collection_id)
+) -> BrickPage:
     offset = (page - 1) * limit
-    return brick_service.get_pending_bricks(
+
+    bricks_list = brick_service.get_pending_bricks(
         session, learner.id, [collection_id], status, sort_by, offset, limit
     )
 
+    total_count = brick_service.count_pending_bricks(
+        session, learner.id, [collection_id], status
+    )
 
-@router.get("/fsrs", response_model=BrickRead)
+    return BrickPage(items=bricks_list, total=total_count)
+
+
+@router.get("/fsrs", response_model=BrickRead | None)
 def get_brick_fsrs(
     session: Annotated[Session, Depends(get_session)],
     learner: Annotated[
@@ -65,18 +70,11 @@ def get_brick_fsrs(
     ],
     collection_ids: Annotated[list[int] | None, Query()] = None,
 ):
-    brick = brick_service.get_brick_fsrs(
+    return brick_service.get_brick_fsrs(
         session=session,
         learner_id=learner.id,
         collection_ids=collection_ids,
     )
-    if brick is None:
-        print("Brick is None")
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Haven't had any sentence to practice yet.",
-        )
-    return brick
 
 
 @router.get("/audio")
@@ -159,36 +157,24 @@ async def create_brick(
         base_dir=settings.brick_audios_folder,
         filename_prefix=f"ln{creator_id}rec",
     )
-    print(f"{learner_audio_path = }")
-    try:
-        return brick_service.create_brick(
-            session, request_data, creator_id, learner_audio_path
-        )
-    except Exception as e:
-        if "unique constraint" in str(e).lower():
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="A brick with this target text already exists.",
-            )
-
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=str(e),
-        )
+    return brick_service.create_brick(
+        session, request_data, creator_id, learner_audio_path
+    )
 
 
-@router.post("/override/{brick_id}")
+@router.post("/override")
 def save_brick_override(
     session: Annotated[Session, Depends(get_session)],
     learner: Annotated[
         Learner, Depends(auth_service.decode_token_get_learner)
     ],
-    brick_id: int,
+    payload: OverrideBrickRequest,
 ) -> StatusResponse:
     brick_override_service.save_override_for_brick(
         session,
         learner_id=learner.id,
-        brick_id=brick_id,
+        brick_id=payload.brick_id,
+        collection_name=payload.collection_name,
     )
     return StatusResponse(
         status=StatusResponseType.SUCCESS,

@@ -6,12 +6,13 @@ from datetime import datetime, timedelta, timezone
 from typing import Literal
 from zoneinfo import ZoneInfo
 
-from fastapi import HTTPException, status
+from fastapi import status
 from fsrs import Card, Optimizer, ReviewLog, Scheduler
 from sqlalchemy import Float, cast
 from sqlmodel import Session, case, func, select
 
 from app.database import Brick, LearnerSetting, LearningCard, Review, engine
+from app.exceptions import RequestException
 from app.schemas import TimeSeriesPoint
 from utils.db_utils import apply_time_filter
 from utils.text_utils import calculate_rarity, get_lenient_stems
@@ -361,9 +362,9 @@ def get_learning_timeseries(
         }
 
     else:
-        raise HTTPException(
+        raise RequestException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Unsupported metric: {metric}",
+            debug_message=f"Unsupported metric: {metric}",
         )
 
 
