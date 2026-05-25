@@ -18,6 +18,7 @@ from app.schemas import (
     BrickAudioData,
     BrickAudioPage,
     BrickCreateRequest,
+    BrickLessonPage,
     BrickPage,
     BrickRead,
     BrickSort,
@@ -45,6 +46,7 @@ def get_pending_bricks(
     ],
     collection_id: int,
     status: BrickStatus | None = None,
+    lesson_id: int | None = None,
     sort_by: BrickSort = BrickSort.RECOMMENDED,
     limit: int = 20,
     page: int = 1,
@@ -52,14 +54,57 @@ def get_pending_bricks(
     offset = (page - 1) * limit
 
     bricks_list = brick_service.get_pending_bricks(
-        session, learner.id, [collection_id], status, sort_by, offset, limit
+        session=session,
+        learner_id=learner.id,
+        collection_ids=[collection_id],
+        status=status,
+        lesson_id=lesson_id,
+        sort_by=sort_by,
+        offset=offset,
+        limit=limit,
     )
 
     total_count = brick_service.count_pending_bricks(
-        session, learner.id, [collection_id], status
+        session=session,
+        learner_id=learner.id,
+        collection_ids=[collection_id],
+        status=status,
+        lesson_id=lesson_id,
     )
 
     return BrickPage(items=bricks_list, total=total_count)
+
+
+@router.get("/pending/lessons")
+def get_pending_brick_lessons_endpoint(
+    session: Annotated[Session, Depends(get_session)],
+    learner: Annotated[
+        Learner, Depends(auth_service.decode_token_get_learner)
+    ],
+    collection_id: int,
+    status: BrickStatus | None = None,
+    limit: int = 20,
+    page: int = 1,
+) -> BrickLessonPage:
+    offset = (page - 1) * limit
+
+    lessons = brick_service.get_pending_brick_lessons(
+        session=session,
+        learner_id=learner.id,
+        collection_ids=[collection_id],
+        status=status,
+        offset=offset,
+        limit=limit,
+    )
+
+    total_count = brick_service.count_pending_brick_lessons(
+        session=session,
+        learner_id=learner.id,
+        collection_ids=[collection_id],
+        status=status,
+    )
+
+    return BrickLessonPage(items=lessons, total=total_count)
 
 
 @router.get("/fsrs", response_model=BrickRead | None)

@@ -28,6 +28,7 @@ from app.schemas import (
     BrickCreate,
     BrickCreateRequest,
     BrickLearnRead,
+    BrickLessonRead,
     BrickSort,
     BrickStatus,
     BrickUpdate,
@@ -67,6 +68,7 @@ def get_pending_bricks(
     learner_id: int,
     collection_ids: list[int] | None = None,
     status: BrickStatus | None = None,  # None means ALL
+    lesson_id: int | None = None,
     sort_by: BrickSort = BrickSort.RECOMMENDED,
     offset: int | None = None,
     limit: int | None = None,
@@ -126,6 +128,9 @@ def get_pending_bricks(
             )
         )
 
+    if lesson_id is not None:
+        conditions.append(Brick.lesson_id == lesson_id)
+
     if status is not None:
         if status == BrickStatus.LEARNED:
             conditions.append(learned_subquery)
@@ -179,6 +184,7 @@ def count_pending_bricks(
     learner_id: int,
     collection_ids: list[int] | None = None,
     status: BrickStatus | None = None,  # Added status matching param
+    lesson_id: int | None = None,
 ) -> int:
     """
     Counts the exact total number of pending bricks matching the filters,
@@ -226,6 +232,9 @@ def count_pending_bricks(
             )
         )
 
+    if lesson_id is not None:
+        conditions.append(Brick.lesson_id == lesson_id)
+
     # Apply the missing mastery status filters
     if status is not None:
         if status == BrickStatus.LEARNED:
@@ -237,6 +246,129 @@ def count_pending_bricks(
 
     # Executing .scalar() safely pulls back the raw integer result directly
     return session.scalar(statement) or 0
+
+
+def get_pending_brick_lessons(
+    session: Session,
+    learner_id: int,
+    collection_ids: list[int] | None = None,
+    status: BrickStatus | None = None,
+    offset: int | None = None,
+    limit: int | None = None,
+) -> list[BrickLessonRead]:
+    learned_subquery = (
+        exists()
+        .where(
+            and_(Review.brick_id == Brick.id, Review.learner_id == learner_id)
+        )
+        .label("learned")
+    )
+
+    statement = (
+        select(
+            Brick.lesson_id.label("lesson_id"),
+            func.count(func.distinct(Brick.id)).label("brick_count"),
+        )
+        .join(
+            BrickOverride,
+            and_(
+                BrickOverride.brick_id == Brick.id,
+                BrickOverride.learner_id == learner_id,
+            ),
+            isouter=True,
+        )
+        .where(Brick.lesson_id.isnot(None))
+    )
+
+    conditions = [
+        or_(
+            Brick.creator_id == learner_id,
+            BrickOverride.learner_id == learner_id,
+        )
+    ]
+
+    if collection_ids:
+        conditions.append(
+            or_(
+                Brick.collection_id.in_(collection_ids),
+                BrickOverride.collection_id.in_(collection_ids),
+            )
+        )
+
+    if status is not None:
+        if status == BrickStatus.LEARNED:
+            conditions.append(learned_subquery)
+        elif status == BrickStatus.NOT_LEARNED:
+            conditions.append(not_(learned_subquery))
+
+    statement = statement.where(*conditions)
+    statement = statement.group_by(Brick.lesson_id).order_by(Brick.lesson_id)
+
+    if limit is not None:
+        statement = statement.limit(limit)
+    if offset is not None:
+        statement = statement.offset(offset)
+
+    results = session.exec(statement).all()
+
+    return [
+        BrickLessonRead(lesson_id=lesson_id, brick_count=brick_count)
+        for lesson_id, brick_count in results
+    ]
+
+
+def count_pending_brick_lessons(
+    session: Session,
+    learner_id: int,
+    collection_ids: list[int] | None = None,
+    status: BrickStatus | None = None,
+) -> int:
+    learned_subquery = (
+        exists()
+        .where(
+            and_(Review.brick_id == Brick.id, Review.learner_id == learner_id)
+        )
+        .label("learned")
+    )
+
+    statement = (
+        select(Brick.lesson_id)
+        .join(
+            BrickOverride,
+            and_(
+                BrickOverride.brick_id == Brick.id,
+                BrickOverride.learner_id == learner_id,
+            ),
+            isouter=True,
+        )
+        .where(Brick.lesson_id.isnot(None))
+    )
+
+    conditions = [
+        or_(
+            Brick.creator_id == learner_id,
+            BrickOverride.learner_id == learner_id,
+        )
+    ]
+
+    if collection_ids:
+        conditions.append(
+            or_(
+                Brick.collection_id.in_(collection_ids),
+                BrickOverride.collection_id.in_(collection_ids),
+            )
+        )
+
+    if status is not None:
+        if status == BrickStatus.LEARNED:
+            conditions.append(learned_subquery)
+        elif status == BrickStatus.NOT_LEARNED:
+            conditions.append(not_(learned_subquery))
+
+    statement = statement.where(*conditions).group_by(Brick.lesson_id)
+
+    count_stmt = select(func.count()).select_from(statement.subquery())
+    return session.scalar(count_stmt) or 0
 
 
 def get_brick(
