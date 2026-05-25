@@ -14,6 +14,8 @@ from .brick import (
     BrickCreate,
     BrickCreateRequest,
     BrickLearnRead,
+    BrickLessonPage,
+    BrickLessonRead,
     BrickPage,
     BrickRead,
     BrickSort,
@@ -46,7 +48,7 @@ from .grammar import (
     SuggestRequest,
     get_answered_questions,
 )
-from .learner import LearnerRead, LearnerUpdateName
+from .learner import LearnerDetailRead, LearnerRead, LearnerUpdateName
 from .learning_card import (
     LearningCardStats,
     LearningTimeSeries,
@@ -66,6 +68,8 @@ __all__ = [
     "BrickCreate",
     "BrickCreateRequest",
     "BrickLearnRead",
+    "BrickLessonPage",
+    "BrickLessonRead",
     "CollectionRenameRequest",
     "BrickPage",
     "BrickRead",
@@ -80,6 +84,7 @@ __all__ = [
     "GrammarPoint",
     "InteractionType",
     "LearnerAccountCreate",
+    "LearnerDetailRead",
     "LearnerRead",
     "LearnerUpdateName",
     "LearningCardStats",
