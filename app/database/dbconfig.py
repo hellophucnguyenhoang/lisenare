@@ -151,15 +151,28 @@ def init_bricks(session: Session):
         collections_map[collection_name] = collection
 
     brick_metadata_df = pd.read_csv("metadata.csv")
+
+    brick_metadata_df["parsed_lesson_id"] = brick_metadata_df[
+        "lesson_id"
+    ].apply(lambda x: int(str(x).split("_")[1]) if not pd.isna(x) else None)
+
+    # Map each lesson_id to exactly one collection based on the first occurrence's CEFR level
+    lesson_collection_map = {}
+    for _, row in brick_metadata_df.dropna(
+        subset=["parsed_lesson_id"]
+    ).iterrows():
+        lesson_id = row["parsed_lesson_id"]
+        if lesson_id not in lesson_collection_map:
+            raw_cefr = row["cefr_level"]
+            mapped_name = CEFR_MAPPING[raw_cefr]
+            if mapped_name in collections_map:
+                lesson_collection_map[lesson_id] = collections_map[mapped_name]
+
     for _, row in brick_metadata_df.iterrows():
         # Get the targeted human group string using your CEFR mapping system
         raw_cefr = row["cefr_level"]
-        mapped_collection_name = CEFR_MAPPING.get(raw_cefr)
-        if mapped_collection_name is None:
-            print(f"Warning, unknown {raw_cefr =}")
-            continue
-
-        target_collection = collections_map[mapped_collection_name]
+        lesson_id = row["parsed_lesson_id"]
+        target_collection = lesson_collection_map.get(lesson_id)
 
         brick_metadata = BrickMetadata(
             unit_type=parse_enum(UnitType, row["unit_type"]),
@@ -181,9 +194,7 @@ def init_bricks(session: Session):
             creator=system_account.learner,
             brick_metadata=brick_metadata,
             collection_id=target_collection.id,
-            lesson_id=row["lesson_id"]
-            if not pd.isna(row["lesson_id"])
-            else None,
+            lesson_id=lesson_id,
         )
         session.add(brick)
 

@@ -5,7 +5,12 @@ from sqlmodel import Field, SQLModel
 class LearnerRead(SQLModel):
     id: int
     full_name: str
-    email: EmailStr | None
+
+
+class LearnerDetailRead(SQLModel):
+    id: int
+    full_name: str
+    email: EmailStr | None = None
 
 
 class LearnerUpdateName(SQLModel):

@@ -171,7 +171,7 @@ class Brick(SQLModel, table=True):
         back_populates="brick", cascade_delete=True
     )
     # System bricks only
-    lesson_id: str | None = Field(default=None, index=True, nullable=True)
+    lesson_id: int | None = Field(default=None, index=True)
     __table_args__ = (
         Index(
             "idx_brick_search",
