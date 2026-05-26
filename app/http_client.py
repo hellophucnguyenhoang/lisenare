@@ -7,9 +7,7 @@ client: httpx.AsyncClient | None = None
 
 async def init_client():
     global client
-    client = httpx.AsyncClient(
-        base_url=settings.ai_model_server_url, timeout=30.0
-    )
+    client = httpx.AsyncClient(base_url=settings.inference_url, timeout=30.0)
     print(f"Done initialize http client {client.base_url}")
 
 
