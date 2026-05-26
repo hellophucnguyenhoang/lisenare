@@ -423,7 +423,7 @@ def initialize_embeddings(
 
 def add_item_to_vector_store(
     search_service: ContextSearchService,
-    item,  # This is your Brick or Snippet instance
+    item,  # This is a Brick or Snippet instance
     store_key: str,
     text_getter,
     metadata_getter,
@@ -432,7 +432,7 @@ def add_item_to_vector_store(
     """Adds a single model instance to the LangChain vector store."""
     store = search_service.stores[store_key]
 
-    # Generate the ID exactly like your sync_model_to_langchain function
+    # Generate the ID exactly like the sync_model_to_langchain function
     doc_id = f"{id_prefix}_{item.id}"
 
     document = Document(
