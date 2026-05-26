@@ -205,7 +205,7 @@ def delete_overrides(
     )
 
     # Delete the cloned Collection container.
-    # Due to your ondelete="CASCADE" constraint on BrickOverride.collection_id,
+    # Due to the ondelete="CASCADE" constraint on BrickOverride.collection_id,
     # this step automatically handles clearing out the matching BrickOverride rows
     session.delete(collection)
 

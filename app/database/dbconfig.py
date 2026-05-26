@@ -169,7 +169,7 @@ def init_bricks(session: Session):
                 lesson_collection_map[lesson_id] = collections_map[mapped_name]
 
     for _, row in brick_metadata_df.iterrows():
-        # Get the targeted human group string using your CEFR mapping system
+        # Get the targeted human group string using the CEFR mapping system
         raw_cefr = row["cefr_level"]
         lesson_id = row["parsed_lesson_id"]
         target_collection = lesson_collection_map.get(lesson_id)
