@@ -1,12 +1,16 @@
 from datetime import datetime
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import StreamingResponse
 from sqlmodel import Session
 
 from app.database import HistoryAnswerQuestion, Lesson, get_session
 from app.schemas import (
+    ChatHistoryResponse,
+    ChatMessagesResponse,
     ChatRequest,
+    ChatSessionSummary,
+    Message,
     QuestionContext,
     QuestionInput,
     RLMOutput,
@@ -14,6 +18,12 @@ from app.schemas import (
     SubmitRequest,
     SuggestRequest,
     get_answered_questions,
+)
+from app.services.chat_history_service import (
+    delete_session,
+    get_session_detail,
+    get_sessions,
+    save_chat,
 )
 from app.services.chatbot_service import get_hint_stream
 from app.services.history_answer_question_service import (
@@ -106,9 +116,87 @@ def grammar_chat(
     question = body.messages[-1].content
     answer = run_rlm(question, rlm_input)
     print(f"current question id: {rlm_input.current_question_id}")
-    return RLMOutput(
-        answer=answer, current_question_id=rlm_input.current_question_id
+
+    # Lưu lịch sử chat: toàn bộ messages từ client + câu trả lời mới của bot.
+    # session_id=None → tạo phiên mới; có giá trị → tiếp tục phiên đang chat.
+    full_messages = [m.model_dump() for m in body.messages] + [
+        {"role": "assistant", "content": answer}
+    ]
+    session_id = save_chat(
+        session=session,
+        learner_id=body.learner_id,
+        exercise_id=exercise_id,
+        exercise_name=body.context.exercise_name,
+        messages=full_messages,
+        session_id=body.session_id,
     )
+
+    return RLMOutput(
+        answer=answer,
+        current_question_id=rlm_input.current_question_id,
+        session_id=session_id,
+    )
+
+
+@router.get(
+    "/chat/history/{learner_id}/{exercise_id}",
+    response_model=ChatHistoryResponse,
+)
+def get_chat_history(
+    learner_id: int,
+    exercise_id: int,
+    session: Session = Depends(get_session),
+):
+    """Danh sách các phiên chat của learner **trong một exercise cụ thể**.
+
+    Mỗi exercise chỉ thấy lịch sử chat của chính nó. Không kèm nội dung tin
+    nhắn, sắp xếp giảm dần theo thời điểm cập nhật gần nhất.
+    """
+    sessions = get_sessions(session, learner_id, exercise_id)
+    return ChatHistoryResponse(
+        learner_id=learner_id,
+        exercise_id=exercise_id,
+        sessions=[ChatSessionSummary(**s) for s in sessions],
+    )
+
+
+@router.get(
+    "/chat/session/{session_id}",
+    response_model=ChatMessagesResponse,
+)
+def get_chat_session(
+    session_id: int,
+    session: Session = Depends(get_session),
+):
+    """Trả về toàn bộ tin nhắn của một phiên chat cụ thể theo session_id."""
+    detail = get_session_detail(session, session_id)
+    if detail is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Không tìm thấy phiên chat {session_id}",
+        )
+    return ChatMessagesResponse(
+        session_id=detail["session_id"],
+        learner_id=detail["user_id"],
+        exercise_id=detail["exercise_id"],
+        exercise_name=detail["exercise_name"],
+        messages=[Message(**m) for m in detail["messages"]],
+    )
+
+
+@router.delete("/chat/session/{session_id}")
+def delete_chat_session(
+    session_id: int,
+    session: Session = Depends(get_session),
+):
+    """Xóa một phiên chat theo session_id."""
+    success = delete_session(session, session_id)
+    if not success:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Không tìm thấy phiên chat để xóa",
+        )
+    return {"message": "Đã xóa lịch sử chat"}
 
 
 @router.post("/suggest")

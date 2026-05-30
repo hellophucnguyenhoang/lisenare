@@ -9,7 +9,7 @@ client = genai.Client(api_key=settings.gemini_api_key)
 
 def call_llm(prompt: str) -> str:
     response = client.models.generate_content(
-        model="gemini-3-flash-preview", contents=prompt
+        model="gemini-2.5-flash", contents=prompt
     )
     return response.text
 

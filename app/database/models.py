@@ -102,6 +102,7 @@ class Learner(SQLModel, table=True):
     thetalearnerlessons: list["ThetaLearnerLesson"] = Relationship(
         back_populates="learner"
     )
+    historychats: list["HistoryChat"] = Relationship(back_populates="learner")
 
 
 class LearnerSetting(SQLModel, table=True):
@@ -418,6 +419,7 @@ class Exercise(SQLModel, table=True):
     lesson: Lesson | None = Relationship(back_populates="exercises")
     exercise_type: ExerciseType = ExerciseType.PRACTICE
     questions: list["Question"] = Relationship(back_populates="exercise")
+    historychats: list["HistoryChat"] = Relationship(back_populates="exercise")
 
 
 class Question(SQLModel, table=True):
@@ -491,6 +493,27 @@ class BrokenBrickReport(SQLModel, table=True):
     )
     description: str | None = None
     reported_at: datetime = Field(
+        default_factory=lambda: datetime.now(timezone.utc),
+        sa_type=DateTime(timezone=True),
+    )
+
+
+class HistoryChat(SQLModel, table=True):
+    id: int | None = Field(default=None, primary_key=True)
+
+    user_id: int = Field(foreign_key="learner.id")
+    learner: Learner | None = Relationship(back_populates="historychats")
+
+    exercise_id: int = Field(foreign_key="exercise.id")
+    exercise: Exercise | None = Relationship(back_populates="historychats")
+
+    path_storage: str
+
+    created_at: datetime = Field(
+        default_factory=lambda: datetime.now(timezone.utc),
+        sa_type=DateTime(timezone=True),
+    )
+    modified_at: datetime = Field(
         default_factory=lambda: datetime.now(timezone.utc),
         sa_type=DateTime(timezone=True),
     )

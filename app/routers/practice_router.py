@@ -57,8 +57,9 @@ def answer(
 @router.post("/end")
 def end(
     body: EndPracticeRequest,
+    session: Session = Depends(get_session),
     r: redis.Redis = Depends(get_redis),
 ):
     return end_practice_session(
-        r=r, session_id=body.session_id, learner_id=body.learner_id
+        r=r, session_id=body.session_id, learner_id=body.learner_id, session=session
     )
