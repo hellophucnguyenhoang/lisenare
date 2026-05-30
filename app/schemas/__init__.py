@@ -38,7 +38,10 @@ from .explanation import (
 )
 from .forced_alignment import WordSegmentSecond
 from .grammar import (
+    ChatHistoryResponse,
+    ChatMessagesResponse,
     ChatRequest,
+    ChatSessionSummary,
     Message,
     QuestionContext,
     QuestionInput,
@@ -72,7 +75,10 @@ __all__ = [
     "BrickSort",
     "BrickStatus",
     "BrickUpdate",
+    "ChatHistoryResponse",
+    "ChatMessagesResponse",
     "ChatRequest",
+    "ChatSessionSummary",
     "CollectionRead",
     "ContextSearchRequest",
     "ExplanationRequest",

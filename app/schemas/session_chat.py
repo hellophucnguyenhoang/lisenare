@@ -49,3 +49,4 @@ class RuntimeSession:
 class RLMOutput(BaseModel):
     answer: str
     current_question_id: str | None  # có thể đã thay đổi sau turn
+    session_id: int | None = None  # id phiên chat (để client tiếp tục phiên)

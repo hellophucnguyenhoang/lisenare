@@ -74,6 +74,30 @@ def insert_or_update_theta(session: Session, lesson_id: int, learner_id: int):
         print(f"Cập nhật theta thất bại: {e}")
 
 
+def save_theta_value(
+    session: Session, learner_id: int, lesson_id: int, theta: float
+) -> None:
+    """Lưu thẳng giá trị theta đã tính (dùng cho practice session)."""
+    existing = session.exec(
+        select(ThetaLearnerLesson)
+        .where(ThetaLearnerLesson.lesson_id == lesson_id)
+        .where(ThetaLearnerLesson.learner_id == learner_id)
+    ).first()
+    try:
+        if existing:
+            existing.theta = theta
+        else:
+            session.add(
+                ThetaLearnerLesson(
+                    lesson_id=lesson_id, learner_id=learner_id, theta=theta
+                )
+            )
+        session.commit()
+    except Exception as e:
+        session.rollback()
+        print(f"Lưu theta thất bại (learner={learner_id}, lesson={lesson_id}): {e}")
+
+
 def theta_to_level(theta: float) -> str:
     """Chuyển theta (-3 đến 3) thành level CEFR (A1-C2)"""
     if theta < -2:
