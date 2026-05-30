@@ -1,4 +1,3 @@
-import random
 import uuid
 from datetime import datetime, timezone
 
@@ -20,7 +19,7 @@ from app.services.history_answer_question_service import (
     compare_strings,
     insert_history_answer_question,
 )
-from app.services.theta_learner_lesson_service import update_theta
+from app.services.theta_learner_lesson_service import save_theta_value, update_theta
 
 
 # ---------------------------------------------------------------------------
@@ -33,6 +32,16 @@ def _pool_key(session_id: str) -> str:
 
 def _state_key(session_id: str) -> str:
     return f"practice:session:{session_id}:state"
+
+
+def _lesson_thetas_key(session_id: str) -> str:
+    """Hash: lesson_id -> theta (float)"""
+    return f"practice:session:{session_id}:lesson_thetas"
+
+
+def _question_lesson_key(session_id: str) -> str:
+    """Hash: question_id -> lesson_id"""
+    return f"practice:session:{session_id}:question_lesson"
 
 
 # ---------------------------------------------------------------------------
@@ -58,6 +67,32 @@ def _assert_learner(state: dict, learner_id: int) -> None:
 
 
 # ---------------------------------------------------------------------------
+# Lesson theta helpers
+# ---------------------------------------------------------------------------
+
+def _get_lesson_theta(r: redis.Redis, session_id: str, question_id: int) -> tuple[str | None, float]:
+    """Trả về (lesson_id_str, theta) của lesson chứa question_id. None nếu không tìm thấy."""
+    lid_raw = r.hget(_question_lesson_key(session_id), str(question_id))
+    if lid_raw is None:
+        return None, 0.0
+    lid_str = lid_raw.decode() if isinstance(lid_raw, bytes) else str(lid_raw)
+    raw = r.hget(_lesson_thetas_key(session_id), lid_str)
+    lesson_theta = float(raw) if raw is not None else 0.0
+    return lid_str, lesson_theta
+
+
+def _flush_lesson_thetas(
+    r: redis.Redis, session_id: str, session: Session, learner_id: int
+) -> None:
+    """Đọc tất cả lesson theta từ Redis và lưu vào database."""
+    lesson_thetas = r.hgetall(_lesson_thetas_key(session_id))
+    for lid_bytes, theta_bytes in lesson_thetas.items():
+        lid = int(lid_bytes.decode() if isinstance(lid_bytes, bytes) else lid_bytes)
+        theta = float(theta_bytes.decode() if isinstance(theta_bytes, bytes) else theta_bytes)
+        save_theta_value(session, learner_id=learner_id, lesson_id=lid, theta=theta)
+
+
+# ---------------------------------------------------------------------------
 # Question selection
 # ---------------------------------------------------------------------------
 
@@ -66,19 +101,47 @@ def _assert_learner(state: dict, learner_id: int) -> None:
 _WINDOWS = [0.405, 0.8, 1.2, 2.0]
 
 
+def _pick_by_lowest_lesson_theta(
+    r: redis.Redis, session_id: str, candidates: list
+) -> int:
+    """Trong danh sách candidates, chọn câu hỏi có lesson theta thấp nhất."""
+    ql_key = _question_lesson_key(session_id)
+    lt_key = _lesson_thetas_key(session_id)
+
+    best_qid: int | None = None
+    best_lesson_theta = float("inf")
+
+    for member in candidates:
+        qid = int(member)
+        lid_raw = r.hget(ql_key, str(qid))
+        if lid_raw is None:
+            lesson_theta = 0.0
+        else:
+            lid_str = lid_raw.decode() if isinstance(lid_raw, bytes) else str(lid_raw)
+            raw = r.hget(lt_key, lid_str)
+            lesson_theta = float(raw) if raw is not None else 0.0
+
+        if lesson_theta < best_lesson_theta:
+            best_lesson_theta = lesson_theta
+            best_qid = qid
+
+    return best_qid if best_qid is not None else int(candidates[0])
+
+
 def select_next_question_id(
     r: redis.Redis, session_id: str, theta: float
 ) -> int | None:
     """Pick a question_id from the Redis pool whose difficulty is near theta.
 
-    Expands the window progressively. Falls back to the closest remaining
-    question when no candidates lie in any window.
+    Expands the window progressively. Khi có nhiều ứng viên cùng window,
+    chọn câu thuộc lesson có theta thấp nhất thay vì random.
+    Falls back to the closest remaining question when no candidates lie in any window.
     """
     key = _pool_key(session_id)
     for half in _WINDOWS:
         members = r.zrangebyscore(key, theta - half, theta + half)
         if members:
-            return int(random.choice(members))
+            return _pick_by_lowest_lesson_theta(r, session_id, members)
 
     # No question in any window — pick the closest by absolute distance.
     all_members = r.zrange(key, 0, -1, withscores=True)
@@ -114,29 +177,6 @@ def get_question_public_payload(
 
 
 # ---------------------------------------------------------------------------
-# Theta initialization
-# ---------------------------------------------------------------------------
-
-def _initial_theta(
-    session: Session, learner_id: int, topic_ids: list[int]
-) -> float:
-    """Average existing per-lesson theta for lessons in the chosen topics.
-
-    Falls back to 0.0 if the learner has no theta record yet.
-    """
-    statement = (
-        select(ThetaLearnerLesson.theta)
-        .join(Lesson, ThetaLearnerLesson.lesson_id == Lesson.id)
-        .where(ThetaLearnerLesson.learner_id == learner_id)
-        .where(Lesson.topic_id.in_(topic_ids))
-    )
-    values = [v for v in session.exec(statement).all() if v is not None]
-    if not values:
-        return 0.0
-    return sum(values) / len(values)
-
-
-# ---------------------------------------------------------------------------
 # Public API
 # ---------------------------------------------------------------------------
 
@@ -152,9 +192,9 @@ def start_practice_session(
             detail="topic_ids must not be empty",
         )
 
-    # Single join to load (question_id, difficulty) for the entire pool.
+    # Load (question_id, difficulty, lesson_id) cho toàn bộ pool.
     statement = (
-        select(Question.id, Question.difficulty)
+        select(Question.id, Question.difficulty, Lesson.id)
         .join(Exercise, Question.exercise_id == Exercise.id)
         .join(Lesson, Exercise.lesson_id == Lesson.id)
         .where(Lesson.topic_id.in_(topic_ids))
@@ -167,20 +207,46 @@ def start_practice_session(
             detail="No REVIEW questions found for the selected topics",
         )
 
+    # Tổng hợp lesson_ids duy nhất từ pool.
+    lesson_ids = list({row[2] for row in rows})
+
+    # Lấy theta hiện tại từ DB cho từng lesson; nếu chưa có thì 0.0.
+    theta_records = session.exec(
+        select(ThetaLearnerLesson)
+        .where(ThetaLearnerLesson.learner_id == learner_id)
+        .where(ThetaLearnerLesson.lesson_id.in_(lesson_ids))
+    ).all()
+    lesson_theta_map: dict[int, float] = {
+        rec.lesson_id: (rec.theta or 0.0) for rec in theta_records
+    }
+    for lid in lesson_ids:
+        if lid not in lesson_theta_map:
+            lesson_theta_map[lid] = 0.0
+
     session_id = uuid.uuid4().hex
-    pool_key = _pool_key(session_id)
-    state_key = _state_key(session_id)
 
-    # Populate sorted set with score=difficulty.
-    mapping = {str(qid): float(diff or 0.0) for qid, diff in rows}
-    r.zadd(pool_key, mapping)
+    # Sorted set: score = difficulty
+    pool_mapping = {str(qid): float(diff or 0.0) for qid, diff, _ in rows}
+    r.zadd(_pool_key(session_id), pool_mapping)
 
-    theta = _initial_theta(session, learner_id, topic_ids)
+    # Hash: question_id -> lesson_id
+    r.hset(
+        _question_lesson_key(session_id),
+        mapping={str(qid): str(lid) for qid, _, lid in rows},
+    )
+
+    # Hash: lesson_id -> theta
+    r.hset(
+        _lesson_thetas_key(session_id),
+        mapping={str(lid): str(th) for lid, th in lesson_theta_map.items()},
+    )
+
+    # Session theta = trung bình theta các lesson (làm điểm khởi đầu cho IRT window)
+    theta = sum(lesson_theta_map.values()) / len(lesson_theta_map)
 
     first_qid = select_next_question_id(r, session_id, theta)
     if first_qid is None:
-        # Shouldn't happen because rows is non-empty; cleanup just in case.
-        r.delete(pool_key)
+        r.delete(_pool_key(session_id), _question_lesson_key(session_id), _lesson_thetas_key(session_id))
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Could not pick an initial question",
@@ -193,9 +259,12 @@ def start_practice_session(
         "topic_ids": ",".join(str(t) for t in topic_ids),
         "started_at": datetime.now(timezone.utc).isoformat(),
     }
-    r.hset(state_key, mapping=state)
-    r.expire(pool_key, settings.practice_session_ttl)
-    r.expire(state_key, settings.practice_session_ttl)
+    ttl = settings.practice_session_ttl
+    r.hset(_state_key(session_id), mapping=state)
+    r.expire(_pool_key(session_id), ttl)
+    r.expire(_state_key(session_id), ttl)
+    r.expire(_question_lesson_key(session_id), ttl)
+    r.expire(_lesson_thetas_key(session_id), ttl)
 
     question = get_question_public_payload(session, first_qid)
     return session_id, theta, question
@@ -242,16 +311,21 @@ def submit_practice_answer(
         ),
     )
 
-    # Update theta using current state theta + this single response.
+    # Cập nhật session theta (dùng cho IRT window lần sau).
     theta = float(state.get("theta", 0.0))
     difficulty = float(question.difficulty or 0.0)
-    new_theta = update_theta(
-        theta,
-        items=[(1, difficulty)],
-        responses=[1 if is_correct else 0],
-    )
+    response = 1 if is_correct else 0
+    new_theta = update_theta(theta, items=[(1, difficulty)], responses=[response])
 
-    # Remove the answered question from the pool.
+    # Cập nhật theta của lesson chứa câu vừa trả lời trong Redis.
+    lid_str, old_lesson_theta = _get_lesson_theta(r, session_id, question_id)
+    if lid_str is not None:
+        new_lesson_theta = update_theta(
+            old_lesson_theta, items=[(1, difficulty)], responses=[response]
+        )
+        r.hset(_lesson_thetas_key(session_id), lid_str, str(new_lesson_theta))
+
+    # Xóa câu vừa làm khỏi pool.
     r.zrem(_pool_key(session_id), str(question_id))
 
     next_qid = select_next_question_id(r, session_id, new_theta)
@@ -259,8 +333,12 @@ def submit_practice_answer(
     next_question: PracticeQuestionResponse | None = None
 
     state_key = _state_key(session_id)
+    ttl = settings.practice_session_ttl
+
     if practice_completed:
-        # Pool empty — keep state for a moment, but clear current_question_id.
+        # Pool rỗng — lưu lesson thetas vào DB ngay lập tức.
+        _flush_lesson_thetas(r, session_id, session, learner_id)
+        r.delete(_lesson_thetas_key(session_id), _question_lesson_key(session_id))
         r.hset(state_key, mapping={"theta": str(new_theta)})
         r.hdel(state_key, "current_question_id")
     else:
@@ -272,9 +350,11 @@ def submit_practice_answer(
                 "current_question_id": str(next_qid),
             },
         )
-    r.expire(state_key, settings.practice_session_ttl)
-    if not practice_completed:
-        r.expire(_pool_key(session_id), settings.practice_session_ttl)
+        r.expire(_pool_key(session_id), ttl)
+        r.expire(_question_lesson_key(session_id), ttl)
+        r.expire(_lesson_thetas_key(session_id), ttl)
+
+    r.expire(state_key, ttl)
 
     return {
         "is_correct": is_correct,
@@ -286,9 +366,16 @@ def submit_practice_answer(
 
 
 def end_practice_session(
-    r: redis.Redis, session_id: str, learner_id: int
+    r: redis.Redis, session_id: str, learner_id: int, session: Session
 ) -> dict:
     state = _load_state(r, session_id)
     _assert_learner(state, learner_id)
-    r.delete(_pool_key(session_id), _state_key(session_id))
+    # Lưu lesson thetas còn lại vào DB trước khi xóa.
+    _flush_lesson_thetas(r, session_id, session, learner_id)
+    r.delete(
+        _pool_key(session_id),
+        _state_key(session_id),
+        _lesson_thetas_key(session_id),
+        _question_lesson_key(session_id),
+    )
     return {"message": "Practice session ended"}

@@ -41,6 +41,8 @@ class ChatRequest(BaseModel):
     messages: list[Message]
     learner_id: int
     context: Context
+    # None → tạo phiên chat mới; có giá trị → tiếp tục phiên chat đã có.
+    session_id: int | None = None
 
 
 class SuggestRequest(BaseModel):
@@ -62,3 +64,26 @@ class QuestionInput(BaseModel):
     answer: str
     correct_answer: str
     difficulty: float
+
+
+class ChatSessionSummary(BaseModel):
+    session_id: int
+    exercise_id: int
+    exercise_name: str
+    created_at: str | None
+    updated_at: str | None
+    message_count: int
+
+
+class ChatHistoryResponse(BaseModel):
+    learner_id: int
+    exercise_id: int
+    sessions: list[ChatSessionSummary]
+
+
+class ChatMessagesResponse(BaseModel):
+    session_id: int
+    learner_id: int
+    exercise_id: int
+    exercise_name: str
+    messages: list[Message]

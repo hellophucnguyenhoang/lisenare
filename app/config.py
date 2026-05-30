@@ -20,6 +20,13 @@ class Settings(BaseSettings):
     ai_model_server_url: str
     gcs_base_url: str
     use_cloud_storage: bool = False
+
+    # Cloudflare R2 (S3-compatible) — lưu file lịch sử chat dạng JSON
+    r2_account_id: str = ""
+    r2_access_key_id: str = ""
+    r2_secret_access_key: str = ""
+    r2_bucket_name: str = ""
+    r2_endpoint_url: str = ""
     google_app_email_address: str
     google_app_password: str
     gemini_api_key: str
