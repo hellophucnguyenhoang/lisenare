@@ -9,12 +9,18 @@ import requests
 import torch
 import torchaudio
 from fastapi import UploadFile
-from inference.schemas.audio import WordSegment
 from transformers import (
     AutoModelForSpeechSeq2Seq,
     AutoProcessor,
     pipeline,
 )
+
+from inference.cv_finetune.loaders import (
+    apply_lora_to_wav2vec2,
+    load_lora_adapter,
+    lora_mode,
+)
+from inference.schemas.audio import WordSegment
 
 
 async def preprocess_upload_file(file: UploadFile) -> np.ndarray:
@@ -79,14 +85,29 @@ class Point:
 
 
 class PhonemeService:
-    def __init__(self, bundle=torchaudio.pipelines.WAV2VEC2_ASR_BASE_960H):
+    def __init__(
+        self,
+        bundle=torchaudio.pipelines.WAV2VEC2_ASR_BASE_960H,
+        lora_path: str | None = None,
+        enable_lora: bool = True,
+    ):
         # Determine if GPU is available
         self.device = torch.device(
             "cuda" if torch.cuda.is_available() else "cpu"
         )
         print(f"Loading torchaudio bundle to {self.device}...")
         self.bundle = bundle
-        self.model = self.bundle.get_model().to(self.device)
+        base_model = self.bundle.get_model().to(self.device)
+        self.enable_lora = enable_lora
+        if lora_path:
+            print("📦 Extracting and loading LoRA adapter weights...")
+            applied_model = apply_lora_to_wav2vec2(base_model).to(self.device)
+            self.model = load_lora_adapter(applied_model, lora_path).to(
+                self.device
+            )
+        else:
+            self.model = base_model
+            self.enable_lora = False
         self.model.eval()
 
         self.labels = self.bundle.get_labels()
@@ -120,7 +141,7 @@ class PhonemeService:
 
         waveform = waveform.to(self.device)
 
-        with torch.inference_mode():
+        with torch.inference_mode(), lora_mode(enabled=self.enable_lora):
             emissions, _ = self.model(waveform)
             emissions = torch.log_softmax(emissions, dim=-1)
 
@@ -150,7 +171,7 @@ class PhonemeService:
         response = requests.get(audio_url)
         audio_file = io.BytesIO(response.content)
 
-        with torch.inference_mode():
+        with torch.inference_mode(), lora_mode(enabled=self.enable_lora):
             waveform, sr = torchaudio.load(audio_file)
             if sr != self.sample_rate:
                 waveform = torchaudio.functional.resample(
@@ -297,4 +318,6 @@ class PhonemeService:
 
 
 transcription_service = TranscriptionService()
-phoneme_recognition_service = PhonemeService()
+phoneme_recognition_service = PhonemeService(
+    lora_path="models/lora_adapter_epoch3_20260601_062920_loss0.2356.pt"
+)
