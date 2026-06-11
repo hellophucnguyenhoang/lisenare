@@ -103,6 +103,9 @@ class Learner(SQLModel, table=True):
         back_populates="learner"
     )
     historychats: list["HistoryChat"] = Relationship(back_populates="learner")
+    learner_exercises: list["LearnerExercise"] = Relationship(
+        back_populates="learner"
+    )
 
 
 class LearnerSetting(SQLModel, table=True):
@@ -420,6 +423,9 @@ class Exercise(SQLModel, table=True):
     exercise_type: ExerciseType = ExerciseType.PRACTICE
     questions: list["Question"] = Relationship(back_populates="exercise")
     historychats: list["HistoryChat"] = Relationship(back_populates="exercise")
+    learner_exercises: list["LearnerExercise"] = Relationship(
+        back_populates="exercise"
+    )
 
 
 class Question(SQLModel, table=True):
@@ -446,6 +452,50 @@ class Example(SQLModel, table=True):
     concept_id: int | None = Field(default=None, foreign_key="concept.id")
     concept: Concept | None = Relationship(back_populates="examples")
 
+class ThetaLearnerLesson(SQLModel, table=True):
+    id: int | None = Field(default=None, primary_key=True)
+    learner_id: int = Field(foreign_key="learner.id")
+    lesson_id: int = Field(foreign_key="lesson.id")
+    theta: float | None = Field(default=0)
+    is_completed: bool = Field(default=False)
+    completed_at: datetime | None = Field(
+        default=None, sa_type=DateTime(timezone=True)
+    )
+
+    lesson: Lesson | None = Relationship(back_populates="thetalearnerlessons")
+    learner: Learner | None = Relationship(
+        back_populates="thetalearnerlessons"
+    )
+
+
+class LearnerExercise(SQLModel, table=True):
+    id: int | None = Field(default=None, primary_key=True)
+    learner_id: int = Field(foreign_key="learner.id", ondelete="CASCADE")
+    exercise_id: int = Field(foreign_key="exercise.id", ondelete="CASCADE")
+    num_correct_questions: int = Field(default=0)
+    num_incorrect_questions: int = Field(default=0)
+    started_at: datetime = Field(
+        default_factory=lambda: datetime.now(timezone.utc),
+        sa_type=DateTime(timezone=True),
+    )
+    ended_at: datetime | None = Field(
+        default=None, sa_type=DateTime(timezone=True)
+    )
+    is_completed: bool = Field(default=False)
+
+    learner: Learner = Relationship(back_populates="learner_exercises")
+    exercise: Exercise = Relationship(back_populates="learner_exercises")
+    history_answer_questions: list["HistoryAnswerQuestion"] = Relationship(
+        back_populates="learner_exercise"
+    )
+
+    __table_args__ = (
+        Index(
+            "ix_learnerexercise_learner_exercise",
+            "learner_id",
+            "exercise_id",
+        ),
+    )
 
 class HistoryAnswerQuestion(SQLModel, table=True):
     id: int | None = Field(default=None, primary_key=True)
@@ -453,21 +503,12 @@ class HistoryAnswerQuestion(SQLModel, table=True):
     question_id: int = Field(foreign_key="question.id")
     user_answer: str | None = None
     timesecond: datetime | None = None
+    learner_exercise_id: int | None = Field(
+        default=None, foreign_key="learnerexercise.id"
+    )
     questions: Question = Relationship(back_populates="historyanswerquestions")
     learners: Learner = Relationship(back_populates="historyanswerquestions")
-
-
-class ThetaLearnerLesson(SQLModel, table=True):
-    id: int | None = Field(default=None, primary_key=True)
-    learner_id: int = Field(foreign_key="learner.id")
-    lesson_id: int = Field(foreign_key="lesson.id")
-    theta: float | None = Field(default=0)
-
-    lesson: Lesson | None = Relationship(back_populates="thetalearnerlessons")
-    learner: Learner | None = Relationship(
-        back_populates="thetalearnerlessons"
-    )
-
+    learner_exercise: LearnerExercise | None = Relationship(back_populates="history_answer_questions")
 
 class YouTubeSubtitle(SQLModel, table=True):
     id: int | None = Field(default=None, primary_key=True)

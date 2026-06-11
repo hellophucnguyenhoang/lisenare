@@ -63,6 +63,8 @@ def get_history_by_learner(session: Session, learner_id: int):
             Question.answer,
             HistoryAnswerQuestion.user_answer,
             Question.difficulty,
+            Question.question,
+            Question.correct_answer,
         )
         .join(Question, HistoryAnswerQuestion.question_id == Question.id)
         .join(Exercise, Question.exercise_id == Exercise.id)

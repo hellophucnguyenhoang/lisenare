@@ -1,10 +1,8 @@
-from datetime import datetime
-
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import StreamingResponse
 from sqlmodel import Session
 
-from app.database import HistoryAnswerQuestion, Lesson, get_session
+from app.database import Lesson, get_session
 from app.schemas import (
     ChatHistoryResponse,
     ChatMessagesResponse,
@@ -27,8 +25,13 @@ from app.services.chat_history_service import (
 )
 from app.services.chatbot_service import get_hint_stream
 from app.services.history_answer_question_service import (
+    compare_strings,
     get_difficulty_and_respone,
-    insert_list_history_answer_question,
+)
+from app.services.learner_exercise_service import (
+    finish_attempt,
+    record_answer,
+    start_attempt,
 )
 from app.services.lesson_service import (
     get_lesson_by_exercise,
@@ -70,24 +73,59 @@ def get_questions(exercise_id: int, session: Session = Depends(get_session)):
 def submit_exercise(
     data: SubmitRequest, session: Session = Depends(get_session)
 ):
-    time = datetime.now()
-    records = [
-        HistoryAnswerQuestion(
+    if not data.answers:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Danh sách câu trả lời trống",
+        )
+
+    attempt = start_attempt(
+        session=session,
+        learner_id=data.user_id,
+        exercise_id=data.exercise_id,
+    )
+
+    num_correct = 0
+    num_incorrect = 0
+    for ans in data.answers:
+        question = get_question_by_id(session=session, id=ans.question_id)
+        if question is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Question {ans.question_id} không tồn tại",
+            )
+        if compare_strings(question.correct_answer, ans.user_answer):
+            num_correct += 1
+        else:
+            num_incorrect += 1
+        record_answer(
+            session=session,
+            attempt_id=attempt.id,
             learner_id=data.user_id,
             question_id=ans.question_id,
             user_answer=ans.user_answer,
-            timesecond=time,
         )
-        for ans in data.answers
-    ]
-    lesson = get_lesson_by_question(
-        session, question_id=records[0].question_id
+
+    attempt = finish_attempt(
+        session=session,
+        attempt_id=attempt.id,
+        num_correct=num_correct,
+        num_incorrect=num_incorrect,
     )
-    insert_list_history_answer_question(session, records)
+
+    lesson = get_lesson_by_question(
+        session, question_id=data.answers[0].question_id
+    )
     insert_or_update_theta(
         session=session, learner_id=data.user_id, lesson_id=lesson.id
     )
-    return {"message": "Nộp bài thành công và đã thêm vào database"}
+    return {
+        "message": "Nộp bài thành công và đã thêm vào database",
+        "attempt_id": attempt.id,
+        "num_correct_questions": attempt.num_correct_questions,
+        "num_incorrect_questions": attempt.num_incorrect_questions,
+        "is_completed": attempt.is_completed,
+    }
 
 
 @router.post("/chat")

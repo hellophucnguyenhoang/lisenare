@@ -1,8 +1,16 @@
 import math
+from datetime import datetime, timezone
 
 from sqlmodel import Session, select
 
-from app.database import ThetaLearnerLesson
+from app.database import (
+    Exercise,
+    ExerciseType,
+    LearnerExercise,
+    Lesson,
+    ThetaLearnerLesson,
+    Topic,
+)
 from app.services.history_answer_question_service import (
     get_difficulty_and_respone,
 )
@@ -15,6 +23,28 @@ def get_theta_by_leaner_and_lesson(session: Session, learner_id, lesson_id):
     )
     return session.exec(statement).first()
 
+def get_theta_info_by_leaner_and_lesson(session: Session, learner_id):
+    statement = (
+        select(
+            ThetaLearnerLesson.theta.label("theta_lesson"),
+            Lesson.name.label("lesson_name"),
+            Topic.name.label("topic_name"),
+            Lesson.description.label("lesson_description"),
+            Topic.description.label("topic_description"),
+        )
+        .join(Lesson, ThetaLearnerLesson.lesson_id == Lesson.id)
+        .join(Topic, Lesson.topic_id == Topic.id)
+        .where(ThetaLearnerLesson.learner_id == learner_id)
+    )
+    return session.exec(statement).all()
+def get_theta_average_by_leaner(session: Session, learner_id):
+    statement = select(ThetaLearnerLesson.theta).where(
+        ThetaLearnerLesson.learner_id == learner_id
+    )
+    thetas = session.exec(statement).all()
+    if not thetas:
+        return 0.0
+    return sum(thetas) / len(thetas)
 
 def update_theta(theta, items, responses, n_iter=10):
     """
@@ -112,3 +142,61 @@ def theta_to_level(theta: float) -> str:
         return "C1"
     else:
         return "C2"
+
+
+def mark_lesson_completed_if_done(
+    session: Session, learner_id: int, lesson_id: int
+) -> bool:
+    """Đánh dấu ThetaLearnerLesson.is_completed=True nếu mọi PRACTICE exercise
+    của lesson đều có ít nhất 1 LearnerExercise.is_completed=True của learner.
+
+    Trả về True nếu lesson được mark completed (hoặc đã completed trước đó).
+    """
+    practice_exercise_ids = session.exec(
+        select(Exercise.id)
+        .where(Exercise.lesson_id == lesson_id)
+        .where(Exercise.exercise_type == ExerciseType.PRACTICE)
+    ).all()
+    if not practice_exercise_ids:
+        return False
+
+    completed_exercise_ids = session.exec(
+        select(LearnerExercise.exercise_id)
+        .where(LearnerExercise.learner_id == learner_id)
+        .where(LearnerExercise.exercise_id.in_(practice_exercise_ids))
+        .where(LearnerExercise.is_completed.is_(True))
+        .distinct()
+    ).all()
+
+    if set(completed_exercise_ids) != set(practice_exercise_ids):
+        return False
+
+    record = session.exec(
+        select(ThetaLearnerLesson)
+        .where(ThetaLearnerLesson.learner_id == learner_id)
+        .where(ThetaLearnerLesson.lesson_id == lesson_id)
+    ).first()
+
+    try:
+        if record is None:
+            record = ThetaLearnerLesson(
+                learner_id=learner_id,
+                lesson_id=lesson_id,
+                theta=0,
+                is_completed=True,
+                completed_at=datetime.now(timezone.utc),
+            )
+            session.add(record)
+        elif not record.is_completed:
+            record.is_completed = True
+            record.completed_at = datetime.now(timezone.utc)
+        session.commit()
+    except Exception as e:
+        session.rollback()
+        print(
+            f"Mark lesson completed thất bại "
+            f"(learner={learner_id}, lesson={lesson_id}): {e}"
+        )
+        return False
+
+    return True
