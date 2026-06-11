@@ -108,7 +108,7 @@ def submit_exercise(
 
     attempt = finish_attempt(
         session=session,
-        attempt_id=attempt.id,
+        attempt=attempt,
         num_correct=num_correct,
         num_incorrect=num_incorrect,
     )

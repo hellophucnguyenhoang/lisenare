@@ -10,6 +10,7 @@ from .exceptions import RequestException
 from .http_client import close_client, init_client
 from .routers import (
     account_router,
+    agent_router,
     audio_router,
     auth_router,
     brick_router,
@@ -144,3 +145,4 @@ app.include_router(snippet_router.router)
 app.include_router(text_router.router)
 app.include_router(grammar_router.router)
 app.include_router(practice_router.router)
+app.include_router(agent_router.router)

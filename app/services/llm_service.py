@@ -1,6 +1,7 @@
 from collections.abc import Generator
 
 from google import genai
+from google.genai import types
 
 from app.config import settings
 
@@ -23,3 +24,23 @@ def call_llm_stream(
     for chunk in response:
         if chunk.text is not None:
             yield chunk.text
+
+
+def call_llm_with_tools(
+    contents: list,
+    tools: list[types.Tool],
+    system_instruction: str | None = None,
+    model: str = "gemini-2.5-flash",
+):
+    config = types.GenerateContentConfig(
+        tools=tools,
+        system_instruction=system_instruction,
+        automatic_function_calling=types.AutomaticFunctionCallingConfig(
+            disable=True
+        ),
+    )
+    return client.models.generate_content(
+        model=model,
+        contents=contents,
+        config=config,
+    )
