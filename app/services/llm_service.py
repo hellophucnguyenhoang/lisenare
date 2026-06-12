@@ -30,7 +30,7 @@ def call_llm_with_tools(
     contents: list,
     tools: list[types.Tool],
     system_instruction: str | None = None,
-    model: str = "gemini-2.5-flash-lite",
+    model: str = "gemini-2.5-flash",
 ):
     config = types.GenerateContentConfig(
         tools=tools,
@@ -38,6 +38,7 @@ def call_llm_with_tools(
         automatic_function_calling=types.AutomaticFunctionCallingConfig(
             disable=True
         ),
+        thinking_config=types.ThinkingConfig(thinking_budget=0),
     )
     return client.models.generate_content(
         model=model,

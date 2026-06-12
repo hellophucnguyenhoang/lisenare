@@ -1,3 +1,5 @@
+from datetime import datetime, timedelta, timezone
+
 from sqlmodel import Session, select
 
 from app.database import (
@@ -6,6 +8,7 @@ from app.database import (
     Learner,
     Lesson,
     Question,
+    Topic,
 )
 
 
@@ -74,6 +77,60 @@ def get_history_by_learner(session: Session, learner_id: int):
     )
     data = session.exec(statement).all()
     return data
+
+
+def get_filtered_history(
+    session: Session,
+    learner_id: int,
+    *,
+    lesson_id: int | None = None,
+    topic_id: int | None = None,
+    since_days: int | None = None,
+    limit: int = 20,
+):
+    """Lấy history kèm thông tin question/lesson/topic, có filter linh hoạt.
+
+    Returns rows with mapping:
+      history_id, question_id, user_answer, timesecond,
+      question, correct_answer, q_type, difficulty,
+      lesson_id, lesson_name, topic_id, topic_name
+    """
+    statement = (
+        select(
+            HistoryAnswerQuestion.id.label("history_id"),
+            HistoryAnswerQuestion.question_id,
+            HistoryAnswerQuestion.user_answer,
+            HistoryAnswerQuestion.timesecond,
+            Question.question,
+            Question.correct_answer,
+            Question.type.label("q_type"),
+            Question.difficulty,
+            Lesson.id.label("lesson_id"),
+            Lesson.name.label("lesson_name"),
+            Topic.id.label("topic_id"),
+            Topic.name.label("topic_name"),
+        )
+        .join(Question, HistoryAnswerQuestion.question_id == Question.id)
+        .join(Exercise, Question.exercise_id == Exercise.id)
+        .join(Lesson, Exercise.lesson_id == Lesson.id)
+        .join(Topic, Lesson.topic_id == Topic.id)
+        .where(HistoryAnswerQuestion.learner_id == learner_id)
+    )
+
+    if lesson_id is not None:
+        statement = statement.where(Lesson.id == lesson_id)
+    if topic_id is not None:
+        statement = statement.where(Topic.id == topic_id)
+    if since_days is not None and since_days > 0:
+        since_dt = datetime.now(timezone.utc) - timedelta(days=since_days)
+        statement = statement.where(HistoryAnswerQuestion.timesecond >= since_dt)
+
+    statement = statement.order_by(
+        HistoryAnswerQuestion.timesecond.desc()
+    ).limit(max(1, int(limit or 20)))
+
+    return session.exec(statement).all()
+
 
 
 def compare_strings(s1: str, s2: str) -> bool:

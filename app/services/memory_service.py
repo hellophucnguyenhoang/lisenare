@@ -43,6 +43,22 @@ def get_recent_mistakes(
     return list(session.exec(statement).all())
 
 
+def has_mistake_for_question(
+    session: Session, learner_id: int, question_id: int
+) -> bool:
+    """Check learner đã có MistakeMemory cho question_id này chưa.
+    Dựa vào prefix [qid:X] trong content do batch_analyze ghi vào."""
+    pattern = f"[qid:{int(question_id)}]%"
+    statement = (
+        select(MistakeMemory.id)
+        .where(MistakeMemory.learner_id == learner_id)
+        .where(MistakeMemory.content.like(pattern))
+        .limit(1)
+    )
+    return session.exec(statement).first() is not None
+
+
+
 def mistake_to_dict(m: MistakeMemory) -> dict:
     return {
         "id": m.id,

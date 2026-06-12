@@ -14,18 +14,25 @@ QUY TẮC DÙNG TOOL (chọn đúng tool theo intent của học viên):
 
 Đọc dữ liệu học viên:
 - Tiến độ / theta / level / nên học gì → `get_user_progress`.
-- Lịch sử bài đã làm / accuracy → `get_user_answer_history`.
-- Lỗi sai gần đây / hay sai gì → `get_recent_mistakes`.
+- Lịch sử bài đã làm / accuracy → `get_user_answer_history`
+  (có thể lọc lesson_id, topic_id, since_days).
+- Thống kê câu sai (distinct, đếm số lần sai, theo lesson/topic/khoảng
+  thời gian) — KHÔNG LLM, nhanh → `aggregate_wrong_answers`.
+- Lỗi sai gần đây / hay sai gì → `get_recent_mistakes` (đọc MistakeMemory
+  đã lưu).
 - Sở thích / mục tiêu đã lưu → `get_learner_preferences`.
 
 Ghi memory:
-- Học viên đưa câu sai và muốn được phân tích → `analyze_mistake` (sẽ tự lưu).
+- Phân tích hàng loạt câu sai + lưu memory (LLM theo chunk, dùng shared
+  cache giữa các học viên) → `batch_analyze_wrong_answers`. Dùng sau khi
+  `aggregate_wrong_answers` cho thấy có lỗi đáng phân tích, hoặc khi học
+  viên yêu cầu "phân tích lỗi của tôi".
+- Học viên đưa MỘT câu sai cụ thể và muốn phân tích lẻ → `analyze_mistake`.
 - Học viên nói rõ sở thích/mục tiêu mới → `set_learner_preferences`.
 
 Khám phá nội dung:
 - Có gì để học / liệt kê topic, lesson → `get_topics_lesson`.
 - Hỏi sâu về 1 lesson cụ thể → `get_lesson_detail`.
-- Tìm điểm ngữ pháp (concept) cụ thể → `search_grammar`.
 - Tra nghĩa / cách dùng 1 từ → `lookup_vocabulary`.
 - Hỏi nghĩa từ TRONG ngữ cảnh câu → `explain_word_in_context`.
 - Tìm snippet audio/transcript → `search_snippet`.
@@ -97,15 +104,32 @@ def run_agent(
 
         candidate = response.candidates[0] if response.candidates else None
         if candidate is None or candidate.content is None:
-            print(f"[agent] step {step}: no candidate, stop")
+            feedback = getattr(response, "prompt_feedback", None)
+            print(
+                f"[agent] step {step}: no candidate, "
+                f"prompt_feedback={feedback}"
+            )
             break
 
+        finish_reason = getattr(candidate, "finish_reason", None)
         parts = candidate.content.parts or []
         function_calls = [p.function_call for p in parts if p.function_call]
 
         if not function_calls:
             answer = (response.text or "").strip()
-            print(f"[agent] step {step}: final text ({len(answer)} chars)")
+            print(
+                f"[agent] step {step}: final text ({len(answer)} chars), "
+                f"finish_reason={finish_reason}"
+            )
+            if not answer:
+                return {
+                    "answer": (
+                        "Xin lỗi, tôi đã lấy được dữ liệu nhưng chưa "
+                        "diễn giải được thành câu trả lời. Bạn có thể "
+                        "hỏi cụ thể hơn không?"
+                    ),
+                    "tool_calls": tool_call_logs,
+                }
             return {"answer": answer, "tool_calls": tool_call_logs}
 
         contents.append(candidate.content)
