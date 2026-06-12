@@ -3,12 +3,31 @@ import json
 from google.genai import types
 
 from app.services.agent.context import AgentContext
-from app.services.agent.tools.grammar_tool import get_topics_lesson
+from app.services.agent.tools.explain_word_tool import (
+    explain_word_in_context,
+)
+from app.services.agent.tools.grammar_tool import (
+    get_topics_lesson,
+    search_grammar,
+)
 from app.services.agent.tools.history_tool import get_user_answer_history
+from app.services.agent.tools.lesson_detail_tool import get_lesson_detail
+from app.services.agent.tools.mistake_tool import analyze_mistake
+from app.services.agent.tools.passage_tool import generate_passage
+from app.services.agent.tools.preference_tool import (
+    get_learner_preferences,
+    set_learner_preferences,
+)
 from app.services.agent.tools.progress_tool import get_user_progress
+from app.services.agent.tools.recent_mistakes_tool import get_recent_mistakes
+from app.services.agent.tools.recommend_tool import recommend_questions
+from app.services.agent.tools.snippet_tool import search_snippet
+from app.services.agent.tools.study_plan_tool import generate_study_plan
+from app.services.agent.tools.vocab_tool import lookup_vocabulary
 
 
 TOOL_DEFINITIONS = [
+    # ─── Read-only progress / history ──────────────────────────────────
     {
         "name": "get_user_progress",
         "description": (
@@ -21,7 +40,9 @@ TOOL_DEFINITIONS = [
             "properties": {},
             "required": [],
         },
-        "fn": lambda ctx, args: get_user_progress(ctx.session, ctx.learner_id),
+        "fn": lambda ctx, args: get_user_progress(
+            ctx.session, ctx.learner_id
+        ),
     },
     {
         "name": "get_user_answer_history",
@@ -52,6 +73,315 @@ TOOL_DEFINITIONS = [
             "required": [],
         },
         "fn": lambda ctx, args: json.loads(get_topics_lesson(ctx.session)),
+    },
+    # ─── Vocabulary / Grammar lookup ───────────────────────────────────
+    {
+        "name": "lookup_vocabulary",
+        "description": (
+            "Tra cứu từ vựng tiếng Anh: trả về các brick/câu ví dụ chứa "
+            "từ đó kèm bản dịch. Dùng khi học viên hỏi nghĩa hoặc cách "
+            "dùng của một từ/cụm từ."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "word": {
+                    "type": "string",
+                    "description": "Từ hoặc cụm từ tiếng Anh cần tra.",
+                },
+                "limit": {
+                    "type": "integer",
+                    "description": "Số ví dụ tối đa (1-10), mặc định 5.",
+                },
+            },
+            "required": ["word"],
+        },
+        "fn": lambda ctx, args: lookup_vocabulary(
+            ctx.session,
+            word=args.get("word", ""),
+            limit=int(args.get("limit") or 5),
+        ),
+    },
+    {
+        "name": "search_grammar",
+        "description": (
+            "Tìm các điểm ngữ pháp (concept) khớp với từ khoá học viên "
+            "hỏi. Dùng khi học viên hỏi về ngữ pháp cụ thể như "
+            "'present perfect', 'phân biệt few vs a few'."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "query": {
+                    "type": "string",
+                    "description": "Từ khoá ngữ pháp cần tìm.",
+                },
+                "limit": {
+                    "type": "integer",
+                    "description": "Số kết quả tối đa, mặc định 8.",
+                },
+            },
+            "required": ["query"],
+        },
+        "fn": lambda ctx, args: search_grammar(
+            ctx.session,
+            query=args.get("query", ""),
+            limit=int(args.get("limit") or 8),
+        ),
+    },
+    # ─── Memory: mistakes & preferences ────────────────────────────────
+    {
+        "name": "analyze_mistake",
+        "description": (
+            "Phân tích lỗi sai của học viên (loại lỗi, điểm ngữ pháp, "
+            "giải thích, gợi ý sửa) và lưu vào MistakeMemory. Dùng khi "
+            "học viên đưa câu trả lời sai hoặc hỏi 'câu này sai ở đâu'."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "question": {
+                    "type": "string",
+                    "description": "Đề bài/câu hỏi gốc.",
+                },
+                "learner_answer": {
+                    "type": "string",
+                    "description": "Câu trả lời sai của học viên.",
+                },
+                "correct_answer": {
+                    "type": "string",
+                    "description": "Đáp án đúng (nếu biết). Có thể bỏ qua.",
+                },
+            },
+            "required": ["question", "learner_answer"],
+        },
+        "fn": lambda ctx, args: analyze_mistake(
+            ctx.session,
+            learner_id=ctx.learner_id,
+            question=args.get("question", ""),
+            learner_answer=args.get("learner_answer", ""),
+            correct_answer=args.get("correct_answer"),
+        ),
+    },
+    {
+        "name": "get_recent_mistakes",
+        "description": (
+            "Lấy danh sách lỗi sai gần nhất đã ghi vào MistakeMemory, "
+            "kèm thống kê theo loại và theo điểm ngữ pháp. Dùng khi "
+            "học viên hỏi 'tôi hay sai gì', hoặc cần ngữ cảnh trước "
+            "khi gợi ý bài tập."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "limit": {
+                    "type": "integer",
+                    "description": "Số lỗi gần nhất (1-20), mặc định 5.",
+                },
+            },
+            "required": [],
+        },
+        "fn": lambda ctx, args: get_recent_mistakes(
+            ctx.session,
+            ctx.learner_id,
+            limit=int(args.get("limit") or 5),
+        ),
+    },
+    {
+        "name": "get_learner_preferences",
+        "description": (
+            "Đọc preferences đã lưu của học viên (kiểu bài tập ưa thích, "
+            "phong cách học, mục tiêu, ghi chú). Dùng khi cần cá nhân "
+            "hoá lời khuyên."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {},
+            "required": [],
+        },
+        "fn": lambda ctx, args: get_learner_preferences(
+            ctx.session, ctx.learner_id
+        ),
+    },
+    {
+        "name": "set_learner_preferences",
+        "description": (
+            "Ghi/Cập nhật preferences của học viên. Dùng khi học viên "
+            "nói rõ sở thích/mục tiêu, ví dụ 'tôi thích học qua đoạn "
+            "văn', 'mục tiêu của tôi là TOEIC 700'."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "preferred_exercise_type": {"type": "string"},
+                "learning_style": {"type": "string"},
+                "goal": {"type": "string"},
+                "notes": {"type": "string"},
+            },
+            "required": [],
+        },
+        "fn": lambda ctx, args: set_learner_preferences(
+            ctx.session,
+            ctx.learner_id,
+            preferred_exercise_type=args.get("preferred_exercise_type"),
+            learning_style=args.get("learning_style"),
+            goal=args.get("goal"),
+            notes=args.get("notes"),
+        ),
+    },
+    # ─── Content generation ────────────────────────────────────────────
+    {
+        "name": "generate_passage",
+        "description": (
+            "Sinh đoạn văn tiếng Anh luyện đọc theo chủ đề, độ khó tự "
+            "động bám theo theta của học viên (CEFR), kèm câu hỏi đọc "
+            "hiểu và từ vựng quan trọng."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "topic": {
+                    "type": "string",
+                    "description": "Chủ đề đoạn văn (vd: 'travel').",
+                },
+                "question_count": {
+                    "type": "integer",
+                    "description": "Số câu hỏi đọc hiểu (1-5).",
+                },
+            },
+            "required": ["topic"],
+        },
+        "fn": lambda ctx, args: generate_passage(
+            ctx.session,
+            learner_id=ctx.learner_id,
+            topic=args.get("topic", ""),
+            question_count=int(args.get("question_count") or 3),
+        ),
+    },
+    {
+        "name": "generate_study_plan",
+        "description": (
+            "Lập kế hoạch học cá nhân hoá theo mục tiêu (vd: 'TOEIC 600 "
+            "trong 3 tháng'), dựa trên theta hiện tại + lỗi gần đây."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "goal": {
+                    "type": "string",
+                    "description": "Mục tiêu học tập.",
+                },
+                "weeks": {
+                    "type": "integer",
+                    "description": "Số tuần (1-24), mặc định 4.",
+                },
+            },
+            "required": ["goal"],
+        },
+        "fn": lambda ctx, args: generate_study_plan(
+            ctx.session,
+            learner_id=ctx.learner_id,
+            goal=args.get("goal", ""),
+            weeks=int(args.get("weeks") or 4),
+        ),
+    },
+    # ─── Recommendation & deep lookup ──────────────────────────────────
+    {
+        "name": "recommend_questions",
+        "description": (
+            "Gợi ý câu hỏi luyện tập có độ khó phù hợp với theta của "
+            "học viên. Có thể giới hạn theo topic_id."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "topic_id": {
+                    "type": "integer",
+                    "description": "ID topic muốn lọc, có thể bỏ qua.",
+                },
+                "limit": {
+                    "type": "integer",
+                    "description": "Số câu (1-10), mặc định 5.",
+                },
+            },
+            "required": [],
+        },
+        "fn": lambda ctx, args: recommend_questions(
+            ctx.session,
+            ctx.learner_id,
+            topic_id=(
+                int(args["topic_id"])
+                if args.get("topic_id") is not None
+                else None
+            ),
+            limit=int(args.get("limit") or 5),
+        ),
+    },
+    {
+        "name": "explain_word_in_context",
+        "description": (
+            "Giải thích nghĩa của 1 từ TRONG ngữ cảnh cụ thể. Nếu "
+            "không có ngữ cảnh, fallback sang giải thích chung. Dùng "
+            "khi học viên đưa nguyên câu và hỏi 'từ X trong câu này "
+            "nghĩa là gì'."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "word": {"type": "string"},
+                "context": {
+                    "type": "string",
+                    "description": "Câu/đoạn chứa từ. Có thể bỏ qua.",
+                },
+            },
+            "required": ["word"],
+        },
+        "fn": lambda ctx, args: explain_word_in_context(
+            ctx.session,
+            word=args.get("word", ""),
+            context=args.get("context"),
+        ),
+    },
+    {
+        "name": "get_lesson_detail",
+        "description": (
+            "Lấy chi tiết 1 lesson: tên, mô tả, danh sách concept, "
+            "danh sách exercise. Dùng khi học viên hỏi sâu về 1 lesson."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "lesson_id": {"type": "integer"},
+            },
+            "required": ["lesson_id"],
+        },
+        "fn": lambda ctx, args: get_lesson_detail(
+            ctx.session, lesson_id=int(args.get("lesson_id"))
+        ),
+    },
+    {
+        "name": "search_snippet",
+        "description": (
+            "Tìm snippet (đoạn audio + transcript do người dùng đóng "
+            "góp) khớp với từ khoá. Dùng khi học viên muốn nghe ví dụ "
+            "thực tế hoặc tìm clip về một chủ đề."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "query": {"type": "string"},
+                "limit": {
+                    "type": "integer",
+                    "description": "Số snippet (1-10), mặc định 5.",
+                },
+            },
+            "required": ["query"],
+        },
+        "fn": lambda ctx, args: search_snippet(
+            ctx.session,
+            query=args.get("query", ""),
+            limit=int(args.get("limit") or 5),
+        ),
     },
 ]
 
