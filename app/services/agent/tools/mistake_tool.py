@@ -46,6 +46,7 @@ def analyze_mistake(
     learner_answer: str,
     correct_answer: str | None = None,
     save: bool = True,
+    content_prefix: str | None = None,
 ) -> dict:
     if not question or not learner_answer:
         return {
@@ -84,15 +85,18 @@ def analyze_mistake(
 
     saved_id = None
     if save:
+        prefix = content_prefix or ""
+        content = (
+            f"{prefix}Q: {question}\n"
+            f"Learner: {learner_answer}\n"
+            f"Explain: {explanation}"
+        )
         try:
             record = memory_service.add_mistake(
                 session,
                 learner_id=learner_id,
                 mistake_type=mistake_type,
-                content=(
-                    f"Q: {question}\nLearner: {learner_answer}"
-                    f"\nExplain: {explanation}"
-                ),
+                content=content,
                 grammar_point=grammar_point,
                 suggested_fix=suggested_fix,
             )
@@ -116,3 +120,4 @@ def analyze_mistake(
             "memory_id": saved_id,
         },
     }
+

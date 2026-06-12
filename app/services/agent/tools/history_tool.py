@@ -1,51 +1,82 @@
-from app.services.history_answer_question_service import get_history_by_learner
 from sqlmodel import Session
 
+from app.services.history_answer_question_service import (
+    compare_strings,
+    get_filtered_history,
+)
 
-def get_user_answer_history(session: Session, learner_id: int):
-    history_list = get_history_by_learner(session, learner_id)
-    accuracy = get_accuracy(history_list)
+
+def get_user_answer_history(
+    session: Session,
+    learner_id: int,
+    *,
+    lesson_id: int | None = None,
+    topic_id: int | None = None,
+    since_days: int | None = None,
+    limit: int = 20,
+):
+    rows = get_filtered_history(
+        session,
+        learner_id,
+        lesson_id=lesson_id,
+        topic_id=topic_id,
+        since_days=since_days,
+        limit=limit,
+    )
+
+    history_items = [_row_to_dict(r) for r in rows]
+    accuracy = _compute_accuracy(history_items)
+
     return {
         "ok": True,
         "tool": "get_user_answer_history",
         "summary": (
-            f"User has {len(history_list)} answer history records "
+            f"User has {len(history_items)} answer history records "
             f"and an accuracy of {accuracy:.2%}"
         ),
         "data": {
-            "total_records": len(history_list),
+            "total_records": len(history_items),
             "accuracy": accuracy,
-            "history": [convert_history(history) for history in history_list],
+            "filters": {
+                "lesson_id": lesson_id,
+                "topic_id": topic_id,
+                "since_days": since_days,
+                "limit": limit,
+            },
+            "history": history_items,
         },
     }
 
 
-def convert_history(history):
-    if history is None:
-        return None
+def _row_to_dict(row) -> dict:
+    mapping = getattr(row, "_mapping", None)
+    get = (
+        (lambda k: mapping[k])
+        if mapping is not None
+        else (lambda k, r=row: getattr(r, k))
+    )
+    timesecond = get("timesecond")
     return {
-        "id": history.id,
-        "timesecond": (
-            history.timesecond.isoformat() if history.timesecond else None
-        ),
-        "question": history.question,
-        "answer": history.answer,
-        "user_answer": history.user_answer,
-        "difficulty": history.difficulty,
-        "correct_answer": history.correct_answer,
+        "id": get("history_id"),
+        "timesecond": timesecond.isoformat() if timesecond else None,
+        "question": get("question"),
+        "user_answer": get("user_answer"),
+        "correct_answer": get("correct_answer"),
+        "type": get("q_type"),
+        "difficulty": get("difficulty"),
+        "lesson_id": get("lesson_id"),
+        "lesson_name": get("lesson_name"),
+        "topic_id": get("topic_id"),
+        "topic_name": get("topic_name"),
     }
 
 
-def get_accuracy(history):
+def _compute_accuracy(history: list[dict]) -> float:
     if not history:
         return 0.0
-    correct_answers = sum(
+    correct = sum(
         1
         for h in history
-        if normalize_answer(h.correct_answer) == normalize_answer(h.user_answer)
+        if compare_strings(h.get("correct_answer") or "", h.get("user_answer") or "")
     )
-    return correct_answers / len(history)
-
-
-def normalize_answer(answer: str | None) -> str:
-    return (answer or "").strip().lower()
+    return correct / len(history)
