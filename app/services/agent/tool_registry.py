@@ -8,7 +8,6 @@ from app.services.agent.tools.explain_word_tool import (
 )
 from app.services.agent.tools.grammar_tool import (
     get_topics_lesson,
-    search_grammar,
 )
 from app.services.agent.tools.history_tool import get_user_answer_history
 from app.services.agent.tools.lesson_detail_tool import get_lesson_detail
@@ -24,6 +23,10 @@ from app.services.agent.tools.recommend_tool import recommend_questions
 from app.services.agent.tools.snippet_tool import search_snippet
 from app.services.agent.tools.study_plan_tool import generate_study_plan
 from app.services.agent.tools.vocab_tool import lookup_vocabulary
+from app.services.agent.tools.wrong_answers_tool import (
+    aggregate_wrong_answers,
+    batch_analyze_wrong_answers,
+)
 
 
 TOOL_DEFINITIONS = [
@@ -48,16 +51,45 @@ TOOL_DEFINITIONS = [
         "name": "get_user_answer_history",
         "description": (
             "Lấy lịch sử các câu hỏi học viên đã trả lời gần đây, kèm "
-            "đáp án đúng/sai và accuracy tổng. Dùng khi học viên hỏi về "
-            "bài đã làm, lỗi thường gặp, kết quả gần đây."
+            "đáp án đúng/sai và accuracy tổng. Có thể lọc theo "
+            "lesson_id, topic_id, hoặc số ngày gần đây (since_days). "
+            "Dùng khi học viên hỏi về bài đã làm, kết quả gần đây."
         ),
         "parameters": {
             "type": "object",
-            "properties": {},
+            "properties": {
+                "lesson_id": {"type": "integer"},
+                "topic_id": {"type": "integer"},
+                "since_days": {
+                    "type": "integer",
+                    "description": "Số ngày gần đây, vd 7 = 1 tuần.",
+                },
+                "limit": {
+                    "type": "integer",
+                    "description": "Số bản ghi (1-200), mặc định 20.",
+                },
+            },
             "required": [],
         },
         "fn": lambda ctx, args: get_user_answer_history(
-            ctx.session, ctx.learner_id
+            ctx.session,
+            ctx.learner_id,
+            lesson_id=(
+                int(args["lesson_id"])
+                if args.get("lesson_id") is not None
+                else None
+            ),
+            topic_id=(
+                int(args["topic_id"])
+                if args.get("topic_id") is not None
+                else None
+            ),
+            since_days=(
+                int(args["since_days"])
+                if args.get("since_days") is not None
+                else None
+            ),
+            limit=int(args.get("limit") or 20),
         ),
     },
     {
@@ -102,34 +134,109 @@ TOOL_DEFINITIONS = [
             limit=int(args.get("limit") or 5),
         ),
     },
+    # ─── Memory: mistakes & preferences ────────────────────────────────
     {
-        "name": "search_grammar",
+        "name": "aggregate_wrong_answers",
         "description": (
-            "Tìm các điểm ngữ pháp (concept) khớp với từ khoá học viên "
-            "hỏi. Dùng khi học viên hỏi về ngữ pháp cụ thể như "
-            "'present perfect', 'phân biệt few vs a few'."
+            "Thống kê câu sai của học viên dựa trên lịch sử trả lời "
+            "(historyanswerquestion). KHÔNG gọi LLM, trả về số liệu "
+            "nhanh: tổng số, accuracy, danh sách câu sai distinct kèm "
+            "wrong_count, phân bố theo độ khó. Có thể lọc lesson_id, "
+            "topic_id, since_days. Dùng cho 'tôi hay sai câu nào', "
+            "'accuracy lesson X', 'tuần qua sai gì'."
         ),
         "parameters": {
             "type": "object",
             "properties": {
-                "query": {
-                    "type": "string",
-                    "description": "Từ khoá ngữ pháp cần tìm.",
+                "lesson_id": {"type": "integer"},
+                "topic_id": {"type": "integer"},
+                "since_days": {
+                    "type": "integer",
+                    "description": "Số ngày gần đây, vd 7 = 1 tuần.",
                 },
                 "limit": {
                     "type": "integer",
-                    "description": "Số kết quả tối đa, mặc định 8.",
+                    "description": (
+                        "Số bản ghi history quét (1-200), mặc định 50."
+                    ),
                 },
             },
-            "required": ["query"],
+            "required": [],
         },
-        "fn": lambda ctx, args: search_grammar(
+        "fn": lambda ctx, args: aggregate_wrong_answers(
             ctx.session,
-            query=args.get("query", ""),
-            limit=int(args.get("limit") or 8),
+            ctx.learner_id,
+            lesson_id=(
+                int(args["lesson_id"])
+                if args.get("lesson_id") is not None
+                else None
+            ),
+            topic_id=(
+                int(args["topic_id"])
+                if args.get("topic_id") is not None
+                else None
+            ),
+            since_days=(
+                int(args["since_days"])
+                if args.get("since_days") is not None
+                else None
+            ),
+            limit=int(args.get("limit") or 50),
         ),
     },
-    # ─── Memory: mistakes & preferences ────────────────────────────────
+    {
+        "name": "batch_analyze_wrong_answers",
+        "description": (
+            "Phân tích hàng loạt câu sai của học viên: lấy câu sai từ "
+            "history, gọi LLM theo chunk (mặc định 8 câu/call), có "
+            "shared cache giữa các học viên (cùng câu hỏi + cùng kiểu "
+            "sai chỉ gọi LLM 1 lần cho toàn hệ thống), lưu kết quả vào "
+            "MistakeMemory cá nhân (có dedupe theo question_id). Dùng "
+            "khi học viên muốn 'phân tích lỗi của tôi' hoặc sau khi "
+            "aggregate_wrong_answers cho thấy có lỗi đáng phân tích."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "lesson_id": {"type": "integer"},
+                "topic_id": {"type": "integer"},
+                "since_days": {"type": "integer"},
+                "limit": {
+                    "type": "integer",
+                    "description": (
+                        "Số câu sai tối đa để phân tích (1-15), "
+                        "mặc định 10."
+                    ),
+                },
+                "chunk_size": {
+                    "type": "integer",
+                    "description": "Số câu/1 LLM call (1-10), mặc định 8.",
+                },
+            },
+            "required": [],
+        },
+        "fn": lambda ctx, args: batch_analyze_wrong_answers(
+            ctx.session,
+            ctx.learner_id,
+            lesson_id=(
+                int(args["lesson_id"])
+                if args.get("lesson_id") is not None
+                else None
+            ),
+            topic_id=(
+                int(args["topic_id"])
+                if args.get("topic_id") is not None
+                else None
+            ),
+            since_days=(
+                int(args["since_days"])
+                if args.get("since_days") is not None
+                else None
+            ),
+            limit=int(args.get("limit") or 10),
+            chunk_size=int(args.get("chunk_size") or 8),
+        ),
+    },
     {
         "name": "analyze_mistake",
         "description": (
