@@ -30,7 +30,7 @@ def call_llm_with_tools(
     contents: list,
     tools: list[types.Tool],
     system_instruction: str | None = None,
-    model: str = "gemini-2.5-flash",
+    model: str = "gemini-2.5-flash-lite",
 ):
     config = types.GenerateContentConfig(
         tools=tools,
