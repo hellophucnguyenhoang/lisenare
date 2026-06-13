@@ -438,6 +438,9 @@ class Question(SQLModel, table=True):
     type: str | None = None
     score: float | None = None
     difficulty: float | None = Field(default=0.0)
+    last_difficulty_update_at: datetime | None = Field(
+        default=None, sa_type=DateTime(timezone=True)
+    )
     exercise_id: int = Field(default=None, foreign_key="exercise.id")
     exercise: Exercise | None = Relationship(back_populates="questions")
     historyanswerquestions: list["HistoryAnswerQuestion"] = Relationship(
