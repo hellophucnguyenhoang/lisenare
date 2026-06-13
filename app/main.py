@@ -10,6 +10,7 @@ from .exceptions import RequestException
 from .http_client import close_client, init_client
 from .routers import (
     account_router,
+    admin_router,
     agent_router,
     audio_router,
     auth_router,
@@ -28,6 +29,7 @@ from .routers import (
     test_router,
     text_router,
 )
+from .services.scheduler_service import start_scheduler, stop_scheduler
 
 
 @asynccontextmanager
@@ -35,9 +37,11 @@ async def lifespan(app: FastAPI):
     # Startup code
     database.init_db()
     await init_client()
+    start_scheduler()
     yield
     # Shutdown code
     # database.delete_db()
+    stop_scheduler()
     await close_client()
 
 
@@ -146,3 +150,4 @@ app.include_router(text_router.router)
 app.include_router(grammar_router.router)
 app.include_router(practice_router.router)
 app.include_router(agent_router.router)
+app.include_router(admin_router.router)
