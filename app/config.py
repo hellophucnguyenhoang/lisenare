@@ -17,7 +17,7 @@ class Settings(BaseSettings):
     practice_session_ttl: int = 7200
 
     # Servers and Cloud
-    ai_model_server_url: str
+    inference_url: str
     gcs_base_url: str
     use_cloud_storage: bool = False
 

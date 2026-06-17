@@ -1,8 +1,10 @@
 import re
 from collections.abc import Callable
+from typing import Literal
 
 from fastapi import status
 from ollama import generate
+from pydantic import BaseModel
 from sqlmodel import Session
 
 from app.exceptions import ErrorCode, RequestException
@@ -125,6 +127,14 @@ def parse_vocab_response(raw_text: str) -> ExplanationResponse:
     )
 
 
+class SimplificationMetric(BaseModel):
+    """The familiarity score before and after
+    a simplification of an explanation or a sentence example"""
+
+    before_score: float
+    after_score: float
+
+
 def simplify_until_better(
     *,
     session: Session,
@@ -133,15 +143,16 @@ def simplify_until_better(
     target_term: str,
     text: str,
     simplify_prompt_builder: Callable[[str, str], tuple[str, str]],
+    mode: Literal["explanation", "example"],
     max_rounds: int = 2,
-) -> tuple[str, float]:
+) -> tuple[str, SimplificationMetric]:
     """
     Simplify a text up to `max_rounds` times.
     Keep the simplified version only if its familiarity score is strictly higher.
     If simplification does not improve the score, stop and keep the current text.
 
     Returns:
-        (final_text, final_score)
+        (final_text, SimplificationMetric(before_score, after_score))
     """
     current_text = text.strip()
     current_score = calculate_sentence_familiarity(
@@ -149,6 +160,7 @@ def simplify_until_better(
     )
     target_stems = get_lenient_stems(target_term)
 
+    initial_score = current_score
     for _ in range(max_rounds):
         if current_score >= 1.0:
             break
@@ -171,16 +183,31 @@ def simplify_until_better(
             session, learner_id, simplified
         )
 
+        simplified_stems = get_lenient_stems(simplified)
+        if mode == "explanation":
+            # target_term KHÔNG ĐƯỢC LÀ tập con của simplified_stems
+            term_condition = not target_stems.issubset(simplified_stems)
+        else:
+            # target_term BẮT BUỘC LÀ tập con của simplified_stems
+            term_condition = target_stems.issubset(simplified_stems)
+
         # Keep only if it actually improves familiarity.
-        if new_score > current_score and target_stems.issubset(
-            get_lenient_stems(simplified)
-        ):
+        if new_score > current_score and term_condition:
             current_text = simplified
             current_score = new_score
         else:
             break
 
-    return current_text, current_score
+    return current_text, SimplificationMetric(
+        before_score=initial_score,
+        after_score=current_score,
+    )
+
+
+class ExplanationEvaluationMetric(BaseModel):
+    familiarity_before: float
+    familiarity_after: float
+    familiarity_improvement: float
 
 
 def generate_vocab_item_for_learner(
@@ -190,7 +217,7 @@ def generate_vocab_item_for_learner(
     target_term: str,
     model: str = "gemma3:1b",
     max_simplification_rounds: int = 2,
-) -> ExplanationResponse:
+) -> tuple[ExplanationResponse, ExplanationEvaluationMetric]:
     """
     Full pipeline:
     1. Generate explanation + examples with the LLM.
@@ -221,33 +248,59 @@ def generate_vocab_item_for_learner(
 
     item = parse_vocab_response(raw_text=raw_result)
 
+    print("refine explanation")
     # Refine explanation
-    item.explanation, _ = simplify_until_better(
+    item.explanation, explanation_metric = simplify_until_better(
         session=session,
         learner_id=learner_id,
         model=model,
         target_term=target_term,
         text=item.explanation,
         simplify_prompt_builder=build_explanation_simplify_prompts,
+        mode="explanation",
         max_rounds=max_simplification_rounds,
     )
 
+    print("refine example")
     # Refine each example independently
     refined_examples: list[str] = []
+    example_metrics = []
     for example in item.examples:
-        refined_example, _ = simplify_until_better(
+        refined_example, example_metric = simplify_until_better(
             session=session,
             learner_id=learner_id,
             model=model,
             target_term=target_term,
             text=example,
             simplify_prompt_builder=build_example_simplify_prompts,
+            mode="example",
             max_rounds=max_simplification_rounds,
         )
         refined_examples.append(refined_example)
+        example_metrics.append(example_metric)
 
     item.examples = refined_examples
-    return item
+
+    # metrics
+    before_scores = [
+        explanation_metric.before_score,
+    ]
+
+    after_scores = [
+        explanation_metric.after_score,
+    ]
+    for example_metric in example_metrics:
+        before_scores.append(example_metric.before_score)
+        after_scores.append(example_metric.after_score)
+    overall_before = sum(before_scores) / len(before_scores)
+    overall_after = sum(after_scores) / len(after_scores)
+
+    evaluation_metric = ExplanationEvaluationMetric(
+        familiarity_before=overall_before,
+        familiarity_after=overall_after,
+        familiarity_improvement=(overall_after - overall_before),
+    )
+    return item, evaluation_metric
 
 
 def validate_explanation_response(
