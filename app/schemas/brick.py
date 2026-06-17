@@ -132,7 +132,7 @@ class BrickBase(SQLModel):
     is_public: bool = True
     creator_id: int
     collection_id: int
-    lesson_id: str | None = None
+    lesson_id: int | None = None
 
 
 class BrickRead(BrickBase):
@@ -161,6 +161,16 @@ class BrickLearnRead(BrickRead):
 
 class BrickPage(SQLModel):
     items: list[BrickLearnRead]
+    total: int
+
+
+class BrickLessonRead(SQLModel):
+    lesson_id: int
+    brick_count: int
+
+
+class BrickLessonPage(SQLModel):
+    items: list[BrickLessonRead]
     total: int
 
 

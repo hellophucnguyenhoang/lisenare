@@ -1,3 +1,4 @@
+import time
 from typing import Annotated
 
 from fastapi import (
@@ -44,6 +45,7 @@ def get_recommended_snippets(
     session_id: str,
     page_size: int = 5,
 ) -> SnippetPage:
+    start = time.perf_counter()
     snippets = snippet_service.get_recommended_snippets(
         session, session_id, page_size
     )
@@ -60,7 +62,8 @@ def get_recommended_snippets(
         session, snippets, learner_id
     )
     snippet_page = SnippetPage(items=snippets, total=total_page)
-    print(f"{snippet_page.total = }")
+    elapsed_ms = (time.perf_counter() - start) * 1000
+    print(f"Explanation time: {elapsed_ms} ms")
     return snippet_page
 
 

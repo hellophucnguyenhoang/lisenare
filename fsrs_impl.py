@@ -121,7 +121,7 @@ def clamp_d(d: float) -> float:
 
 
 def difficulty_0(g: Grade) -> float:
-    return clamp_d(w[4] - math.exp(w[5] * g.value - 1) + 1)
+    return clamp_d(w[4] - math.exp(w[5] * (g.value - 1)) + 1)
 
 
 def difficulty(g: Grade, d: float) -> float:
@@ -212,5 +212,5 @@ def plot_simulations(inputs):
 
 
 if __name__ == "__main__":
-    inputs = ["1214", "1322"]
+    inputs = ["3214", "1322"]
     plot_simulations(inputs)

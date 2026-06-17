@@ -7,11 +7,9 @@ import app.http_client as http_client
 from app.database import Learner, get_session
 from app.schemas import (
     ReviewCreate,
-    WordSegmentSecond,
 )
 from app.services import (
     auth_service,
-    forced_alignment_service,
     learning_card_service,
     review_service,
 )
@@ -26,13 +24,6 @@ from schemas.text import WavStreamingResponse
 from utils import text_utils
 
 router = APIRouter(prefix="/text", tags=["Text Features"])
-
-
-@router.get("/forced_alignment/{audio_path:path}")
-def forced_align(
-    session: Annotated[Session, Depends(get_session)], audio_path: str
-) -> list[WordSegmentSecond]:
-    return forced_alignment_service.align(session, audio_path)
 
 
 @router.post("/sentence-comparison")

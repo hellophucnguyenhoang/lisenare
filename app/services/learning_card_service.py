@@ -551,9 +551,6 @@ def calculate_sentence_familiarity(
     Higher means:
         - fewer unknown words
         - unknown words are more common
-
-    Formula:
-        familiarity = (1 - unknown_ratio) * (1 - avg_unknown_rarity)
     """
 
     sentence_stems = get_lenient_stems(sentence)
@@ -581,4 +578,5 @@ def calculate_sentence_familiarity(
 
     familiarity = math.exp(-unknown_ratio - avg_unknown_rarity)
     print(f"{familiarity=}|{sentence=}")
+    print()
     return familiarity

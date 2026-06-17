@@ -18,3 +18,8 @@ class ExplanationResponse(SQLModel):
         default_factory=list,
         description="Example sentences containing the target text.",
     )
+
+    familiarity_before: float | None = None
+    familiarity_after: float | None = None
+    familiarity_improvement: float | None = None
+    response_time_ms: float | None = None
