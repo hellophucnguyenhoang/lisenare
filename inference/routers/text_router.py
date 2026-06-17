@@ -4,9 +4,9 @@ import json
 
 import soundfile as sf
 from fastapi import APIRouter, Query
+from inference.services.readmepp_service import readmepp_service
+from inference.services.text_service import text_service
 
-from ai_model_server.services.readmepp_service import readmepp_service
-from ai_model_server.services.text_service import text_service
 from schemas.cefr import (
     CEFRRequest,
     CEFRResponse,

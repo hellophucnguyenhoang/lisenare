@@ -1,3 +1,4 @@
+import time
 from typing import Annotated
 
 from fastapi import APIRouter, Body, Depends
@@ -26,13 +27,24 @@ def get_explanations(
     ],
     explanation_request: ExplanationRequest,
 ) -> ExplanationResponse:
-    response = explanation_service.generate_vocab_item_for_learner(
-        session=session,
-        learner_id=learner.id,
-        target_term=explanation_request.target_term,
+    start = time.perf_counter()
+    response, evaluation_metric = (
+        explanation_service.generate_vocab_item_for_learner(
+            session=session,
+            learner_id=learner.id,
+            target_term=explanation_request.target_term,
+        )
     )
     print(f"simplified responses: {response=}")
     explanation_service.validate_explanation_response(response)
+    elapsed_ms = (time.perf_counter() - start) * 1000
+    print(f"Explanation time: {elapsed_ms} ms")
+    response.familiarity_before = evaluation_metric.familiarity_before
+    response.familiarity_after = evaluation_metric.familiarity_after
+    response.familiarity_improvement = (
+        evaluation_metric.familiarity_improvement
+    )
+    response.response_time_ms = elapsed_ms
     return response
 
 

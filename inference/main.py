@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from .routers import audios, texts
+from .routers import audio_router, text_router
 
 app = FastAPI(title="Lisenare API")
 
@@ -15,5 +15,5 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-app.include_router(audios.router)
-app.include_router(texts.router)
+app.include_router(audio_router.router)
+app.include_router(text_router.router)
