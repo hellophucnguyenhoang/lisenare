@@ -100,7 +100,7 @@ class PhonemeService:
         base_model = self.bundle.get_model().to(self.device)
         self.enable_lora = enable_lora
         if lora_path:
-            print("📦 Extracting and loading LoRA adapter weights...")
+            print("Extracting and loading LoRA adapter weights...")
             applied_model = apply_lora_to_wav2vec2(base_model).to(self.device)
             self.model = load_lora_adapter(applied_model, lora_path).to(
                 self.device
