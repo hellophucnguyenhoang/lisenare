@@ -52,18 +52,18 @@ def load_lora_adapter(
         epoch = checkpoint_bundle.get("epoch", "Unknown")
         val_loss = checkpoint_bundle.get("val_loss", float("inf"))
         print(
-            f"📦 Extracting weights from Epoch {epoch} checkpoint (Validation Loss: {val_loss:.4f})"
+            f"Extracting weights from Epoch {epoch} checkpoint (Validation Loss: {val_loss:.4f})"
         )
     else:
         # Fallback to handle old, raw checkpoints if you have any left over
         adapter_state_dict = checkpoint_bundle
         print(
-            "⚠️ Warning: Loading a legacy raw weights file (no metadata found)."
+            "Warning: Loading a legacy raw weights file (no metadata found)."
         )
 
     # 3. strict=False because the state dict only holds 1% of the total weights (the LoRA layers)
     model.load_state_dict(adapter_state_dict, strict=strict)
-    print("✅ Adapter weights loaded successfully into the main architecture.")
+    print("Adapter weights loaded successfully into the main architecture.")
 
     return model
 
