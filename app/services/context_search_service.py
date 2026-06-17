@@ -145,7 +145,7 @@ class ContextSearchService:
     def search_videos(
         self, session: Session, query: str
     ) -> list[VideoContextSearchResult]:
-        # 1. Get Literal Results (FTS5)
+        # 1. Get Literal Results
         literal_results = search_subtitles_literal(session, query)
 
         # 2. Get Semantic Results (MMR)
