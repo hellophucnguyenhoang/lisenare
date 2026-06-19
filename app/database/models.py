@@ -359,59 +359,11 @@ class Lesson(SQLModel, table=True):
     topic_id: int | None = Field(default=None, foreign_key="topic.id")
     topic: Topic | None = Relationship(back_populates="lessons")
 
-    concepts: list["Concept"] = Relationship(back_populates="lesson")
     exercises: list["Exercise"] = Relationship(back_populates="lesson")
     thetalearnerlessons: list["ThetaLearnerLesson"] = Relationship(
         back_populates="lesson"
     )
 
-
-class Concept(SQLModel, table=True):
-    id: int | None = Field(default=None, primary_key=True)
-    name: str
-    type: str  # grammar / pattern / word / usage / signal / rule
-    description: str | None
-    lesson_id: int = Field(default=None, foreign_key="lesson.id")
-    lesson: Lesson | None = Relationship(back_populates="concepts")
-    outgoing_relations: list["ConceptRelation"] = Relationship(
-        back_populates="from_concept",
-        sa_relationship_kwargs={
-            "foreign_keys": "[ConceptRelation.from_concept_id]"
-        },
-    )
-
-    incoming_relations: list["ConceptRelation"] = Relationship(
-        back_populates="to_concept",
-        sa_relationship_kwargs={
-            "foreign_keys": "[ConceptRelation.to_concept_id]"
-        },
-    )
-
-    # is_line_break: bool | None = None  # for formatting purposes
-    examples: list["Example"] = Relationship(back_populates="concept")
-
-
-class ConceptRelation(SQLModel, table=True):
-    id: int | None = Field(default=None, primary_key=True)
-
-    from_concept_id: int = Field(foreign_key="concept.id")
-    to_concept_id: int = Field(foreign_key="concept.id")
-
-    relation_type: str | None  # uses, used_for, has_structure, similar_to...
-
-    from_concept: Concept | None = Relationship(
-        back_populates="outgoing_relations",
-        sa_relationship_kwargs={
-            "foreign_keys": "[ConceptRelation.from_concept_id]"
-        },
-    )
-
-    to_concept: Concept | None = Relationship(
-        back_populates="incoming_relations",
-        sa_relationship_kwargs={
-            "foreign_keys": "[ConceptRelation.to_concept_id]"
-        },
-    )
 
 
 class Exercise(SQLModel, table=True):
@@ -446,14 +398,6 @@ class Question(SQLModel, table=True):
     historyanswerquestions: list["HistoryAnswerQuestion"] = Relationship(
         back_populates="questions"
     )
-
-
-class Example(SQLModel, table=True):
-    id: int | None = Field(default=None, primary_key=True)
-    sentence: str
-    explanation: str | None = None
-    concept_id: int | None = Field(default=None, foreign_key="concept.id")
-    concept: Concept | None = Relationship(back_populates="examples")
 
 class ThetaLearnerLesson(SQLModel, table=True):
     id: int | None = Field(default=None, primary_key=True)
