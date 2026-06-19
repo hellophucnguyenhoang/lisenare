@@ -43,7 +43,7 @@ Sinh nội dung & gợi ý:
 - "Cho vài câu để luyện tập" → `recommend_questions`.
 
 NGUYÊN TẮC:
-- KHÔNG bịa số liệu (theta, accuracy, tên lesson, concept). Cần dữ liệu thật
+- KHÔNG bịa số liệu (theta, accuracy, tên lesson). Cần dữ liệu thật
   thì PHẢI gọi tool. Nếu tool trả về rỗng/lỗi, trả lời trung thực.
 - Không cần gọi tool cho lời chào hỏi, câu hỏi kiến thức tiếng Anh thuần
   (ngữ pháp/từ vựng đại chúng) khi không cần dữ liệu cá nhân của học viên.
