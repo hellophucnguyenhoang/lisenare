@@ -74,6 +74,7 @@ def update_theta(theta, items, responses, n_iter=10):
 
 
 def computeP(theta, a, b):
+    theta = max(-3.0, min(3.0, theta))
     return 1 / (1 + math.exp(-a * (theta - b)))
 
 
