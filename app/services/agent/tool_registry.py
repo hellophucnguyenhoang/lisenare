@@ -452,7 +452,7 @@ TOOL_DEFINITIONS = [
     {
         "name": "get_lesson_detail",
         "description": (
-            "Lấy chi tiết 1 lesson: tên, mô tả, danh sách concept, "
+            "Lấy chi tiết 1 lesson: tên, mô tả "
             "danh sách exercise. Dùng khi học viên hỏi sâu về 1 lesson."
         ),
         "parameters": {

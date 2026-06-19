@@ -306,7 +306,7 @@ def run_rlm(question: str, session) -> str:
     )
 
     hist = [system_prompt]
-    max_iterations = 7
+    max_iterations = 3
 
     cqid_before_turn = session.current_question_id
 
