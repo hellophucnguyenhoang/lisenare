@@ -51,6 +51,7 @@ def test_get_user_progress_tool(session: Session, learner_id: int, capsys):
     assert "data" in result
     assert isinstance(result["data"]["theta_average"], (int, float))
     assert isinstance(result["data"]["theta_info"], list)
+    assert isinstance(result["data"]["CEFR"], str)
 
     for item in result["data"]["theta_info"]:
         assert set(item) == {
