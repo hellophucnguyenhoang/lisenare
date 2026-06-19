@@ -1,6 +1,7 @@
 from app.services.theta_learner_lesson_service import (
     get_theta_average_by_leaner,
     get_theta_info_by_leaner_and_lesson,
+    theta_to_level
 )
 from sqlmodel import Session
 
@@ -19,6 +20,7 @@ def get_user_progress(session: Session, learner_id: int):
         "data": {
             "theta_average": theta_average,
             "theta_info": lessons,
+            "CEFR": theta_to_level(theta_average),
         },
     }
 
