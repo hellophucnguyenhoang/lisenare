@@ -1,15 +1,8 @@
 from sqlmodel import Session, select
 
-from app.database import Concept
 from app.services.exercise_service import get_exercise_by_lesson_id
 from app.services.lesson_service import get_lesson_by_id
 
-
-def _get_concepts_by_lesson_id(
-    session: Session, lesson_id: int
-) -> list[Concept]:
-    statement = select(Concept).where(Concept.lesson_id == lesson_id)
-    return list(session.exec(statement).all())
 
 
 def get_lesson_detail(session: Session, lesson_id: int) -> dict:
@@ -30,30 +23,19 @@ def get_lesson_detail(session: Session, lesson_id: int) -> dict:
             "error": "lesson not found",
         }
 
-    concepts = _get_concepts_by_lesson_id(session, lesson_id)
     exercises = get_exercise_by_lesson_id(session, lesson_id)
 
     return {
         "ok": True,
         "tool": "get_lesson_detail",
         "summary": (
-            f"Lesson '{lesson.name}': {len(concepts)} concepts, "
-            f"{len(exercises)} exercises"
+            f"Lesson '{lesson.name}': {len(exercises)} exercises"
         ),
         "data": {
             "lesson_id": lesson.id,
             "lesson_name": lesson.name,
             "lesson_description": lesson.description,
             "topic_id": lesson.topic_id,
-            "concepts": [
-                {
-                    "id": c.id,
-                    "name": c.name,
-                    "type": c.type,
-                    "description": c.description,
-                }
-                for c in concepts
-            ],
             "exercises": [
                 {
                     "id": e.id,
