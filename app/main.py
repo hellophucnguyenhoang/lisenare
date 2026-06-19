@@ -40,7 +40,7 @@ async def lifespan(app: FastAPI):
     start_scheduler()
     yield
     # Shutdown code
-    # database.delete_db()
+    database.delete_db()
     stop_scheduler()
     await close_client()
 
