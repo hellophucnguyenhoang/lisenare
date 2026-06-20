@@ -19,12 +19,15 @@ from app.services.history_answer_question_service import (
     compare_strings,
     insert_history_answer_question,
 )
-from app.services.theta_learner_lesson_service import save_theta_value, update_theta
-
+from app.services.theta_learner_lesson_service import (
+    save_theta_value,
+    update_theta,
+)
 
 # ---------------------------------------------------------------------------
 # Redis key helpers
 # ---------------------------------------------------------------------------
+
 
 def _pool_key(session_id: str) -> str:
     return f"practice:session:{session_id}:pool"
@@ -48,6 +51,7 @@ def _question_lesson_key(session_id: str) -> str:
 # State helpers
 # ---------------------------------------------------------------------------
 
+
 def _load_state(r: redis.Redis, session_id: str) -> dict:
     state = r.hgetall(_state_key(session_id))
     if not state:
@@ -70,7 +74,10 @@ def _assert_learner(state: dict, learner_id: int) -> None:
 # Lesson theta helpers
 # ---------------------------------------------------------------------------
 
-def _get_lesson_theta(r: redis.Redis, session_id: str, question_id: int) -> tuple[str | None, float]:
+
+def _get_lesson_theta(
+    r: redis.Redis, session_id: str, question_id: int
+) -> tuple[str | None, float]:
     """Trả về (lesson_id_str, theta) của lesson chứa question_id. None nếu không tìm thấy."""
     lid_raw = r.hget(_question_lesson_key(session_id), str(question_id))
     if lid_raw is None:
@@ -87,9 +94,17 @@ def _flush_lesson_thetas(
     """Đọc tất cả lesson theta từ Redis và lưu vào database."""
     lesson_thetas = r.hgetall(_lesson_thetas_key(session_id))
     for lid_bytes, theta_bytes in lesson_thetas.items():
-        lid = int(lid_bytes.decode() if isinstance(lid_bytes, bytes) else lid_bytes)
-        theta = float(theta_bytes.decode() if isinstance(theta_bytes, bytes) else theta_bytes)
-        save_theta_value(session, learner_id=learner_id, lesson_id=lid, theta=theta)
+        lid = int(
+            lid_bytes.decode() if isinstance(lid_bytes, bytes) else lid_bytes
+        )
+        theta = float(
+            theta_bytes.decode()
+            if isinstance(theta_bytes, bytes)
+            else theta_bytes
+        )
+        save_theta_value(
+            session, learner_id=learner_id, lesson_id=lid, theta=theta
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -117,7 +132,11 @@ def _pick_by_lowest_lesson_theta(
         if lid_raw is None:
             lesson_theta = 0.0
         else:
-            lid_str = lid_raw.decode() if isinstance(lid_raw, bytes) else str(lid_raw)
+            lid_str = (
+                lid_raw.decode()
+                if isinstance(lid_raw, bytes)
+                else str(lid_raw)
+            )
             raw = r.hget(lt_key, lid_str)
             lesson_theta = float(raw) if raw is not None else 0.0
 
@@ -155,6 +174,7 @@ def select_next_question_id(
 # Question payload
 # ---------------------------------------------------------------------------
 
+
 def get_question_public_payload(
     session: Session, question_id: int
 ) -> PracticeQuestionResponse:
@@ -179,6 +199,7 @@ def get_question_public_payload(
 # ---------------------------------------------------------------------------
 # Public API
 # ---------------------------------------------------------------------------
+
 
 def start_practice_session(
     session: Session,
@@ -246,7 +267,11 @@ def start_practice_session(
 
     first_qid = select_next_question_id(r, session_id, theta)
     if first_qid is None:
-        r.delete(_pool_key(session_id), _question_lesson_key(session_id), _lesson_thetas_key(session_id))
+        r.delete(
+            _pool_key(session_id),
+            _question_lesson_key(session_id),
+            _lesson_thetas_key(session_id),
+        )
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Could not pick an initial question",
@@ -315,7 +340,9 @@ def submit_practice_answer(
     theta = float(state.get("theta", 0.0))
     difficulty = float(question.difficulty or 0.0)
     response = 1 if is_correct else 0
-    new_theta = update_theta(theta, items=[(1, difficulty)], responses=[response])
+    new_theta = update_theta(
+        theta, items=[(1, difficulty)], responses=[response]
+    )
 
     # Cập nhật theta của lesson chứa câu vừa trả lời trong Redis.
     lid_str, old_lesson_theta = _get_lesson_theta(r, session_id, question_id)
@@ -338,7 +365,9 @@ def submit_practice_answer(
     if practice_completed:
         # Pool rỗng — lưu lesson thetas vào DB ngay lập tức.
         _flush_lesson_thetas(r, session_id, session, learner_id)
-        r.delete(_lesson_thetas_key(session_id), _question_lesson_key(session_id))
+        r.delete(
+            _lesson_thetas_key(session_id), _question_lesson_key(session_id)
+        )
         r.hset(state_key, mapping={"theta": str(new_theta)})
         r.hdel(state_key, "current_question_id")
     else:
