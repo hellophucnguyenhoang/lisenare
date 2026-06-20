@@ -28,7 +28,6 @@ from app.services.agent.tools.wrong_answers_tool import (
     batch_analyze_wrong_answers,
 )
 
-
 TOOL_DEFINITIONS = [
     # ─── Read-only progress / history ──────────────────────────────────
     {
@@ -43,9 +42,7 @@ TOOL_DEFINITIONS = [
             "properties": {},
             "required": [],
         },
-        "fn": lambda ctx, args: get_user_progress(
-            ctx.session, ctx.learner_id
-        ),
+        "fn": lambda ctx, args: get_user_progress(ctx.session, ctx.learner_id),
     },
     {
         "name": "get_user_answer_history",
@@ -204,8 +201,7 @@ TOOL_DEFINITIONS = [
                 "limit": {
                     "type": "integer",
                     "description": (
-                        "Số câu sai tối đa để phân tích (1-15), "
-                        "mặc định 10."
+                        "Số câu sai tối đa để phân tích (1-15), mặc định 10."
                     ),
                 },
                 "chunk_size": {

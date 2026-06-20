@@ -365,7 +365,6 @@ class Lesson(SQLModel, table=True):
     )
 
 
-
 class Exercise(SQLModel, table=True):
     id: int | None = Field(default=None, primary_key=True)
     name: str
@@ -398,6 +397,7 @@ class Question(SQLModel, table=True):
     historyanswerquestions: list["HistoryAnswerQuestion"] = Relationship(
         back_populates="questions"
     )
+
 
 class ThetaLearnerLesson(SQLModel, table=True):
     id: int | None = Field(default=None, primary_key=True)
@@ -444,6 +444,7 @@ class LearnerExercise(SQLModel, table=True):
         ),
     )
 
+
 class HistoryAnswerQuestion(SQLModel, table=True):
     id: int | None = Field(default=None, primary_key=True)
     learner_id: int = Field(foreign_key="learner.id")
@@ -455,7 +456,10 @@ class HistoryAnswerQuestion(SQLModel, table=True):
     )
     questions: Question = Relationship(back_populates="historyanswerquestions")
     learners: Learner = Relationship(back_populates="historyanswerquestions")
-    learner_exercise: LearnerExercise | None = Relationship(back_populates="history_answer_questions")
+    learner_exercise: LearnerExercise | None = Relationship(
+        back_populates="history_answer_questions"
+    )
+
 
 class YouTubeSubtitle(SQLModel, table=True):
     id: int | None = Field(default=None, primary_key=True)
@@ -557,4 +561,3 @@ class MistakeCache(SQLModel, table=True):
         default_factory=lambda: datetime.now(timezone.utc),
         sa_type=DateTime(timezone=True),
     )
-

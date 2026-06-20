@@ -10,7 +10,6 @@ from app.services.agent.tools.grammar_tool import get_topics_lesson
 from app.services.agent.tools.history_tool import get_user_answer_history
 from app.services.agent.tools.progress_tool import get_user_progress
 
-
 DEFAULT_TEST_LEARNER_ID = 2
 
 
@@ -38,7 +37,9 @@ def session():
 
 @pytest.fixture
 def learner_id():
-    return int(os.getenv("AGENT_TOOL_TEST_LEARNER_ID", DEFAULT_TEST_LEARNER_ID))
+    return int(
+        os.getenv("AGENT_TOOL_TEST_LEARNER_ID", DEFAULT_TEST_LEARNER_ID)
+    )
 
 
 def test_get_user_progress_tool(session: Session, learner_id: int, capsys):
