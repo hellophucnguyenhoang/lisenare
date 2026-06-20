@@ -4,7 +4,6 @@ from app.services.agent.context import AgentContext
 from app.services.agent.tool_registry import dispatch, get_tool_declarations
 from app.services.llm_service import call_llm_with_tools
 
-
 SYSTEM_PROMPT = """Bạn là một gia sư tiếng Anh thân thiện, hỗ trợ học viên Việt Nam.
 
 Phong cách: Socratic Tutor — gợi mở, không lộ đáp án ngay; phân tích lỗi sai;

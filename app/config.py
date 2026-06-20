@@ -19,7 +19,7 @@ class Settings(BaseSettings):
     # Servers and Cloud
     inference_url: str
     gcs_base_url: str
-    use_cloud_storage: bool = False
+    use_cloud_storage: bool = True
 
     # Cloudflare R2 (S3-compatible) — lưu file lịch sử chat dạng JSON
     r2_account_id: str = ""
