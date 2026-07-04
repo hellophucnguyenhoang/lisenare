@@ -4,11 +4,10 @@ Generates test questions for:
   - POST /agent/chat    (general learning agent with tool calls)
 and saves them to tests/chat_test_questions.xlsx
 
-agent_chat sheet has 100 rows covering all 16 tools in tool_registry.py:
+agent_chat sheet has 100 rows covering all 14 tools in tool_registry.py:
   get_user_progress, get_user_answer_history, get_topics_lesson,
   lookup_vocabulary, aggregate_wrong_answers, batch_analyze_wrong_answers,
-  analyze_mistake, get_recent_mistakes, get_learner_preferences,
-  set_learner_preferences, generate_passage, generate_study_plan,
+  analyze_mistake, get_recent_mistakes, generate_passage, generate_study_plan,
   recommend_questions, explain_word_in_context, get_lesson_detail,
   search_snippet
 """
@@ -95,8 +94,7 @@ GRAMMAR_QUESTIONS = [
 # Tools covered:
 #   get_user_progress, get_user_answer_history, get_topics_lesson,
 #   lookup_vocabulary, aggregate_wrong_answers, batch_analyze_wrong_answers,
-#   analyze_mistake, get_recent_mistakes, get_learner_preferences,
-#   set_learner_preferences, generate_passage, generate_study_plan,
+#   analyze_mistake, get_recent_mistakes, generate_passage, generate_study_plan,
 #   recommend_questions, explain_word_in_context, get_lesson_detail,
 #   search_snippet
 # ---------------------------------------------------------------------------
@@ -228,28 +226,6 @@ AGENT_QUESTIONS = [
     (3, "Tóm tắt điểm yếu ngữ pháp của tôi dựa trên lịch sử lỗi.",
      "Tổng hợp điểm yếu từ MistakeMemory", "get_recent_mistakes", False),
 
-    # ── get_learner_preferences (4 câu) ──────────────────────────────────
-    (1, "Tôi đã đặt mục tiêu học tập gì trước đây?",
-     "Đọc goal đã lưu", "get_learner_preferences", False),
-    (2, "Kiểu bài tập ưa thích của tôi là gì?",
-     "Đọc preferred_exercise_type", "get_learner_preferences", False),
-    (2, "Phong cách học của tôi đã được lưu chưa?",
-     "Đọc learning_style", "get_learner_preferences", False),
-    (3, "Nhắc tôi xem tôi đã ghi chú gì về mục tiêu học.",
-     "Đọc notes từ preferences", "get_learner_preferences", False),
-
-    # ── set_learner_preferences (5 câu) ──────────────────────────────────
-    (1, "Tôi muốn đặt mục tiêu TOEIC 700 trong 3 tháng.",
-     "Lưu goal TOEIC 700", "set_learner_preferences", False),
-    (1, "Tôi thích học qua đoạn văn đọc hiểu hơn là bài điền từ.",
-     "Lưu preferred_exercise_type", "set_learner_preferences", False),
-    (2, "Phong cách học của tôi là học theo ngữ cảnh, không học thuộc lòng.",
-     "Lưu learning_style", "set_learner_preferences", False),
-    (2, "Ghi chú cho tôi: tôi cần tập trung vào business English.",
-     "Lưu notes vào preferences", "set_learner_preferences", False),
-    (3, "Cập nhật mục tiêu của tôi thành IELTS 6.5.",
-     "Update goal preference", "set_learner_preferences", False),
-
     # ── generate_passage (6 câu) ──────────────────────────────────────────
     (1, "Tạo cho tôi một đoạn văn luyện đọc về chủ đề travel.",
      "Sinh passage topic travel", "generate_passage", False),
@@ -327,8 +303,6 @@ AGENT_QUESTIONS = [
      "get_recent_mistakes → generate_passage", "get_recent_mistakes", True),
     (3, "Xem tiến độ của tôi rồi gợi ý topic tôi chưa học.",
      "get_user_progress → get_topics_lesson", "get_user_progress", True),
-    (3, "Kiểm tra sở thích của tôi rồi lập kế hoạch học phù hợp.",
-     "get_learner_preferences → generate_study_plan", "get_learner_preferences", True),
     (1, "Lấy lịch sử bài làm trong lesson 2 rồi cho tôi thấy chi tiết lesson đó.",
      "get_user_answer_history → get_lesson_detail", "get_user_answer_history", True),
     (2, "Tôi vừa sai câu 'He don't like it'. Phân tích lỗi rồi gợi ý bài luyện.",
