@@ -13,10 +13,6 @@ from app.services.agent.tools.history_tool import get_user_answer_history
 from app.services.agent.tools.lesson_detail_tool import get_lesson_detail
 from app.services.agent.tools.mistake_tool import analyze_mistake
 from app.services.agent.tools.passage_tool import generate_passage
-from app.services.agent.tools.preference_tool import (
-    get_learner_preferences,
-    set_learner_preferences,
-)
 from app.services.agent.tools.progress_tool import get_user_progress
 from app.services.agent.tools.recent_mistakes_tool import get_recent_mistakes
 from app.services.agent.tools.recommend_tool import recommend_questions
@@ -134,7 +130,7 @@ TOOL_DEFINITIONS = [
             limit=int(args.get("limit") or 5),
         ),
     },
-    # ─── Memory: mistakes & preferences ────────────────────────────────
+    # ─── Memory: mistakes ──────────────────────────────────────────────
     {
         "name": "aggregate_wrong_answers",
         "description": (
@@ -292,48 +288,6 @@ TOOL_DEFINITIONS = [
             ctx.session,
             ctx.learner_id,
             limit=int(args.get("limit") or 5),
-        ),
-    },
-    {
-        "name": "get_learner_preferences",
-        "description": (
-            "Đọc preferences đã lưu của học viên (kiểu bài tập ưa thích, "
-            "phong cách học, mục tiêu, ghi chú). Dùng khi cần cá nhân "
-            "hoá lời khuyên."
-        ),
-        "parameters": {
-            "type": "object",
-            "properties": {},
-            "required": [],
-        },
-        "fn": lambda ctx, args: get_learner_preferences(
-            ctx.session, ctx.learner_id
-        ),
-    },
-    {
-        "name": "set_learner_preferences",
-        "description": (
-            "Ghi/Cập nhật preferences của học viên. Dùng khi học viên "
-            "nói rõ sở thích/mục tiêu, ví dụ 'tôi thích học qua đoạn "
-            "văn', 'mục tiêu của tôi là TOEIC 700'."
-        ),
-        "parameters": {
-            "type": "object",
-            "properties": {
-                "preferred_exercise_type": {"type": "string"},
-                "learning_style": {"type": "string"},
-                "goal": {"type": "string"},
-                "notes": {"type": "string"},
-            },
-            "required": [],
-        },
-        "fn": lambda ctx, args: set_learner_preferences(
-            ctx.session,
-            ctx.learner_id,
-            preferred_exercise_type=args.get("preferred_exercise_type"),
-            learning_style=args.get("learning_style"),
-            goal=args.get("goal"),
-            notes=args.get("notes"),
         ),
     },
     # ─── Content generation ────────────────────────────────────────────

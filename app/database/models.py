@@ -520,18 +520,6 @@ class MistakeMemory(SQLModel, table=True):
     )
 
 
-class LearnerPreference(SQLModel, table=True):
-    learner_id: int = Field(foreign_key="learner.id", primary_key=True)
-    preferred_exercise_type: str | None = None
-    learning_style: str | None = None
-    goal: str | None = None
-    notes: str | None = None
-    updated_at: datetime = Field(
-        default_factory=lambda: datetime.now(timezone.utc),
-        sa_type=DateTime(timezone=True),
-    )
-
-
 class MistakeCache(SQLModel, table=True):
     __table_args__ = (
         UniqueConstraint(

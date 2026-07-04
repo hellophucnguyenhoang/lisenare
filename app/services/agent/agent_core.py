@@ -20,7 +20,6 @@ QUY TẮC DÙNG TOOL (chọn đúng tool theo intent của học viên):
   thời gian) — KHÔNG LLM, nhanh → `aggregate_wrong_answers`.
 - Lỗi sai gần đây / hay sai gì → `get_recent_mistakes` (đọc MistakeMemory
   đã lưu).
-- Sở thích / mục tiêu đã lưu → `get_learner_preferences`.
 
 Ghi memory:
 - Phân tích hàng loạt câu sai + lưu memory (LLM theo chunk, dùng shared
@@ -28,7 +27,6 @@ Ghi memory:
   `aggregate_wrong_answers` cho thấy có lỗi đáng phân tích, hoặc khi học
   viên yêu cầu "phân tích lỗi của tôi".
 - Học viên đưa MỘT câu sai cụ thể và muốn phân tích lẻ → `analyze_mistake`.
-- Học viên nói rõ sở thích/mục tiêu mới → `set_learner_preferences`.
 
 Khám phá nội dung:
 - Có gì để học / liệt kê topic, lesson → `get_topics_lesson`.
