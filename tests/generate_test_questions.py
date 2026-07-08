@@ -4,10 +4,10 @@ Generates test questions for:
   - POST /agent/chat    (general learning agent with tool calls)
 and saves them to tests/chat_test_questions.xlsx
 
-agent_chat sheet has 100 rows covering all 14 tools in tool_registry.py:
+agent_chat sheet has 89 rows covering 13 tools in tool_registry.py:
   get_user_progress, get_user_answer_history, get_topics_lesson,
-  lookup_vocabulary, aggregate_wrong_answers, batch_analyze_wrong_answers,
-  analyze_mistake, get_recent_mistakes, generate_passage, generate_study_plan,
+  lookup_vocabulary, aggregate_wrong_answers,
+  analyze_mistake, get_recent_mistakes, generate_passage,
   recommend_questions, explain_word_in_context, get_lesson_detail,
   search_snippet
 """
@@ -93,8 +93,8 @@ GRAMMAR_QUESTIONS = [
 # ---------------------------------------------------------------------------
 # Tools covered:
 #   get_user_progress, get_user_answer_history, get_topics_lesson,
-#   lookup_vocabulary, aggregate_wrong_answers, batch_analyze_wrong_answers,
-#   analyze_mistake, get_recent_mistakes, generate_passage, generate_study_plan,
+#   lookup_vocabulary, aggregate_wrong_answers,
+#   analyze_mistake, get_recent_mistakes, generate_passage,
 #   recommend_questions, explain_word_in_context, get_lesson_detail,
 #   search_snippet
 # ---------------------------------------------------------------------------
@@ -188,18 +188,6 @@ AGENT_QUESTIONS = [
     (3, "Có bao nhiêu câu distinct mà tôi đã sai ít nhất 2 lần?",
      "Distinct wrong questions", "aggregate_wrong_answers", False),
 
-    # ── batch_analyze_wrong_answers (5 câu) ──────────────────────────────
-    (1, "Phân tích toàn bộ lỗi sai của tôi và cho tôi biết pattern lỗi.",
-     "Batch phân tích lỗi → lưu memory", "batch_analyze_wrong_answers", False),
-    (1, "Tôi muốn hiểu rõ tại sao mình hay sai. Phân tích giúp tôi.",
-     "Request phân tích lỗi sâu", "batch_analyze_wrong_answers", False),
-    (2, "Phân tích lỗi sai của tôi trong lesson 4 đi.",
-     "Batch analyze lọc theo lesson", "batch_analyze_wrong_answers", False),
-    (2, "Tôi vừa làm xong bài kiểm tra và sai nhiều câu. Phân tích lỗi cho tôi.",
-     "Phân tích sau bài kiểm tra", "batch_analyze_wrong_answers", True),
-    (3, "Phân tích top 5 câu sai nhiều nhất của tôi tháng này.",
-     "Batch analyze limit=5 + since_days=30", "batch_analyze_wrong_answers", False),
-
     # ── analyze_mistake (6 câu) ───────────────────────────────────────────
     (1, "Câu hỏi: 'She ___ (go) to school'. Tôi điền 'goed'. Sai ở đâu vậy?",
      "Phân tích lỗi sai đơn lẻ", "analyze_mistake", False),
@@ -239,20 +227,6 @@ AGENT_QUESTIONS = [
      "Passage topic health + 3 questions", "generate_passage", False),
     (3, "Làm bài đọc hiểu về chủ đề science cho tôi.",
      "Passage topic science", "generate_passage", False),
-
-    # ── generate_study_plan (6 câu) ───────────────────────────────────────
-    (1, "Lập kế hoạch học TOEIC 600 trong 2 tháng cho tôi.",
-     "Study plan TOEIC 600 / 8 tuần", "generate_study_plan", True),
-    (1, "Tôi muốn đạt IELTS 6.0 trong 4 tháng. Lên kế hoạch giúp tôi.",
-     "Study plan IELTS 6.0 / 16 tuần", "generate_study_plan", True),
-    (2, "Lập kế hoạch học từ vựng trong 4 tuần.",
-     "Study plan vocabulary / 4 tuần", "generate_study_plan", False),
-    (2, "Tôi chỉ có 1 tháng để cải thiện grammar. Kế hoạch ra sao?",
-     "Study plan grammar / 4 tuần", "generate_study_plan", True),
-    (3, "Lên lịch học conversation English cho người mới bắt đầu trong 6 tuần.",
-     "Study plan conversation / 6 tuần", "generate_study_plan", False),
-    (3, "Kế hoạch ôn tập toàn diện trước kỳ thi TOEFL trong 3 tuần.",
-     "Study plan TOEFL / 3 tuần", "generate_study_plan", True),
 
     # ── recommend_questions (6 câu) ───────────────────────────────────────
     (1, "Cho tôi vài câu hỏi phù hợp để luyện tập.",
@@ -297,8 +271,6 @@ AGENT_QUESTIONS = [
      "get_user_progress → recommend_questions", "get_user_progress", True),
     (1, "Phân tích lỗi sai tuần qua rồi gợi ý bài tập phù hợp cho tôi.",
      "aggregate_wrong_answers → recommend_questions", "aggregate_wrong_answers", True),
-    (2, "Dựa trên điểm yếu của tôi, lập kế hoạch học 4 tuần.",
-     "get_recent_mistakes → generate_study_plan", "get_recent_mistakes", True),
     (2, "Tôi hay sai gì? Hãy phân tích và đề xuất đoạn văn luyện tập phù hợp.",
      "get_recent_mistakes → generate_passage", "get_recent_mistakes", True),
     (3, "Xem tiến độ của tôi rồi gợi ý topic tôi chưa học.",

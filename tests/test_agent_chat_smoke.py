@@ -27,7 +27,7 @@ from fastapi.testclient import TestClient
 from app.main import app
 from app.database import engine
 
-XLSX_PATH = Path(__file__).parent / "chat_test_questions.xlsx"
+XLSX_PATH = Path(__file__).parent / "chat_test_questions_v2.xlsx"
 SHEET_NAME = "agent_chat"
 ANSWER_PREVIEW_LEN = 120
 
