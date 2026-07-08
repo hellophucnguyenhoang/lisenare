@@ -22,10 +22,6 @@ QUY TẮC DÙNG TOOL (chọn đúng tool theo intent của học viên):
   đã lưu).
 
 Ghi memory:
-- Phân tích hàng loạt câu sai + lưu memory (LLM theo chunk, dùng shared
-  cache giữa các học viên) → `batch_analyze_wrong_answers`. Dùng sau khi
-  `aggregate_wrong_answers` cho thấy có lỗi đáng phân tích, hoặc khi học
-  viên yêu cầu "phân tích lỗi của tôi".
 - Học viên đưa MỘT câu sai cụ thể và muốn phân tích lẻ → `analyze_mistake`.
 
 Khám phá nội dung:
@@ -37,7 +33,6 @@ Khám phá nội dung:
 
 Sinh nội dung & gợi ý:
 - "Cho đoạn văn luyện đọc..." → `generate_passage`.
-- "Lập kế hoạch học..." / "TOEIC X trong N tháng" → `generate_study_plan`.
 - "Cho vài câu để luyện tập" → `recommend_questions`.
 
 NGUYÊN TẮC:
@@ -46,7 +41,7 @@ NGUYÊN TẮC:
 - Không cần gọi tool cho lời chào hỏi, câu hỏi kiến thức tiếng Anh thuần
   (ngữ pháp/từ vựng đại chúng) khi không cần dữ liệu cá nhân của học viên.
 - Có thể gọi nhiều tool trong cùng 1 lượt nếu cần (vd: `get_user_progress`
-  + `get_recent_mistakes` trước khi `generate_study_plan`).
+  + `get_recent_mistakes` trước khi tổng hợp câu trả lời).
 - Sau khi tool trả dữ liệu, tổng hợp lại bằng văn phong gia sư, không paste
   thẳng JSON cho học viên.
 
