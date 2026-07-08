@@ -9,12 +9,11 @@ from app.database import (
     LearnerExercise,
     Lesson,
     ThetaLearnerLesson,
-    Topic,
+    Topic
 )
 from app.services.history_answer_question_service import (
-    get_difficulty_and_respone,
+    compare_strings
 )
-
 
 def get_theta_by_leaner_and_lesson(session: Session, learner_id, lesson_id):
     statement = select(ThetaLearnerLesson.theta).where(
@@ -37,6 +36,7 @@ def get_theta_info_by_leaner_and_lesson(session: Session, learner_id):
         .where(ThetaLearnerLesson.learner_id == learner_id)
     )
     return session.exec(statement).all()
+
 def get_theta_average_by_leaner(session: Session, learner_id):
     statement = select(ThetaLearnerLesson.theta).where(
         ThetaLearnerLesson.learner_id == learner_id
@@ -72,38 +72,53 @@ def update_theta(theta, items, responses, n_iter=10):
     # Clamp trong [-4, 4]
     return max(-3.0, min(3.0, theta))
 
-
 def computeP(theta, a, b):
     theta = max(-3.0, min(3.0, theta))
     return 1 / (1 + math.exp(-a * (theta - b)))
 
-
-def insert_or_update_theta(session: Session, lesson_id: int, learner_id: int):
-    items, responses = get_difficulty_and_respone(
-        session=session, learner_id=learner_id, lesson_id=lesson_id
-    )
-    theta = update_theta(theta=0, responses=responses, items=items)
+def get_or_insert_theta(session: Session, learner_id: int, lesson_id: int) -> float:
+    """Lấy theta của learner cho lesson, nếu chưa có thì insert theta=-3 và trả về -3."""
     existing = session.exec(
         select(ThetaLearnerLesson)
         .where(ThetaLearnerLesson.lesson_id == lesson_id)
         .where(ThetaLearnerLesson.learner_id == learner_id)
     ).first()
-
-    try:
-        if existing:
-            existing.theta = theta
-        else:
-            session.add(
-                ThetaLearnerLesson(
-                    lesson_id=lesson_id, learner_id=learner_id, theta=theta
-                )
-            )
-
+    if existing:
+        return existing.theta
+    else:
+        new_record = ThetaLearnerLesson(
+            lesson_id=lesson_id, learner_id=learner_id, theta=-3
+        )
+        session.add(new_record)
         session.commit()
-    except Exception as e:
-        session.rollback()
-        print(f"Cập nhật theta thất bại: {e}")
-
+        return -3
+    
+def update_theta_for_learner(session: Session, learner_id: int, lesson_id: int, questions):
+    """Cập nhật theta của learner cho lesson dựa trên các câu hỏi đã trả lời."""
+    items = []
+    responses = []
+    for question, user_answer in questions:
+        items.append((1, max(-3, min(3, question.difficulty))))  # a=1, b=difficulty
+        responses.append(1 if compare_strings(question.correct_answer, user_answer) else 0)
+    if not items or not responses:
+        print(f"No items or responses found for learner {learner_id} and lesson {lesson_id}.")
+        return
+    theta = get_or_insert_theta(session, learner_id, lesson_id)
+    new_theta = update_theta(theta=theta, responses=responses, items=items)
+    existing = session.exec(
+        select(ThetaLearnerLesson)
+        .where(ThetaLearnerLesson.lesson_id == lesson_id)
+        .where(ThetaLearnerLesson.learner_id == learner_id)
+    ).first()
+    if existing:
+        existing.theta = new_theta
+    else:
+        session.add(
+            ThetaLearnerLesson(
+                lesson_id=lesson_id, learner_id=learner_id, theta=new_theta
+            )
+        )
+    session.commit()
 
 def save_theta_value(
     session: Session, learner_id: int, lesson_id: int, theta: float
@@ -128,7 +143,6 @@ def save_theta_value(
         session.rollback()
         print(f"Lưu theta thất bại (learner={learner_id}, lesson={lesson_id}): {e}")
 
-
 def theta_to_level(theta: float) -> str:
     """Chuyển theta (-3 đến 3) thành level CEFR (A1-C2)"""
     if theta < -2:
@@ -143,7 +157,6 @@ def theta_to_level(theta: float) -> str:
         return "C1"
     else:
         return "C2"
-
 
 def mark_lesson_completed_if_done(
     session: Session, learner_id: int, lesson_id: int

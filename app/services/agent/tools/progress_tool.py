@@ -10,17 +10,17 @@ def get_user_progress(session: Session, learner_id: int):
     theta_average = get_theta_average_by_leaner(session, learner_id)
     theta_info = get_theta_info_by_leaner_and_lesson(session, learner_id)
     lessons = [convert_theta_lesson(info) for info in theta_info]
+    cefr = theta_to_level(theta_average)
     return {
         "ok": True,
         "tool": "get_user_progress",
         "summary": (
-            f"User has an average theta of {theta_average:.2f} "
+            f"User is at CEFR level {cefr} "
             f"across {len(lessons)} lessons"
         ),
         "data": {
-            "theta_average": theta_average,
+            "CEFR": cefr,
             "theta_info": lessons,
-            "CEFR": theta_to_level(theta_average),
         },
     }
 
@@ -28,8 +28,9 @@ def get_user_progress(session: Session, learner_id: int):
 def convert_theta_lesson(theta_info):
     if theta_info is None:
         return None
+    theta_lesson = get_row_value(theta_info, "theta_lesson", 0)
     return {
-        "theta_lesson": get_row_value(theta_info, "theta_lesson", 0),
+        "CEFR": theta_to_level(theta_lesson) if theta_lesson is not None else None,
         "lesson_name": get_row_value(theta_info, "lesson_name", 1),
         "topic_name": get_row_value(theta_info, "topic_name", 2),
         "lesson_description": get_row_value(
