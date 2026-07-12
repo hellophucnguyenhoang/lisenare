@@ -88,6 +88,20 @@ def get_attempt_by_id(
     return session.get(LearnerExercise, attempt_id)
 
 
+def get_completed_exercise_ids(
+    session: Session, learner_id: int
+) -> set[int]:
+    """Trả về set các exercise_id mà learner đã hoàn thành (có ít nhất 1
+    LearnerExercise.is_completed=True). Dùng distinct để gộp nhiều lần làm bài."""
+    exercise_ids = session.exec(
+        select(LearnerExercise.exercise_id)
+        .where(LearnerExercise.learner_id == learner_id)
+        .where(LearnerExercise.is_completed.is_(True))
+        .distinct()
+    ).all()
+    return set(exercise_ids)
+
+
 def get_attempts_by_learner_and_exercise(
     session: Session, learner_id: int, exercise_id: int
 ) -> list[LearnerExercise]:
