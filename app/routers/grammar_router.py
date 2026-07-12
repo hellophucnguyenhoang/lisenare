@@ -56,9 +56,13 @@ router = APIRouter(prefix="/grammar", tags=["Grammars"])
 
 
 @router.get("/topics")
-def get_topics(session: Session = Depends(get_session)):
-    # trả về list topics kèm lessons và exercises lồng nhau
-    return build_learning_tree(session)
+def get_topics(
+    learner_id: int | None = None,
+    session: Session = Depends(get_session),
+):
+    # trả về list topics kèm lessons và exercises lồng nhau;
+    # nếu có learner_id sẽ kèm tiến độ hoàn thành theo learner
+    return build_learning_tree(session, learner_id)
 
 
 @router.get("/questions/{exercise_id}")
