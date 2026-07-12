@@ -2,7 +2,7 @@ from datetime import datetime, timedelta, timezone
 from enum import Enum
 
 from pydantic import EmailStr
-from sqlalchemy import CheckConstraint, DateTime, Index, UniqueConstraint
+from sqlalchemy import CheckConstraint, DateTime, Index
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlmodel import (
     Field,
@@ -519,45 +519,6 @@ class MistakeMemory(SQLModel, table=True):
     grammar_point: str | None = None
     suggested_fix: str | None = None
     created_at: datetime = Field(
-        default_factory=lambda: datetime.now(timezone.utc),
-        sa_type=DateTime(timezone=True),
-    )
-
-
-class LearnerPreference(SQLModel, table=True):
-    learner_id: int = Field(foreign_key="learner.id", primary_key=True)
-    preferred_exercise_type: str | None = None
-    learning_style: str | None = None
-    goal: str | None = None
-    notes: str | None = None
-    updated_at: datetime = Field(
-        default_factory=lambda: datetime.now(timezone.utc),
-        sa_type=DateTime(timezone=True),
-    )
-
-
-class MistakeCache(SQLModel, table=True):
-    __table_args__ = (
-        UniqueConstraint(
-            "question_id",
-            "normalized_answer",
-            name="uq_mistakecache_qid_answer",
-        ),
-    )
-
-    id: int | None = Field(default=None, primary_key=True)
-    question_id: int = Field(foreign_key="question.id", index=True)
-    normalized_answer: str
-    mistake_type: str
-    grammar_point: str | None = None
-    explanation: str | None = None
-    suggested_fix: str | None = None
-    hit_count: int = Field(default=1)
-    created_at: datetime = Field(
-        default_factory=lambda: datetime.now(timezone.utc),
-        sa_type=DateTime(timezone=True),
-    )
-    updated_at: datetime = Field(
         default_factory=lambda: datetime.now(timezone.utc),
         sa_type=DateTime(timezone=True),
     )

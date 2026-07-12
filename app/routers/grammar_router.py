@@ -46,9 +46,9 @@ from app.services.question_service import (
 from app.services.rlm_service import run_rlm
 from app.services.theta_learner_lesson_service import (
     computeP,
-    get_theta_by_leaner_and_lesson,
-    insert_or_update_theta,
     update_theta,
+    get_or_insert_theta,
+    update_theta_for_learner
 )
 from app.services.topic_service import build_learning_tree
 
@@ -87,8 +87,10 @@ def submit_exercise(
 
     num_correct = 0
     num_incorrect = 0
+    questions = []
     for ans in data.answers:
         question = get_question_by_id(session=session, id=ans.question_id)
+        questions.append((question, ans.user_answer))
         if question is None:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -116,8 +118,8 @@ def submit_exercise(
     lesson = get_lesson_by_question(
         session, question_id=data.answers[0].question_id
     )
-    insert_or_update_theta(
-        session=session, learner_id=data.user_id, lesson_id=lesson.id
+    update_theta_for_learner(
+        session=session, learner_id=data.user_id, lesson_id=lesson.id, questions=questions
     )
     return {
         "message": "Nộp bài thành công và đã thêm vào database",
@@ -140,12 +142,10 @@ def grammar_chat(
         convert_content_to_input(question, session=session)
         for question in body.context.questions
     ]
-    insert_or_update_theta(
-        session, learner_id=body.learner_id, lesson_id=lesson.id
+    theta = get_or_insert_theta(
+        session=session, learner_id=body.learner_id, lesson_id=lesson.id
     )
-    theta = get_theta_by_leaner_and_lesson(
-        session, learner_id=body.learner_id, lesson_id=lesson.id
-    )
+    print(f"theta for learner {body.learner_id} and lesson {lesson.id}: {theta}")
     history = body.messages
     current_question_id = body.context.current_question_id
     rlm_input = RuntimeSession(
@@ -268,11 +268,8 @@ def resolve_theta_and_prob(
     lesson = get_lesson_by_exercise(
         session, exercise_id=body.context.exercise_id
     )
-    insert_or_update_theta(
-        session, learner_id=body.learner_id, lesson_id=lesson.id
-    )
-    theta = get_theta_by_leaner_and_lesson(
-        session, learner_id=body.learner_id, lesson_id=lesson.id
+    theta = get_or_insert_theta(
+        session=session, learner_id=body.learner_id, lesson_id=lesson.id
     )
     db_items, db_responds = get_difficulty_and_respone(
         session, lesson.id, learner_id=body.learner_id

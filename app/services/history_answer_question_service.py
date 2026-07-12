@@ -1,3 +1,5 @@
+import string
+import threading
 from datetime import datetime, timedelta, timezone
 
 from sqlmodel import Session, select
@@ -18,6 +20,7 @@ def insert_history_answer_question(
     try:
         session.add(historyanswerquestion)
         session.commit()
+        _fire_analysis_trigger(historyanswerquestion.learner_id)
     except Exception as e:
         session.rollback()
         print(f"Lỗi khi thêm lịch sử: {e}")
@@ -31,9 +34,20 @@ def insert_list_history_answer_question(
             session.add(history)
         session.commit()
         print("Thêm lịch sử thành công")
+        for lid in {h.learner_id for h in listhistoryanswerquestion}:
+            _fire_analysis_trigger(lid)
     except Exception as e:
         session.rollback()
         print(f"Lỗi khi thêm list historyanswerquestion vào database:{e}")
+
+
+def _fire_analysis_trigger(learner_id: int) -> None:
+    from app.services.wrong_analysis_service import trigger_analysis_if_milestone
+    threading.Thread(
+        target=trigger_analysis_if_milestone,
+        args=(learner_id,),
+        daemon=True,
+    ).start()
 
 
 def get_history_by_learner_and_lesson(
@@ -43,7 +57,7 @@ def get_history_by_learner_and_lesson(
         select(
             HistoryAnswerQuestion.id,
             HistoryAnswerQuestion.timesecond,
-            Question.answer,
+            Question.correct_answer,
             HistoryAnswerQuestion.user_answer,
             Question.difficulty,
         )
@@ -133,9 +147,19 @@ def get_filtered_history(
 
 
 
+_PUNCT_TABLE = str.maketrans("", "", string.punctuation)
+
+
+def _normalize_answer_part(part: str) -> str:
+    cleaned = part.strip().lower().translate(_PUNCT_TABLE)
+    return " ".join(cleaned.split())
+
+
 def compare_strings(s1: str, s2: str) -> bool:
-    list1 = [x.strip().lower() for x in s1.split(",")]
-    list2 = [x.strip().lower() for x in s2.split(",")]
+    s1 = s1 or ""
+    s2 = s2 or ""
+    list1 = [p for p in (_normalize_answer_part(x) for x in s1.split(",")) if p]
+    list2 = [p for p in (_normalize_answer_part(x) for x in s2.split(",")) if p]
     return list1 == list2
 
 
@@ -147,11 +171,16 @@ def get_difficulty_and_respone(
     history = get_history_by_learner_and_lesson(
         session, lesson_id=lesson_id, learner_id=learner_id
     )
+    print(f"history: {history}")
     for i in history:
-        items_database.append([1, i[4]])
+        items_database.append([1, max(-3, min(i[4], 3))])
+        print("Chi tiet cac phan tu")
+        print(f"i[2]: {i[2]}, i[3]: {i[3]}")
         respone = compare_strings(i[2], i[3])
         if respone:
             respones_database.append(1)
         else:
             respones_database.append(0)
+    print(f"items_database: {items_database}")
+    print(f"respones_database: {respones_database}")
     return items_database, respones_database
