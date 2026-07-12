@@ -40,9 +40,7 @@ _LOCK = threading.Lock()
 MAX_MESSAGES = 200
 
 
-def _object_key(
-    created_at: datetime, user_id: int, exercise_id: int
-) -> str:
+def _object_key(created_at: datetime, user_id: int, exercise_id: int) -> str:
     """Key của object JSON phiên chat trên R2.
 
     Key = ``chat_histories/<created_at>_<user_id>_<exercise_id>.json`` với
@@ -166,9 +164,7 @@ def get_sessions(
     return sessions
 
 
-def get_session_detail(
-    session: Session, session_id: int
-) -> dict | None:
+def get_session_detail(session: Session, session_id: int) -> dict | None:
     """Lấy thông tin đầy đủ của một phiên chat theo ``session_id``.
 
     Trả về dict ``{session_id, user_id, exercise_id, exercise_name, messages}``

@@ -114,6 +114,8 @@ def handle_interaction_and_update_profile(
                 duration=data.duration,
                 commit=False,
             )
+        else:
+            print("embedding None, consider to add snippet embeddings")
 
         # Commit everything together
         session.commit()

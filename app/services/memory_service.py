@@ -56,7 +56,6 @@ def has_mistake_for_question(
     return session.exec(statement).first() is not None
 
 
-
 def mistake_to_dict(m: MistakeMemory) -> dict:
     return {
         "id": m.id,

@@ -22,7 +22,6 @@ from app.services.agent.tools.wrong_answers_tool import (
     aggregate_wrong_answers,
 )
 
-
 TOOL_DEFINITIONS = [
     # ─── Read-only progress / history ──────────────────────────────────
     {
@@ -37,9 +36,7 @@ TOOL_DEFINITIONS = [
             "properties": {},
             "required": [],
         },
-        "fn": lambda ctx, args: get_user_progress(
-            ctx.session, ctx.learner_id
-        ),
+        "fn": lambda ctx, args: get_user_progress(ctx.session, ctx.learner_id),
     },
     {
         "name": "get_user_answer_history",
@@ -271,10 +268,14 @@ TOOL_DEFINITIONS = [
             topic=args.get("topic", ""),
             question_count=int(args.get("question_count") or 3),
             topic_id=(
-                int(args["topic_id"]) if args.get("topic_id") is not None else None
+                int(args["topic_id"])
+                if args.get("topic_id") is not None
+                else None
             ),
             lesson_id=(
-                int(args["lesson_id"]) if args.get("lesson_id") is not None else None
+                int(args["lesson_id"])
+                if args.get("lesson_id") is not None
+                else None
             ),
         ),
     },

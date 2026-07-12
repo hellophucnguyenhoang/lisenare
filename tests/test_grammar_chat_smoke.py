@@ -18,36 +18,36 @@ Script mode (đầy đủ tiêu chí, ghi xlsx):
     python tests/test_grammar_chat_smoke.py --multi-turn  # bật multi-turn case
 """
 
-import sys
-import json
-import time
 import argparse
+import json
 import statistics
+import sys
+import time
 from datetime import datetime
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 import openpyxl
-from openpyxl.styles import Font, PatternFill, Alignment
 import pytest
+from fastapi.testclient import TestClient
+from openpyxl.styles import Alignment, Font, PatternFill
 from sqlalchemy.exc import SQLAlchemyError
 from sqlmodel import Session, text
-from fastapi.testclient import TestClient
 
-from app.main import app
 from app.database import engine
+from app.main import app
 
 XLSX_PATH = Path(__file__).parent / "chat_test_questions.xlsx"
 SHEET_NAME = "grammar_chat"
 ANSWER_PREVIEW_LEN = 120
 
 # ── Thresholds (tinh chỉnh theo yêu cầu dự án) ───────────────────────────────
-LATENCY_THRESHOLD_S = 15.0      # cảnh báo nếu vượt
-LATENCY_HARD_S = 30.0           # FAIL nếu vượt
-MIN_WORDS = 30                  # quá ngắn → thiếu thông tin
-MAX_WORDS = 800                 # quá dài → mất tập trung
-JUDGE_PASS_THRESHOLD = 3        # 1-5; <3 coi là FAIL về chất lượng
+LATENCY_THRESHOLD_S = 15.0  # cảnh báo nếu vượt
+LATENCY_HARD_S = 30.0  # FAIL nếu vượt
+MIN_WORDS = 30  # quá ngắn → thiếu thông tin
+MAX_WORDS = 800  # quá dài → mất tập trung
+JUDGE_PASS_THRESHOLD = 3  # 1-5; <3 coi là FAIL về chất lượng
 
 # ── Colors ──────────────────────────────────────────────────────────────────
 _PASS_FILL = PatternFill("solid", fgColor="C6EFCE")
@@ -58,6 +58,7 @@ _HEADER_FONT = Font(bold=True, color="FFFFFF", size=11)
 
 
 # ── Data loading ─────────────────────────────────────────────────────────────
+
 
 def _load_cases():
     wb = openpyxl.load_workbook(XLSX_PATH, read_only=True, data_only=True)
@@ -76,14 +77,16 @@ def _load_cases():
             request_body = json.loads(request_json_str)
         except (json.JSONDecodeError, TypeError):
             request_body = None
-        cases.append({
-            "row_num": row_num,
-            "learner_id": learner_id,
-            "exercise_id": exercise_id,
-            "exercise_name": exercise_name,
-            "message": message,
-            "request_body": request_body,
-        })
+        cases.append(
+            {
+                "row_num": row_num,
+                "learner_id": learner_id,
+                "exercise_id": exercise_id,
+                "exercise_name": exercise_name,
+                "message": message,
+                "request_body": request_body,
+            }
+        )
     wb.close()
     return cases
 
@@ -91,7 +94,10 @@ def _load_cases():
 def load_grammar_chat_cases():
     return [
         pytest.param(
-            c["learner_id"], c["message"], c["request_body"], c["exercise_name"],
+            c["learner_id"],
+            c["message"],
+            c["request_body"],
+            c["exercise_name"],
             id=f"#{c['row_num']} {c['exercise_name'][:30]}",
         )
         for c in _load_cases()
@@ -99,6 +105,7 @@ def load_grammar_chat_cases():
 
 
 # ── Core call (đo latency) ───────────────────────────────────────────────────
+
 
 def _build_default_body(learner_id: int, message: str) -> dict:
     return {
@@ -114,28 +121,50 @@ def _build_default_body(learner_id: int, message: str) -> dict:
     }
 
 
-def _call_chat(client: TestClient, learner_id: int, message: str, request_body: dict | None):
+def _call_chat(
+    client: TestClient,
+    learner_id: int,
+    message: str,
+    request_body: dict | None,
+):
     """Gọi /grammar/chat. Trả về dict chứa kết quả + latency."""
-    body = request_body if request_body else _build_default_body(learner_id, message)
+    body = (
+        request_body
+        if request_body
+        else _build_default_body(learner_id, message)
+    )
     t0 = time.perf_counter()
     try:
         response = client.post("/grammar/chat", json=body)
         latency = time.perf_counter() - t0
         if response.status_code != 200:
             return {
-                "ok": False, "answer": "", "latency": latency,
+                "ok": False,
+                "answer": "",
+                "latency": latency,
                 "error": f"HTTP {response.status_code}: {response.text[:200]}",
             }
         data = response.json()
         answer = (data.get("answer") or "").strip()
         if not answer:
-            return {"ok": False, "answer": "", "latency": latency, "error": "answer is empty"}
+            return {
+                "ok": False,
+                "answer": "",
+                "latency": latency,
+                "error": "answer is empty",
+            }
         return {"ok": True, "answer": answer, "latency": latency, "error": ""}
     except Exception as exc:
-        return {"ok": False, "answer": "", "latency": time.perf_counter() - t0, "error": str(exc)}
+        return {
+            "ok": False,
+            "answer": "",
+            "latency": time.perf_counter() - t0,
+            "error": str(exc),
+        }
 
 
 # ── Quality metrics ──────────────────────────────────────────────────────────
+
 
 def count_words(text_str: str) -> int:
     return len(text_str.split()) if text_str else 0
@@ -151,9 +180,33 @@ def length_status(words: int) -> str:
 
 
 _STOPWORDS_VI = {
-    "bài", "tập", "thì", "hiện", "tại", "quá", "khứ", "tương", "lai",
-    "đơn", "tiếp", "diễn", "hoàn", "thành", "sự", "hòa", "hợp", "giữa",
-    "các", "viết", "hình", "thức", "đúng", "của", "và", "để", "là",
+    "bài",
+    "tập",
+    "thì",
+    "hiện",
+    "tại",
+    "quá",
+    "khứ",
+    "tương",
+    "lai",
+    "đơn",
+    "tiếp",
+    "diễn",
+    "hoàn",
+    "thành",
+    "sự",
+    "hòa",
+    "hợp",
+    "giữa",
+    "các",
+    "viết",
+    "hình",
+    "thức",
+    "đúng",
+    "của",
+    "và",
+    "để",
+    "là",
 }
 
 
@@ -204,7 +257,12 @@ def llm_judge(question: str, answer: str, exercise_name: str) -> dict:
     try:
         from app.services.llm_service import call_llm
     except Exception as exc:
-        return {"accuracy": 0, "relevance": 0, "on_topic": 0, "note": f"judge import error: {exc}"}
+        return {
+            "accuracy": 0,
+            "relevance": 0,
+            "on_topic": 0,
+            "note": f"judge import error: {exc}",
+        }
 
     prompt = _JUDGE_PROMPT.format(
         exercise_name=exercise_name or "Grammar",
@@ -222,8 +280,13 @@ def llm_judge(question: str, answer: str, exercise_name: str) -> dict:
         start = cleaned.find("{")
         end = cleaned.rfind("}")
         if start == -1 or end == -1:
-            return {"accuracy": 0, "relevance": 0, "on_topic": 0, "note": f"non-json: {raw[:120]}"}
-        data = json.loads(cleaned[start:end + 1])
+            return {
+                "accuracy": 0,
+                "relevance": 0,
+                "on_topic": 0,
+                "note": f"non-json: {raw[:120]}",
+            }
+        data = json.loads(cleaned[start : end + 1])
         return {
             "accuracy": int(data.get("accuracy", 0)),
             "relevance": int(data.get("relevance", 0)),
@@ -231,10 +294,16 @@ def llm_judge(question: str, answer: str, exercise_name: str) -> dict:
             "note": str(data.get("note", ""))[:200],
         }
     except Exception as exc:
-        return {"accuracy": 0, "relevance": 0, "on_topic": 0, "note": f"judge error: {exc}"}
+        return {
+            "accuracy": 0,
+            "relevance": 0,
+            "on_topic": 0,
+            "note": f"judge error: {exc}",
+        }
 
 
 # ── Consistency (chạy lặp) ───────────────────────────────────────────────────
+
 
 def _jaccard(a: str, b: str) -> float:
     sa = set(a.lower().split())
@@ -329,6 +398,7 @@ def _run_multi_turn(client: TestClient, case: dict) -> dict:
 
 # ── Pytest mode (smoke + latency + length, không gọi judge) ─────────────────
 
+
 @pytest.fixture(scope="module")
 def grammar_client():
     try:
@@ -344,7 +414,9 @@ def grammar_client():
     "learner_id,message,request_body,exercise_name",
     load_grammar_chat_cases(),
 )
-def test_grammar_chat_quality(grammar_client, learner_id, message, request_body, exercise_name):
+def test_grammar_chat_quality(
+    grammar_client, learner_id, message, request_body, exercise_name
+):
     """Smoke + latency + length, không phụ thuộc LLM judge để pytest chạy nhanh."""
     result = _call_chat(grammar_client, learner_id, message, request_body)
     assert result["ok"], result["error"]
@@ -356,7 +428,9 @@ def test_grammar_chat_quality(grammar_client, learner_id, message, request_body,
     assert words <= MAX_WORDS, f"Phản hồi quá dài: {words} từ"
 
 
-@pytest.mark.parametrize("case", MULTI_TURN_CASES, ids=[c["name"] for c in MULTI_TURN_CASES])
+@pytest.mark.parametrize(
+    "case", MULTI_TURN_CASES, ids=[c["name"] for c in MULTI_TURN_CASES]
+)
 def test_grammar_chat_multi_turn(grammar_client, case):
     result = _run_multi_turn(grammar_client, case)
     assert result["ok"], result["error"]
@@ -408,7 +482,9 @@ def _init_result_columns(ws):
         ws.column_dimensions[cell.column_letter].width = width
 
 
-def _row_fill(passed: bool, latency: float, words: int, judge: dict | None) -> PatternFill:
+def _row_fill(
+    passed: bool, latency: float, words: int, judge: dict | None
+) -> PatternFill:
     if not passed:
         return _FAIL_FILL
     if latency > LATENCY_THRESHOLD_S:
@@ -416,14 +492,26 @@ def _row_fill(passed: bool, latency: float, words: int, judge: dict | None) -> P
     if words < MIN_WORDS or words > MAX_WORDS:
         return _WARN_FILL
     if judge:
-        if min(judge.get("accuracy", 5), judge.get("relevance", 5)) < JUDGE_PASS_THRESHOLD:
+        if (
+            min(judge.get("accuracy", 5), judge.get("relevance", 5))
+            < JUDGE_PASS_THRESHOLD
+        ):
             return _WARN_FILL
     return _PASS_FILL
 
 
-def _write_row(ws, row_num: int, *, passed: bool, latency: float, answer: str,
-               error: str, exercise_name: str, judge: dict | None,
-               consistency: float | None):
+def _write_row(
+    ws,
+    row_num: int,
+    *,
+    passed: bool,
+    latency: float,
+    answer: str,
+    error: str,
+    exercise_name: str,
+    judge: dict | None,
+    consistency: float | None,
+):
     xlsx_row = row_num + 1
     words = count_words(answer)
     fill = _row_fill(passed, latency, words, judge)
@@ -434,7 +522,9 @@ def _write_row(ws, row_num: int, *, passed: bool, latency: float, answer: str,
         COL_LATENCY: round(latency, 3),
         COL_WORDS: words,
         COL_LENGTH: length_status(words),
-        COL_CONTEXT: "YES" if context_recognized(answer, exercise_name) else "NO",
+        COL_CONTEXT: "YES"
+        if context_recognized(answer, exercise_name)
+        else "NO",
         COL_ACC: judge["accuracy"] if judge else "",
         COL_REL: judge["relevance"] if judge else "",
         COL_TOPIC: judge["on_topic"] if judge else "",
@@ -470,19 +560,33 @@ def _load_done_rows(out_path: Path) -> set[int]:
 
 # ── Script mode: main loop ──────────────────────────────────────────────────
 
-def _evaluate_case(client: TestClient, case: dict, *, eval_judge: bool, repeat: int):
+
+def _evaluate_case(
+    client: TestClient, case: dict, *, eval_judge: bool, repeat: int
+):
     """Chạy một case (có thể lặp), trả về kết quả tổng hợp."""
     runs = []
     for _ in range(max(1, repeat)):
-        runs.append(_call_chat(client, case["learner_id"], case["message"], case["request_body"]))
+        runs.append(
+            _call_chat(
+                client,
+                case["learner_id"],
+                case["message"],
+                case["request_body"],
+            )
+        )
 
     primary = runs[0]
     answers_ok = [r["answer"] for r in runs if r["ok"]]
-    consistency = consistency_score(answers_ok) if len(answers_ok) >= 2 else None
+    consistency = (
+        consistency_score(answers_ok) if len(answers_ok) >= 2 else None
+    )
 
     judge = None
     if eval_judge and primary["ok"]:
-        judge = llm_judge(case["message"], primary["answer"], case["exercise_name"])
+        judge = llm_judge(
+            case["message"], primary["answer"], case["exercise_name"]
+        )
 
     return {
         "passed": primary["ok"],
@@ -499,7 +603,9 @@ def _print_case_log(case: dict, result: dict):
     extra = f"{result['latency']:5.2f}s | {count_words(result['answer']):4d}w"
     if result["judge"]:
         j = result["judge"]
-        extra += f" | acc={j['accuracy']} rel={j['relevance']} top={j['on_topic']}"
+        extra += (
+            f" | acc={j['accuracy']} rel={j['relevance']} top={j['on_topic']}"
+        )
     if result["consistency"] is not None:
         extra += f" | consist={result['consistency']:.2f}"
     print(f"[{status}] #{case['row_num']:>3} {extra} | {case['message'][:50]}")
@@ -522,29 +628,41 @@ def _print_summary(results: list[dict]):
         latencies_sorted = sorted(latencies)
         p50 = latencies_sorted[len(latencies_sorted) // 2]
         p95 = latencies_sorted[int(len(latencies_sorted) * 0.95)]
-        print(f"Latency  : avg={statistics.mean(latencies):.2f}s  "
-              f"p50={p50:.2f}s  p95={p95:.2f}s  max={max(latencies):.2f}s")
+        print(
+            f"Latency  : avg={statistics.mean(latencies):.2f}s  "
+            f"p50={p50:.2f}s  p95={p95:.2f}s  max={max(latencies):.2f}s"
+        )
     if word_counts:
-        print(f"Words    : avg={statistics.mean(word_counts):.0f}  "
-              f"min={min(word_counts)}  max={max(word_counts)}")
+        print(
+            f"Words    : avg={statistics.mean(word_counts):.0f}  "
+            f"min={min(word_counts)}  max={max(word_counts)}"
+        )
         too_short = sum(1 for w in word_counts if w < MIN_WORDS)
         too_long = sum(1 for w in word_counts if w > MAX_WORDS)
         print(f"  too_short={too_short}  too_long={too_long}")
 
     judges = [r["judge"] for r in results if r["judge"]]
     if judges:
-        print(f"Judge    : n={len(judges)}  "
-              f"acc={statistics.mean(j['accuracy'] for j in judges):.2f}  "
-              f"rel={statistics.mean(j['relevance'] for j in judges):.2f}  "
-              f"topic={statistics.mean(j['on_topic'] for j in judges):.2f}")
+        print(
+            f"Judge    : n={len(judges)}  "
+            f"acc={statistics.mean(j['accuracy'] for j in judges):.2f}  "
+            f"rel={statistics.mean(j['relevance'] for j in judges):.2f}  "
+            f"topic={statistics.mean(j['on_topic'] for j in judges):.2f}"
+        )
 
-    consistencies = [r["consistency"] for r in results if r["consistency"] is not None]
+    consistencies = [
+        r["consistency"] for r in results if r["consistency"] is not None
+    ]
     if consistencies:
-        print(f"Consistency (Jaccard avg): {statistics.mean(consistencies):.3f}")
+        print(
+            f"Consistency (Jaccard avg): {statistics.mean(consistencies):.3f}"
+        )
     print("=" * 60)
 
 
-def _run_script(out_path: Path, *, eval_judge: bool, repeat: int, multi_turn: bool):
+def _run_script(
+    out_path: Path, *, eval_judge: bool, repeat: int, multi_turn: bool
+):
     try:
         with Session(engine) as s:
             s.exec(text("SELECT 1"))
@@ -553,6 +671,7 @@ def _run_script(out_path: Path, *, eval_judge: bool, repeat: int, multi_turn: bo
         sys.exit(1)
 
     import shutil
+
     if not out_path.exists():
         shutil.copy(XLSX_PATH, out_path)
 
@@ -567,23 +686,31 @@ def _run_script(out_path: Path, *, eval_judge: bool, repeat: int, multi_turn: bo
     if done_rows:
         print(f"Resuming: {len(done_rows)} done, {len(pending)} pending")
 
-    print(f"Config: eval_judge={eval_judge}  repeat={repeat}  multi_turn={multi_turn}")
+    print(
+        f"Config: eval_judge={eval_judge}  repeat={repeat}  multi_turn={multi_turn}"
+    )
     results = []
 
     with TestClient(app) as client:
         for c in pending:
-            res = _evaluate_case(client, c, eval_judge=eval_judge, repeat=repeat)
+            res = _evaluate_case(
+                client, c, eval_judge=eval_judge, repeat=repeat
+            )
             _print_case_log(c, res)
             results.append(res)
 
             wb = openpyxl.load_workbook(out_path)
             ws = wb[SHEET_NAME]
             _write_row(
-                ws, c["row_num"],
-                passed=res["passed"], latency=res["latency"],
-                answer=res["answer"], error=res["error"],
+                ws,
+                c["row_num"],
+                passed=res["passed"],
+                latency=res["latency"],
+                answer=res["answer"],
+                error=res["error"],
                 exercise_name=c["exercise_name"],
-                judge=res["judge"], consistency=res["consistency"],
+                judge=res["judge"],
+                consistency=res["consistency"],
             )
             wb.save(out_path)
 
@@ -592,8 +719,10 @@ def _run_script(out_path: Path, *, eval_judge: bool, repeat: int, multi_turn: bo
             for case in MULTI_TURN_CASES:
                 mt = _run_multi_turn(client, case)
                 status = "PASS" if mt["ok"] else "FAIL"
-                print(f"[{status}] {case['name']} | turns={len(mt['answers'])}/"
-                      f"{len(case['turns'])} | {mt['latency']:.2f}s | {mt['error']}")
+                print(
+                    f"[{status}] {case['name']} | turns={len(mt['answers'])}/"
+                    f"{len(case['turns'])} | {mt['latency']:.2f}s | {mt['error']}"
+                )
 
     _print_summary(results)
     print(f"Saved: {out_path}")
@@ -602,12 +731,25 @@ def _run_script(out_path: Path, *, eval_judge: bool, repeat: int, multi_turn: bo
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        "--output", type=Path,
-        default=Path(__file__).parent / f"grammar_quality_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx",
+        "--output",
+        type=Path,
+        default=Path(__file__).parent
+        / f"grammar_quality_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx",
     )
-    parser.add_argument("--eval", action="store_true", help="Bật LLM-as-judge (chậm hơn)")
-    parser.add_argument("--repeat", type=int, default=1, help="Số lần gọi mỗi case để đo consistency")
-    parser.add_argument("--multi-turn", action="store_true", help="Chạy thêm bộ multi-turn cases")
+    parser.add_argument(
+        "--eval", action="store_true", help="Bật LLM-as-judge (chậm hơn)"
+    )
+    parser.add_argument(
+        "--repeat",
+        type=int,
+        default=1,
+        help="Số lần gọi mỗi case để đo consistency",
+    )
+    parser.add_argument(
+        "--multi-turn",
+        action="store_true",
+        help="Chạy thêm bộ multi-turn cases",
+    )
     args = parser.parse_args()
     _run_script(
         args.output,

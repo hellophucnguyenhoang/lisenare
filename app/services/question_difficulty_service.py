@@ -101,10 +101,7 @@ def get_responses_for_question(
         )
         .join(
             ThetaLearnerLesson,
-            (
-                ThetaLearnerLesson.learner_id
-                == HistoryAnswerQuestion.learner_id
-            )
+            (ThetaLearnerLesson.learner_id == HistoryAnswerQuestion.learner_id)
             & (ThetaLearnerLesson.lesson_id == lesson_id),
             isouter=True,
         )
@@ -117,9 +114,7 @@ def get_responses_for_question(
         if user_answer is None:
             continue
         theta_val = 0.0 if theta is None else float(theta)
-        is_correct = (
-            1 if compare_strings(correct_answer, user_answer) else 0
-        )
+        is_correct = 1 if compare_strings(correct_answer, user_answer) else 0
         responses.append((theta_val, is_correct))
     return responses
 
@@ -186,9 +181,7 @@ def recompute_all_due_difficulties(
                 continue
 
             b_init = (
-                question.difficulty
-                if question.difficulty is not None
-                else 0.0
+                question.difficulty if question.difficulty is not None else 0.0
             )
             new_b = update_difficulty_b(
                 theta_responses=responses, b_init=b_init
