@@ -14,7 +14,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 sys.stdout.reconfigure(encoding="utf-8")
 
 import openpyxl
-from openpyxl.styles import Font, PatternFill, Alignment
+from openpyxl.styles import Alignment, Font, PatternFill
 from sqlmodel import Session, select
 
 from app.database import engine
@@ -41,7 +41,10 @@ QUESTIONS_BY_EXERCISE = {
     ],
     2: [
         (3, "Quy tắc chia động từ ở thì quá khứ đơn là gì?"),
-        (4, "Động từ bất quy tắc thì quá khứ đơn — cho tôi danh sách phổ biến."),
+        (
+            4,
+            "Động từ bất quy tắc thì quá khứ đơn — cho tôi danh sách phổ biến.",
+        ),
         (2, "Câu hỏi thì quá khứ đơn dùng 'did' như thế nào?"),
         (3, "Sự khác biệt giữa past simple và past continuous là gì?"),
         (4, "Tôi đặt 'yesterday' ở đâu trong câu?"),
@@ -89,7 +92,10 @@ QUESTIONS_BY_EXERCISE = {
     ],
     6: [
         (2, "Giải thích cách dùng 'in', 'on', 'at' với thời gian."),
-        (3, "Preposition sau động từ — tại sao 'interested in' chứ không phải 'interested at'?"),
+        (
+            3,
+            "Preposition sau động từ — tại sao 'interested in' chứ không phải 'interested at'?",
+        ),
         (4, "Sự khác biệt giữa 'in the morning' và 'at morning'."),
         (2, "Cho tôi danh sách các cụm từ preposition hay dùng."),
         (3, "Tại sao câu này sai: 'She arrived to school late'?"),
@@ -136,11 +142,17 @@ QUESTIONS_BY_EXERCISE = {
         (2, "Tôi không hiểu câu 3, cho ví dụ tương tự."),
     ],
     10: [
-        (2, "Passive voice ở thì hiện tại tiếp diễn được hình thành như thế nào?"),
+        (
+            2,
+            "Passive voice ở thì hiện tại tiếp diễn được hình thành như thế nào?",
+        ),
         (4, "Khi nào thì không nên dùng câu bị động?"),
         (3, "Get passive vs be passive — khác nhau ở điểm nào?"),
         (2, "Passive voice với modal verbs — ví dụ cụ thể."),
-        (4, "Đổi câu chủ động sau sang bị động: 'People speak English worldwide.'"),
+        (
+            4,
+            "Đổi câu chủ động sau sang bị động: 'People speak English worldwide.'",
+        ),
         (3, "Câu 3 tôi điền 'is written' hay 'was written'?"),
         (2, "Passive voice ở past perfect là gì?"),
         (4, "Tại sao câu 1 dùng 'is being built' không phải 'is built'?"),
@@ -150,7 +162,9 @@ QUESTIONS_BY_EXERCISE = {
 }
 
 
-def _fetch_exercise_questions(session: Session, exercise_id: int) -> tuple[str, list[dict]]:
+def _fetch_exercise_questions(
+    session: Session, exercise_id: int
+) -> tuple[str, list[dict]]:
     """Return (exercise_name, list of QuestionContext dicts) from DB."""
     exercise = session.get(Exercise, exercise_id)
     if exercise is None:
@@ -205,8 +219,15 @@ def _make_request_json(
 
 
 def _write_header(ws):
-    headers = ["#", "Endpoint", "learner_id", "exercise_id", "exercise_name",
-               "Câu hỏi người dùng", "Request JSON mẫu"]
+    headers = [
+        "#",
+        "Endpoint",
+        "learner_id",
+        "exercise_id",
+        "exercise_name",
+        "Câu hỏi người dùng",
+        "Request JSON mẫu",
+    ]
     header_fill = PatternFill("solid", fgColor="1F4E79")
     header_font = Font(bold=True, color="FFFFFF", size=11)
     for col, h in enumerate(headers, start=1):
@@ -232,17 +253,27 @@ def main():
 
         for exercise_id in EXERCISE_IDS:
             try:
-                exercise_name, questions = _fetch_exercise_questions(db_session, exercise_id)
+                exercise_name, questions = _fetch_exercise_questions(
+                    db_session, exercise_id
+                )
             except ValueError as e:
                 print(f"SKIP: {e}")
                 continue
 
-            print(f"Exercise {exercise_id} '{exercise_name}': {len(questions)} questions in DB")
+            print(
+                f"Exercise {exercise_id} '{exercise_name}': {len(questions)} questions in DB"
+            )
 
-            for case_idx, (learner_id, message) in enumerate(QUESTIONS_BY_EXERCISE[exercise_id]):
+            for case_idx, (learner_id, message) in enumerate(
+                QUESTIONS_BY_EXERCISE[exercise_id]
+            ):
                 req_json = _make_request_json(
-                    learner_id, exercise_id, exercise_name,
-                    message, questions, case_idx,
+                    learner_id,
+                    exercise_id,
+                    exercise_name,
+                    message,
+                    questions,
+                    case_idx,
                 )
                 ws.cell(row=xlsx_row, column=1, value=row_num)
                 ws.cell(row=xlsx_row, column=2, value="POST /grammar/chat")

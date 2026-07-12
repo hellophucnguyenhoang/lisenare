@@ -32,6 +32,9 @@ temp_audios/
 # Cache
 .cache/
 
+# Logs
+logs/
+
 # Chat history JSON storage (runtime data)
 data/chat_histories/
 data/chat_histories.json
