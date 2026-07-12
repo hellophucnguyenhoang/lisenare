@@ -13,19 +13,13 @@ from app.services.agent.tools.history_tool import get_user_answer_history
 from app.services.agent.tools.lesson_detail_tool import get_lesson_detail
 from app.services.agent.tools.mistake_tool import analyze_mistake
 from app.services.agent.tools.passage_tool import generate_passage
-from app.services.agent.tools.preference_tool import (
-    get_learner_preferences,
-    set_learner_preferences,
-)
 from app.services.agent.tools.progress_tool import get_user_progress
 from app.services.agent.tools.recent_mistakes_tool import get_recent_mistakes
 from app.services.agent.tools.recommend_tool import recommend_questions
 from app.services.agent.tools.snippet_tool import search_snippet
-from app.services.agent.tools.study_plan_tool import generate_study_plan
 from app.services.agent.tools.vocab_tool import lookup_vocabulary
 from app.services.agent.tools.wrong_answers_tool import (
     aggregate_wrong_answers,
-    batch_analyze_wrong_answers,
 )
 
 TOOL_DEFINITIONS = [
@@ -131,7 +125,7 @@ TOOL_DEFINITIONS = [
             limit=int(args.get("limit") or 5),
         ),
     },
-    # ─── Memory: mistakes & preferences ────────────────────────────────
+    # ─── Memory: mistakes ──────────────────────────────────────────────
     {
         "name": "aggregate_wrong_answers",
         "description": (
@@ -179,58 +173,6 @@ TOOL_DEFINITIONS = [
                 else None
             ),
             limit=int(args.get("limit") or 50),
-        ),
-    },
-    {
-        "name": "batch_analyze_wrong_answers",
-        "description": (
-            "Phân tích hàng loạt câu sai của học viên: lấy câu sai từ "
-            "history, gọi LLM theo chunk (mặc định 8 câu/call), có "
-            "shared cache giữa các học viên (cùng câu hỏi + cùng kiểu "
-            "sai chỉ gọi LLM 1 lần cho toàn hệ thống), lưu kết quả vào "
-            "MistakeMemory cá nhân (có dedupe theo question_id). Dùng "
-            "khi học viên muốn 'phân tích lỗi của tôi' hoặc sau khi "
-            "aggregate_wrong_answers cho thấy có lỗi đáng phân tích."
-        ),
-        "parameters": {
-            "type": "object",
-            "properties": {
-                "lesson_id": {"type": "integer"},
-                "topic_id": {"type": "integer"},
-                "since_days": {"type": "integer"},
-                "limit": {
-                    "type": "integer",
-                    "description": (
-                        "Số câu sai tối đa để phân tích (1-15), mặc định 10."
-                    ),
-                },
-                "chunk_size": {
-                    "type": "integer",
-                    "description": "Số câu/1 LLM call (1-10), mặc định 8.",
-                },
-            },
-            "required": [],
-        },
-        "fn": lambda ctx, args: batch_analyze_wrong_answers(
-            ctx.session,
-            ctx.learner_id,
-            lesson_id=(
-                int(args["lesson_id"])
-                if args.get("lesson_id") is not None
-                else None
-            ),
-            topic_id=(
-                int(args["topic_id"])
-                if args.get("topic_id") is not None
-                else None
-            ),
-            since_days=(
-                int(args["since_days"])
-                if args.get("since_days") is not None
-                else None
-            ),
-            limit=int(args.get("limit") or 10),
-            chunk_size=int(args.get("chunk_size") or 8),
         ),
     },
     {
@@ -290,48 +232,6 @@ TOOL_DEFINITIONS = [
             limit=int(args.get("limit") or 5),
         ),
     },
-    {
-        "name": "get_learner_preferences",
-        "description": (
-            "Đọc preferences đã lưu của học viên (kiểu bài tập ưa thích, "
-            "phong cách học, mục tiêu, ghi chú). Dùng khi cần cá nhân "
-            "hoá lời khuyên."
-        ),
-        "parameters": {
-            "type": "object",
-            "properties": {},
-            "required": [],
-        },
-        "fn": lambda ctx, args: get_learner_preferences(
-            ctx.session, ctx.learner_id
-        ),
-    },
-    {
-        "name": "set_learner_preferences",
-        "description": (
-            "Ghi/Cập nhật preferences của học viên. Dùng khi học viên "
-            "nói rõ sở thích/mục tiêu, ví dụ 'tôi thích học qua đoạn "
-            "văn', 'mục tiêu của tôi là TOEIC 700'."
-        ),
-        "parameters": {
-            "type": "object",
-            "properties": {
-                "preferred_exercise_type": {"type": "string"},
-                "learning_style": {"type": "string"},
-                "goal": {"type": "string"},
-                "notes": {"type": "string"},
-            },
-            "required": [],
-        },
-        "fn": lambda ctx, args: set_learner_preferences(
-            ctx.session,
-            ctx.learner_id,
-            preferred_exercise_type=args.get("preferred_exercise_type"),
-            learning_style=args.get("learning_style"),
-            goal=args.get("goal"),
-            notes=args.get("notes"),
-        ),
-    },
     # ─── Content generation ────────────────────────────────────────────
     {
         "name": "generate_passage",
@@ -351,6 +251,14 @@ TOOL_DEFINITIONS = [
                     "type": "integer",
                     "description": "Số câu hỏi đọc hiểu (1-5).",
                 },
+                "topic_id": {
+                    "type": "integer",
+                    "description": "ID topic trong hệ thống (tùy chọn). Tra cứu tên topic từ DB để bổ sung ngữ cảnh.",
+                },
+                "lesson_id": {
+                    "type": "integer",
+                    "description": "ID lesson trong hệ thống (tùy chọn). Bổ sung tên lesson vào ngữ cảnh prompt.",
+                },
             },
             "required": ["topic"],
         },
@@ -359,33 +267,16 @@ TOOL_DEFINITIONS = [
             learner_id=ctx.learner_id,
             topic=args.get("topic", ""),
             question_count=int(args.get("question_count") or 3),
-        ),
-    },
-    {
-        "name": "generate_study_plan",
-        "description": (
-            "Lập kế hoạch học cá nhân hoá theo mục tiêu (vd: 'TOEIC 600 "
-            "trong 3 tháng'), dựa trên theta hiện tại + lỗi gần đây."
-        ),
-        "parameters": {
-            "type": "object",
-            "properties": {
-                "goal": {
-                    "type": "string",
-                    "description": "Mục tiêu học tập.",
-                },
-                "weeks": {
-                    "type": "integer",
-                    "description": "Số tuần (1-24), mặc định 4.",
-                },
-            },
-            "required": ["goal"],
-        },
-        "fn": lambda ctx, args: generate_study_plan(
-            ctx.session,
-            learner_id=ctx.learner_id,
-            goal=args.get("goal", ""),
-            weeks=int(args.get("weeks") or 4),
+            topic_id=(
+                int(args["topic_id"])
+                if args.get("topic_id") is not None
+                else None
+            ),
+            lesson_id=(
+                int(args["lesson_id"])
+                if args.get("lesson_id") is not None
+                else None
+            ),
         ),
     },
     # ─── Recommendation & deep lookup ──────────────────────────────────

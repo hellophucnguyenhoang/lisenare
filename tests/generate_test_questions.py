@@ -4,11 +4,10 @@ Generates test questions for:
   - POST /agent/chat    (general learning agent with tool calls)
 and saves them to tests/chat_test_questions.xlsx
 
-agent_chat sheet has 100 rows covering all 16 tools in tool_registry.py:
+agent_chat sheet has 89 rows covering 13 tools in tool_registry.py:
   get_user_progress, get_user_answer_history, get_topics_lesson,
-  lookup_vocabulary, aggregate_wrong_answers, batch_analyze_wrong_answers,
-  analyze_mistake, get_recent_mistakes, get_learner_preferences,
-  set_learner_preferences, generate_passage, generate_study_plan,
+  lookup_vocabulary, aggregate_wrong_answers,
+  analyze_mistake, get_recent_mistakes, generate_passage,
   recommend_questions, explain_word_in_context, get_lesson_detail,
   search_snippet
 """
@@ -125,9 +124,8 @@ GRAMMAR_QUESTIONS = [
 # ---------------------------------------------------------------------------
 # Tools covered:
 #   get_user_progress, get_user_answer_history, get_topics_lesson,
-#   lookup_vocabulary, aggregate_wrong_answers, batch_analyze_wrong_answers,
-#   analyze_mistake, get_recent_mistakes, get_learner_preferences,
-#   set_learner_preferences, generate_passage, generate_study_plan,
+#   lookup_vocabulary, aggregate_wrong_answers,
+#   analyze_mistake, get_recent_mistakes, generate_passage,
 #   recommend_questions, explain_word_in_context, get_lesson_detail,
 #   search_snippet
 # ---------------------------------------------------------------------------
@@ -405,42 +403,6 @@ AGENT_QUESTIONS = [
         "aggregate_wrong_answers",
         False,
     ),
-    # ── batch_analyze_wrong_answers (5 câu) ──────────────────────────────
-    (
-        1,
-        "Phân tích toàn bộ lỗi sai của tôi và cho tôi biết pattern lỗi.",
-        "Batch phân tích lỗi → lưu memory",
-        "batch_analyze_wrong_answers",
-        False,
-    ),
-    (
-        1,
-        "Tôi muốn hiểu rõ tại sao mình hay sai. Phân tích giúp tôi.",
-        "Request phân tích lỗi sâu",
-        "batch_analyze_wrong_answers",
-        False,
-    ),
-    (
-        2,
-        "Phân tích lỗi sai của tôi trong lesson 4 đi.",
-        "Batch analyze lọc theo lesson",
-        "batch_analyze_wrong_answers",
-        False,
-    ),
-    (
-        2,
-        "Tôi vừa làm xong bài kiểm tra và sai nhiều câu. Phân tích lỗi cho tôi.",
-        "Phân tích sau bài kiểm tra",
-        "batch_analyze_wrong_answers",
-        True,
-    ),
-    (
-        3,
-        "Phân tích top 5 câu sai nhiều nhất của tôi tháng này.",
-        "Batch analyze limit=5 + since_days=30",
-        "batch_analyze_wrong_answers",
-        False,
-    ),
     # ── analyze_mistake (6 câu) ───────────────────────────────────────────
     (
         1,
@@ -520,71 +482,6 @@ AGENT_QUESTIONS = [
         "get_recent_mistakes",
         False,
     ),
-    # ── get_learner_preferences (4 câu) ──────────────────────────────────
-    (
-        1,
-        "Tôi đã đặt mục tiêu học tập gì trước đây?",
-        "Đọc goal đã lưu",
-        "get_learner_preferences",
-        False,
-    ),
-    (
-        2,
-        "Kiểu bài tập ưa thích của tôi là gì?",
-        "Đọc preferred_exercise_type",
-        "get_learner_preferences",
-        False,
-    ),
-    (
-        2,
-        "Phong cách học của tôi đã được lưu chưa?",
-        "Đọc learning_style",
-        "get_learner_preferences",
-        False,
-    ),
-    (
-        3,
-        "Nhắc tôi xem tôi đã ghi chú gì về mục tiêu học.",
-        "Đọc notes từ preferences",
-        "get_learner_preferences",
-        False,
-    ),
-    # ── set_learner_preferences (5 câu) ──────────────────────────────────
-    (
-        1,
-        "Tôi muốn đặt mục tiêu TOEIC 700 trong 3 tháng.",
-        "Lưu goal TOEIC 700",
-        "set_learner_preferences",
-        False,
-    ),
-    (
-        1,
-        "Tôi thích học qua đoạn văn đọc hiểu hơn là bài điền từ.",
-        "Lưu preferred_exercise_type",
-        "set_learner_preferences",
-        False,
-    ),
-    (
-        2,
-        "Phong cách học của tôi là học theo ngữ cảnh, không học thuộc lòng.",
-        "Lưu learning_style",
-        "set_learner_preferences",
-        False,
-    ),
-    (
-        2,
-        "Ghi chú cho tôi: tôi cần tập trung vào business English.",
-        "Lưu notes vào preferences",
-        "set_learner_preferences",
-        False,
-    ),
-    (
-        3,
-        "Cập nhật mục tiêu của tôi thành IELTS 6.5.",
-        "Update goal preference",
-        "set_learner_preferences",
-        False,
-    ),
     # ── generate_passage (6 câu) ──────────────────────────────────────────
     (
         1,
@@ -627,49 +524,6 @@ AGENT_QUESTIONS = [
         "Passage topic science",
         "generate_passage",
         False,
-    ),
-    # ── generate_study_plan (6 câu) ───────────────────────────────────────
-    (
-        1,
-        "Lập kế hoạch học TOEIC 600 trong 2 tháng cho tôi.",
-        "Study plan TOEIC 600 / 8 tuần",
-        "generate_study_plan",
-        True,
-    ),
-    (
-        1,
-        "Tôi muốn đạt IELTS 6.0 trong 4 tháng. Lên kế hoạch giúp tôi.",
-        "Study plan IELTS 6.0 / 16 tuần",
-        "generate_study_plan",
-        True,
-    ),
-    (
-        2,
-        "Lập kế hoạch học từ vựng trong 4 tuần.",
-        "Study plan vocabulary / 4 tuần",
-        "generate_study_plan",
-        False,
-    ),
-    (
-        2,
-        "Tôi chỉ có 1 tháng để cải thiện grammar. Kế hoạch ra sao?",
-        "Study plan grammar / 4 tuần",
-        "generate_study_plan",
-        True,
-    ),
-    (
-        3,
-        "Lên lịch học conversation English cho người mới bắt đầu trong 6 tuần.",
-        "Study plan conversation / 6 tuần",
-        "generate_study_plan",
-        False,
-    ),
-    (
-        3,
-        "Kế hoạch ôn tập toàn diện trước kỳ thi TOEFL trong 3 tuần.",
-        "Study plan TOEFL / 3 tuần",
-        "generate_study_plan",
-        True,
     ),
     # ── recommend_questions (6 câu) ───────────────────────────────────────
     (
@@ -803,13 +657,6 @@ AGENT_QUESTIONS = [
     ),
     (
         2,
-        "Dựa trên điểm yếu của tôi, lập kế hoạch học 4 tuần.",
-        "get_recent_mistakes → generate_study_plan",
-        "get_recent_mistakes",
-        True,
-    ),
-    (
-        2,
         "Tôi hay sai gì? Hãy phân tích và đề xuất đoạn văn luyện tập phù hợp.",
         "get_recent_mistakes → generate_passage",
         "get_recent_mistakes",
@@ -820,13 +667,6 @@ AGENT_QUESTIONS = [
         "Xem tiến độ của tôi rồi gợi ý topic tôi chưa học.",
         "get_user_progress → get_topics_lesson",
         "get_user_progress",
-        True,
-    ),
-    (
-        3,
-        "Kiểm tra sở thích của tôi rồi lập kế hoạch học phù hợp.",
-        "get_learner_preferences → generate_study_plan",
-        "get_learner_preferences",
         True,
     ),
     (
