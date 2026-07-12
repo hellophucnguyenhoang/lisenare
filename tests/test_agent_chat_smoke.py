@@ -27,7 +27,7 @@ from sqlmodel import Session, text
 from app.database import engine
 from app.main import app
 
-XLSX_PATH = Path(__file__).parent / "chat_test_questions.xlsx"
+XLSX_PATH = Path(__file__).parent / "chat_test_questions_v2.xlsx"
 SHEET_NAME = "agent_chat"
 ANSWER_PREVIEW_LEN = 120
 
