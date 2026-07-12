@@ -1,5 +1,6 @@
-import requests
 import time
+
+import requests
 
 print("Testing Ollama API...")
 
@@ -7,11 +8,7 @@ start_time = time.perf_counter()
 
 response = requests.post(
     "http://localhost:11434/api/generate",
-    json={
-        "model": "gemma4:e4b-it-qat",
-        "prompt": "xin chào",
-        "stream": False
-    }
+    json={"model": "gemma4:e4b-it-qat", "prompt": "xin chào", "stream": False},
 )
 
 end_time = time.perf_counter()
