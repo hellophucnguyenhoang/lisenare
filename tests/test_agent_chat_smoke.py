@@ -9,8 +9,8 @@ Script mode (writes results back to xlsx):
     python tests/test_agent_chat_smoke.py --output tests/smoke_results.xlsx
 """
 
-import sys
 import argparse
+import sys
 from datetime import datetime
 from pathlib import Path
 
@@ -18,14 +18,14 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 import openpyxl
-from openpyxl.styles import Font, PatternFill, Alignment
 import pytest
+from fastapi.testclient import TestClient
+from openpyxl.styles import Alignment, Font, PatternFill
 from sqlalchemy.exc import SQLAlchemyError
 from sqlmodel import Session, text
-from fastapi.testclient import TestClient
 
-from app.main import app
 from app.database import engine
+from app.main import app
 
 XLSX_PATH = Path(__file__).parent / "chat_test_questions_v2.xlsx"
 SHEET_NAME = "agent_chat"
@@ -41,21 +41,33 @@ _HEADER_FONT = Font(bold=True, color="FFFFFF", size=11)
 
 # ── Data loading ──────────────────────────────────────────────────────────────
 
+
 def _load_cases():
     wb = openpyxl.load_workbook(XLSX_PATH, read_only=True, data_only=True)
     ws = wb[SHEET_NAME]
     cases = []
     for row in ws.iter_rows(min_row=2, values_only=True):
-        row_num, _, learner_id, message, _, tool_expected, multi_tool_str, _ = row
+        (
+            row_num,
+            _,
+            learner_id,
+            message,
+            _,
+            tool_expected,
+            multi_tool_str,
+            _,
+        ) = row
         if row_num is None:
             continue
-        cases.append({
-            "row_num": int(row_num),
-            "learner_id": int(learner_id),
-            "message": message,
-            "tool_expected": tool_expected,
-            "multi_tool": multi_tool_str == "Yes",
-        })
+        cases.append(
+            {
+                "row_num": int(row_num),
+                "learner_id": int(learner_id),
+                "message": message,
+                "tool_expected": tool_expected,
+                "multi_tool": multi_tool_str == "Yes",
+            }
+        )
     wb.close()
     return cases
 
@@ -63,7 +75,10 @@ def _load_cases():
 def load_agent_chat_cases():
     return [
         pytest.param(
-            c["learner_id"], c["message"], c["tool_expected"], c["multi_tool"],
+            c["learner_id"],
+            c["message"],
+            c["tool_expected"],
+            c["multi_tool"],
             id=f"#{c['row_num']} {c['tool_expected']}",
         )
         for c in _load_cases()
@@ -72,7 +87,10 @@ def load_agent_chat_cases():
 
 # ── Core call (shared by pytest and script modes) ─────────────────────────────
 
-def _run_case(client: TestClient, learner_id: int, message: str, tool_expected: str):
+
+def _run_case(
+    client: TestClient, learner_id: int, message: str, tool_expected: str
+):
     """Returns (passed: bool, tool_calls_str: str, answer_preview: str, error: str)."""
     try:
         response = client.post(
@@ -83,7 +101,12 @@ def _run_case(client: TestClient, learner_id: int, message: str, tool_expected: 
             },
         )
         if response.status_code != 200:
-            return False, "", "", f"HTTP {response.status_code}: {response.text[:200]}"
+            return (
+                False,
+                "",
+                "",
+                f"HTTP {response.status_code}: {response.text[:200]}",
+            )
 
         data = response.json()
         answer = data.get("answer", "")
@@ -96,7 +119,13 @@ def _run_case(client: TestClient, learner_id: int, message: str, tool_expected: 
         if not answer.strip():
             return False, tools_str, preview, "answer is empty", full_answer
         if tool_expected != "no_tool" and tool_expected not in called_names:
-            return False, tools_str, preview, f"expected '{tool_expected}' not in {called_names}", full_answer
+            return (
+                False,
+                tools_str,
+                preview,
+                f"expected '{tool_expected}' not in {called_names}",
+                full_answer,
+            )
 
         return True, tools_str, preview, "", full_answer
     except Exception as exc:
@@ -104,6 +133,7 @@ def _run_case(client: TestClient, learner_id: int, message: str, tool_expected: 
 
 
 # ── Pytest mode ───────────────────────────────────────────────────────────────
+
 
 @pytest.fixture(scope="module")
 def agent_client():
@@ -120,7 +150,9 @@ def agent_client():
     "learner_id,message,tool_expected,multi_tool",
     load_agent_chat_cases(),
 )
-def test_agent_chat_smoke(agent_client, learner_id, message, tool_expected, multi_tool):
+def test_agent_chat_smoke(
+    agent_client, learner_id, message, tool_expected, multi_tool
+):
     passed, tools_str, preview, error = _run_case(
         agent_client, learner_id, message, tool_expected
     )
@@ -129,9 +161,16 @@ def test_agent_chat_smoke(agent_client, learner_id, message, tool_expected, mult
 
 # ── Script mode ───────────────────────────────────────────────────────────────
 
+
 def _init_result_columns(ws):
     """Write result column headers (cols I–L) and set widths. Idempotent."""
-    result_headers = ["Tools called", "Pass/Fail", "Answer preview", "Error", "Full answer"]
+    result_headers = [
+        "Tools called",
+        "Pass/Fail",
+        "Answer preview",
+        "Error",
+        "Full answer",
+    ]
     for i, h in enumerate(result_headers, start=9):
         cell = ws.cell(row=1, column=i, value=h)
         cell.font = _HEADER_FONT
@@ -144,11 +183,21 @@ def _init_result_columns(ws):
     ws.column_dimensions["M"].width = 80
 
 
-def _write_row(ws, row_num: int, passed: bool, tools_str: str, preview: str, error: str, full_answer: str = ""):
+def _write_row(
+    ws,
+    row_num: int,
+    passed: bool,
+    tools_str: str,
+    preview: str,
+    error: str,
+    full_answer: str = "",
+):
     xlsx_row = row_num + 1  # +1 for header
     fill = _PASS_FILL if passed else _FAIL_FILL
     ws.cell(row=xlsx_row, column=9, value=tools_str).fill = fill
-    pf_cell = ws.cell(row=xlsx_row, column=10, value="PASS" if passed else "FAIL")
+    pf_cell = ws.cell(
+        row=xlsx_row, column=10, value="PASS" if passed else "FAIL"
+    )
     pf_cell.fill = fill
     pf_cell.font = Font(bold=True, color="375623" if passed else "9C0006")
     ws.cell(row=xlsx_row, column=11, value=preview).fill = fill
@@ -185,6 +234,7 @@ def _run_script(out_path: Path):
         sys.exit(1)
 
     import shutil
+
     if not out_path.exists():
         shutil.copy(XLSX_PATH, out_path)
 
@@ -198,7 +248,9 @@ def _run_script(out_path: Path):
     pending = [c for c in all_cases if c["row_num"] not in done_rows]
 
     if done_rows:
-        print(f"Resuming: {len(done_rows)} already done, {len(pending)} remaining.")
+        print(
+            f"Resuming: {len(done_rows)} already done, {len(pending)} remaining."
+        )
     passed_count = sum(1 for c in all_cases if c["row_num"] in done_rows)
 
     with TestClient(app) as client:
@@ -209,14 +261,24 @@ def _run_script(out_path: Path):
             if passed:
                 passed_count += 1
             status = "PASS" if passed else "FAIL"
-            print(f"[{status}] #{c['row_num']:>3} {c['tool_expected']:<32} | {tools_str}")
+            print(
+                f"[{status}] #{c['row_num']:>3} {c['tool_expected']:<32} | {tools_str}"
+            )
             if error:
                 print(f"       ERROR: {error}")
 
             # Write and save immediately so results survive any crash or interrupt
             wb = openpyxl.load_workbook(out_path)
             ws = wb[SHEET_NAME]
-            _write_row(ws, c["row_num"], passed, tools_str, preview, error, full_answer)
+            _write_row(
+                ws,
+                c["row_num"],
+                passed,
+                tools_str,
+                preview,
+                error,
+                full_answer,
+            )
             wb.save(out_path)
 
     total = len(all_cases)
@@ -227,8 +289,10 @@ def _run_script(out_path: Path):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        "--output", type=Path,
-        default=Path(__file__).parent / f"smoke_results_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx",
+        "--output",
+        type=Path,
+        default=Path(__file__).parent
+        / f"smoke_results_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx",
     )
     args = parser.parse_args()
     _run_script(args.output)
