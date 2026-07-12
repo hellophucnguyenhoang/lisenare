@@ -32,6 +32,9 @@ class Settings(BaseSettings):
     gemini_api_key: str
     google_cloud_project: str
 
+    # RLM (Recursive Language Model) tutoring chatbot
+    rlm_default_depth: int = 1
+
     # Security
     secret_key: str
     jwt_algorithm: str
