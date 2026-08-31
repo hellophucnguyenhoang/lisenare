@@ -1,16 +1,33 @@
 ## 1. Đặc tả sơ bài toán
-Mô tả này chỉ mô tả những chức năng cốt lõi nhất của ứng dụng.
 
-Người học có thể tham gia bài học cũng như tạo và cấu trúc các bài học trong các bộ sưu tập, xem lịch sử học tập của mình cũng như chia sẻ bài học của mình công khai cho mọi người.  
+Người học có thể tạo, học, và quản lý các bài học trong các bộ sưu tập, xem thống kê học tập.
+Cân nhắc xây dựng chức năng sao cho thuận tiện cho việc xây dựng chức năng chia sẻ bài học của trong cộng đồng sau này.
 
-Một **người học** (learner) sẽ có mã người học và tên người học. Một **bài học** (brick) sẽ có một mã bài học, câu ngôn ngữ mẹ đẻ (native language), câu ngôn ngữ mục tiêu (target language), đường dẫn audio của ngôn ngữ mục tiêu, công khai hay không, và thời gian chỉnh sửa cuối cùng. Một **bộ sưu tập** (collection) là một nhóm các brick sẽ có mã collection, tên collection, và ngày được tạo.  
+Mỗi người học (**Learner**) được định danh bởi mã người học và tên.
 
-Một learner có thể **tạo brick**, miễn là *không được trùng với bất kỳ brick nào khác đã có trong toàn bộ hệ thống*. Hai brick được gọi là trùng nhau nếu như chúng giống nhau hoàn toàn về  ngôn ngữ mục tiêu (target_text). Một learner có thể tạo/sở hữu 0 hoặc nhiều brick và một brick phải được tạo ra bởi duy nhất một learner.
+Mỗi bài học (**Brick**) bao gồm mã bài học, câu ngôn ngữ mẹ đẻ (native text), câu ngôn ngữ mục tiêu (target text), đường dẫn tệp âm thanh của target text, tùy chọn cách phát âm của target_text, riêng tư hay không, và thời điểm chỉnh sửa gần nhất.
+Độ dài của target text không quá 25 từ.
 
-Một learner có thể  **tạo collection**. Một learner có thể  tạo 0 hoặc nhiều collection và một collection phải chỉ có một người tạo ra nó.  
+Một bộ sưu tập (**Collection**) là tập hợp các brick, gồm mã bộ sưu tập, tên bộ sưu tập, và ngày tạo.
 
-Một learner có thể thêm một brick khi họ tự tạo mới hoặc một bản sao của brick gọi là brickoverride khi họ lưu brick của người khác; vào collection của họ để học. Một brick **thuộc về  duy nhất một** collection và một collection phải có ít nhất 1 brick. 
+Một learner có thể tạo một hoặc nhiều brick, đồng thời sở hữu brick họ tạo.
+*Learner chỉ có thể chỉnh sửa brick họ sở hữu.*
 
-Chủ sở hữu có thể chỉnh sửa brick, nhưng không sửa được target_text, còn người không phải chủ sở hữu chỉ sửa được native_text và audio trên brickoverride. Khi chủ sở hữu muốn xóa một brick, quyền sở hữu sẽ tự chuyển sang người học khác có lượt tương tác trên brick đó cao nhất, nếu không có ai thì sẽ xóa thật.
+Learner có thể luyện tập (nói) một brick họ sở hữu, kết quả sẽ được dùng cho việc lập lịch ôn tập tiếp theo.
+Learner cần biết thời gian và số lần ôn tập và các thống kê hữu ích khác có liên quan đến việc theo dõi trình độ học.
 
-Mỗi learner sẽ có một **tài khoản** (account), account sẽ có mã tài khoản, username, mật khẩu, email, thời điểm đăng nhập cuối cùng. Mỗi learner **chỉ có một và chỉ một account**.  
+Một learner có thể tạo một collection, collection này có thể rỗng.
+Mỗi brick chỉ thuộc về một collection duy nhất, và mỗi collection phải chứa ít nhất một brick.
+
+Một tài khoản (**Account**) gồm mã tài khoản, username, password, tùy chọn email address để đổi password, và thời điểm đăng nhập gần nhất.
+Mỗi learner sở hữu đúng một và không dùng chung account.
+
+Một bài viết (**Snippet**) bao gồm mã snippet, nội dung, ngôn ngữ, tùy chọn âm thanh, và thời điểm chỉnh sửa gần nhất.
+
+Snippet là công khai (hoặc giữa những learner bạn bè với nhau sau này).
+Những learner khác có thể đóng góp âm thanh cho snippet đó.
+Những learner khác có thể vote chất lượng âm thanh, hoặc báo cáo snippet về bản quyền, nội dung nhạy cảm,...
+
+Một thẻ (**Tag**) sẽ bao gồm mã tag, và tên.
+
+Người học có thể thêm các thẻ (Tags) cho Brick, Collection,... để phục vụ mục đích cá nhân như gom nhóm và phân loại một cách linh hoạt.

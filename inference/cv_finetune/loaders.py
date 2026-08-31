@@ -5,6 +5,8 @@ from contextlib import contextmanager
 import torch
 import torch.nn as nn
 
+from inference.config import logger
+
 _LORA_ENABLED = True
 
 
@@ -51,19 +53,21 @@ def load_lora_adapter(
         # Print a helpful log tracking exactly what you are loading
         epoch = checkpoint_bundle.get("epoch", "Unknown")
         val_loss = checkpoint_bundle.get("val_loss", float("inf"))
-        print(
+        logger.info(
             f"Extracting weights from Epoch {epoch} checkpoint (Validation Loss: {val_loss:.4f})"
         )
     else:
         # Fallback to handle old, raw checkpoints if you have any left over
         adapter_state_dict = checkpoint_bundle
-        print(
-            "Warning: Loading a legacy raw weights file (no metadata found)."
+        logger.warning(
+            "Loading a legacy raw weights file (no metadata found)."
         )
 
     # 3. strict=False because the state dict only holds 1% of the total weights (the LoRA layers)
     model.load_state_dict(adapter_state_dict, strict=strict)
-    print("Adapter weights loaded successfully into the main architecture.")
+    logger.info(
+        "Adapter weights loaded successfully into the main architecture."
+    )
 
     return model
 
@@ -126,7 +130,7 @@ def apply_lora_to_wav2vec2(model: nn.Module, r: int = 8, alpha: int = 16):
 
         adapted_layers_count += 2
 
-    print(
+    logger.info(
         f"Successfully injected LoRA side-cars into {adapted_layers_count} layers."
     )
     return model

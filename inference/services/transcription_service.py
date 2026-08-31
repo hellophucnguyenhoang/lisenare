@@ -15,6 +15,7 @@ from transformers import (
     pipeline,
 )
 
+from inference.config import logger
 from inference.cv_finetune.loaders import (
     apply_lora_to_wav2vec2,
     load_lora_adapter,
@@ -51,7 +52,7 @@ class TranscriptionService:
             low_cpu_mem_usage=True,
             use_safetensors=True,
         ).to(self.device)
-        print(f"{self.model_id} loaded with {self.device}")
+        logger.info(f"{self.model_id} loaded with {self.device}")
 
         # Clear the old setting to stop the warning
         self.model.generation_config.forced_decoder_ids = None
@@ -95,12 +96,12 @@ class PhonemeService:
         self.device = torch.device(
             "cuda" if torch.cuda.is_available() else "cpu"
         )
-        print(f"Loading torchaudio bundle to {self.device}...")
+        logger.info(f"Loading torchaudio bundle to {self.device}...")
         self.bundle = bundle
         base_model = self.bundle.get_model().to(self.device)
         self.enable_lora = enable_lora
         if lora_path:
-            print("Extracting and loading LoRA adapter weights...")
+            logger.info("Extracting and loading LoRA adapter weights...")
             applied_model = apply_lora_to_wav2vec2(base_model).to(self.device)
             self.model = load_lora_adapter(applied_model, lora_path).to(
                 self.device
@@ -319,5 +320,5 @@ class PhonemeService:
 
 transcription_service = TranscriptionService()
 phoneme_recognition_service = PhonemeService(
-    lora_path="models/lora_adapter_epoch3_20260601_062920_loss0.2356.pt"
+    lora_path="weights/lora_adapter_epoch3_20260601_062920_loss0.2356.pt"
 )

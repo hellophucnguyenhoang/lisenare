@@ -1,25 +1,27 @@
 from typing import Annotated
 
-from fastapi import APIRouter, BackgroundTasks, Body, Depends, Response, status
+from fastapi import APIRouter, BackgroundTasks, Depends, Response, status
 from sqlmodel import Session
 
 from app import security
-from app.config import settings
 from app.database import Learner, get_session
 from app.schemas import (
+    EmailChangeOTPRequest,
+    EmailChangeRequest,
     LearnerAccountCreate,
     PasswordChangeRequest,
-    PasswordRecoveryResponse,
     PasswordResetRequest,
+    SendOTPRequest,
     Token,
 )
-from app.services import account_service, auth_service, otp_service
+from app.services import account_service, auth_service
 
 router = APIRouter(prefix="/accounts", tags=["Accounts"])
 
 
 @router.post("")
 def create_account(
+    response: Response,
     session: Annotated[Session, Depends(get_session)],
     learner_account_create: LearnerAccountCreate,
 ) -> Token:
@@ -28,33 +30,20 @@ def create_account(
     )
     data = {"sub": str(account.learner_id), "username": account.username}
     access_token = security.create_access_token(data=data)
+    security.set_access_token(response, access_token)
     return Token(access_token=access_token)
 
 
-@router.post("/forgot-password")
-def forgot_password(
+@router.post("/send-otp", status_code=status.HTTP_204_NO_CONTENT)
+def send_otp(
     session: Annotated[Session, Depends(get_session)],
     background_tasks: BackgroundTasks,
-    username: Annotated[str, Body(embed=True)],
-) -> PasswordRecoveryResponse:
-    account = account_service.get_account_by_username(session, username)
-    if account and account.email:
-        code = otp_service.create_otp(session, account.email)
-        subject = "Your OTP Code from Lisenare"
-        body = (
-            f"Hello!\n\n"
-            f"Your verification code is: {code}\n"
-            f"This code expires in {settings.otp_expire_minutes} minutes.\n\n"
-            f"Lisenare team."
-        )
-        account_service.send_email_background(
-            background_tasks, account.email, subject, body
-        )
-
-    return PasswordRecoveryResponse(
-        message="If an account exists, a recovery code has been sent.",
-        email_preview=None,
+    request: SendOTPRequest,
+) -> Response:
+    account_service.send_otp_by_username(
+        session, background_tasks, request.username
     )
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @router.post("/reset-password", status_code=status.HTTP_204_NO_CONTENT)
@@ -66,8 +55,9 @@ def reset_password(
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
-@router.patch("/me/password")
+@router.patch("/password")
 def change_account_password(
+    response: Response,
     session: Annotated[Session, Depends(get_session)],
     learner: Annotated[
         Learner, Depends(auth_service.decode_token_get_learner)
@@ -82,4 +72,36 @@ def change_account_password(
     )
     data = {"sub": str(account.learner_id), "username": account.username}
     access_token = security.create_access_token(data=data)
+    security.set_access_token(response, access_token)
     return Token(access_token=access_token)
+
+
+@router.post("/email/send-otp", status_code=status.HTTP_204_NO_CONTENT)
+def send_email_change_otp(
+    session: Annotated[Session, Depends(get_session)],
+    background_tasks: BackgroundTasks,
+    learner: Annotated[
+        Learner, Depends(auth_service.decode_token_get_learner)
+    ],
+    request: EmailChangeOTPRequest,
+) -> Response:
+    account_service.send_email_change_otp(
+        session, background_tasks, learner.id, request
+    )
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.patch("/email", status_code=status.HTTP_204_NO_CONTENT)
+def change_account_email(
+    session: Annotated[Session, Depends(get_session)],
+    learner: Annotated[
+        Learner, Depends(auth_service.decode_token_get_learner)
+    ],
+    email_change_request: EmailChangeRequest,
+) -> Response:
+    account_service.change_learner_account_email(
+        session,
+        learner_id=learner.id,
+        request=email_change_request,
+    )
+    return Response(status_code=status.HTTP_204_NO_CONTENT)

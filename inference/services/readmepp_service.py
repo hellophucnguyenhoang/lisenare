@@ -1,5 +1,7 @@
 from transformers import pipeline
 
+from inference.config import logger
+
 
 class ReadMePPService:
     LABEL2CEFR = {
@@ -16,7 +18,7 @@ class ReadMePPService:
         # top_k=None returns all labels;
         # top_k=1 would return only the highest
         self.pipe = pipeline("text-classification", model=model_name, top_k=1)
-        print(f"Model {model_name} loaded successfully.")
+        logger.info(f"Model {model_name} loaded successfully.")
 
     def predict(self, english_sentence: str, return_index: bool = True):
         # pred will be a list of dicts like:
