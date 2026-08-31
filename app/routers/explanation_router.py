@@ -11,8 +11,8 @@ from app.schemas import (
 )
 from app.services import (
     auth_service,
+    brick_memory_service,
     explanation_service,
-    learning_card_service,
 )
 
 router = APIRouter(prefix="/explanations", tags=["Explanations"])
@@ -54,7 +54,7 @@ def get_explanations(
 def get_seen_lemma(
     session: Annotated[Session, Depends(get_session)],
 ):
-    result = learning_card_service.get_learner_seen_stems(session, 2)
+    result = brick_memory_service.get_learner_seen_stems(session, 2)
     return result
 
 
@@ -65,7 +65,7 @@ def get_sentence_familiarity(
     session: Annotated[Session, Depends(get_session)],
     sentence: str = Body(),
 ) -> float:
-    result = learning_card_service.calculate_sentence_familiarity(
+    result = brick_memory_service.calculate_sentence_familiarity(
         session, 2, sentence
     )
     return result

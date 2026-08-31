@@ -11,7 +11,7 @@ from phonemizer.separator import Separator
 from wordfreq import word_frequency
 
 dict_checker = enchant.Dict("en_US")
-nltk.download("punkt")
+nltk.download("punkt")  # INFINITE STUCK
 nlp = spacy.load("en_core_web_sm")
 
 

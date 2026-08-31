@@ -22,12 +22,7 @@ chroma_context/
 lisenare.db
 
 # Audio files
-brick-audios/
-learner-audios/
-snippets-data/
-unused-audios/
-common-voice/
-temp_audios/
+lisenare-assets/
 
 # Cache
 .cache/

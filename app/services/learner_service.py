@@ -8,15 +8,13 @@ def get_learner_by_id(session: Session, id: int) -> Learner:
     return session.exec(statement).first()
 
 
-def update_learner_full_name(
-    session: Session, learner: Learner, full_name: str
-):
-    print(f"{full_name = }")
-    if learner.full_name == full_name.strip():
-        print("same full_name")
+def update_learner_full_name(session: Session, learner: Learner, name: str):
+    print(f"{name = }")
+    if learner.name == name.strip():
+        print("same name")
         return learner
-    print("diff full_name")
-    learner.full_name = full_name.strip()
+    print("diff name")
+    learner.name = name.strip()
     session.add(learner)
     session.commit()
     session.refresh(learner)

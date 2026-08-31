@@ -3,15 +3,15 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from fastapi.staticfiles import StaticFiles
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
-from . import database
+from app.config import settings
+
+from . import database, http_client
 from .exceptions import RequestException
-from .http_client import close_client, init_client
 from .routers import (
     account_router,
-    admin_router,
-    agent_router,
     audio_router,
     auth_router,
     brick_router,
@@ -19,30 +19,23 @@ from .routers import (
     collection_router,
     context_search_router,
     explanation_router,
-    grammar_router,
     learner_router,
-    learning_card_router,
-    practice_router,
-    push_token_router,
     snippet_interaction_router,
     snippet_router,
     test_router,
     text_router,
 )
-from .services.scheduler_service import start_scheduler, stop_scheduler
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Startup code
     database.init_db()
-    await init_client()
-    start_scheduler()
+    await http_client.init_client()
     yield
     # Shutdown code
     # database.delete_db()
-    stop_scheduler()
-    await close_client()
+    await http_client.close_client()
 
 
 app = FastAPI(title="Lisenare API", lifespan=lifespan)
@@ -113,10 +106,8 @@ async def http_exception_handler(request, exc: StarletteHTTPException):
 
 # Allow requests from the frontend
 origins = [
-    "http://localhost:8000",
-    "http://127.0.0.1:8000",
-    "http://0.0.0.0:8000",
-    "http://192.168.100.109:8000",
+    "http://127.0.0.1:5173",
+    "http://192.168.138.230:5173",  # must use if using phone/other devices
 ]
 
 app.add_middleware(
@@ -142,12 +133,18 @@ app.include_router(collection_router.router)
 app.include_router(context_search_router.router)
 app.include_router(explanation_router.router)
 app.include_router(learner_router.router)
-app.include_router(learning_card_router.router)
-app.include_router(push_token_router.router)
 app.include_router(snippet_interaction_router.router)
 app.include_router(snippet_router.router)
 app.include_router(text_router.router)
-app.include_router(grammar_router.router)
-app.include_router(practice_router.router)
-app.include_router(agent_router.router)
-app.include_router(admin_router.router)
+
+
+app.mount(
+    f"/lisenare-assets/{settings.brick_audios_folder}",
+    StaticFiles(directory=f"lisenare-assets/{settings.brick_audios_folder}"),
+    name=settings.brick_audios_folder,
+)
+app.mount(
+    f"/lisenare-assets/{settings.snippets_folder}",
+    StaticFiles(directory=f"lisenare-assets/{settings.snippets_folder}"),
+    name=settings.snippets_folder,
+)

@@ -9,14 +9,13 @@ from app.database import Learner, get_session
 from app.schemas import (
     PronunciationAnalysisResponse,
     ReviewCreate,
-    UnitType,
     WordSegmentSecond,
 )
 from app.services import (
     auth_service,
+    brick_memory_service,
+    brick_review_service,
     brick_service,
-    learning_card_service,
-    review_service,
     snippet_service,
 )
 from app.services.text_service import text_service
@@ -144,7 +143,7 @@ async def evaluate_audio(
         teacher_ipa=teacher_ipa, learner_ipa=learner_ipa
     )
     if (
-        not review_service.review_exists(
+        not brick_review_service.review_exists(
             session, learner_id=learner.id, brick_id=target_brick_id
         )
         and result["accuracy_score"] >= 0.7
@@ -157,7 +156,7 @@ async def evaluate_audio(
             user_target_text=normalized_learner_text,
             user_target_audio_path=learner_audio_path,
         )
-        review_count = review_service.save_review(
+        review_count = brick_review_service.save_review(
             session=session,
             learner_id=learner.id,
             review_create=review_create,
@@ -165,25 +164,21 @@ async def evaluate_audio(
         print(f"Review saved, {review_count = }")
         if review_count > 100 and review_count % 200 == 0:
             background_tasks.add_task(
-                learning_card_service.optimize_user_scheduler,
+                brick_memory_service.optimize_user_scheduler,
                 learner.id,
             )
             print(
                 f"Triggering background optimization for learner {learner.id}"
             )
 
-        reviewed_brick = brick_service.get_brick(
-            session, target_brick_id, learner.id
+        brick_memory_service.update_learning_card(
+            session=session,
+            learner_id=learner.id,
+            brick_id=target_brick_id,
+            score=result["accuracy_score"],
+            is_answer_revealed=is_answer_revealed_assumed,
         )
-        if reviewed_brick.brick_metadata.unit_type == UnitType.sentence:
-            learning_card_service.update_learning_card(
-                session=session,
-                learner_id=learner.id,
-                brick_id=target_brick_id,
-                score=result["accuracy_score"],
-                is_answer_revealed=is_answer_revealed_assumed,
-            )
-            print("Learning card saved.")
+        print("Learning card saved.")
 
     return result
 
@@ -240,7 +235,7 @@ async def evaluate_pronunciation_audio(
         teacher_ipa=teacher_ipa, learner_ipa=learner_ipa
     )
     if (
-        not review_service.review_exists(
+        not brick_review_service.review_exists(
             session, learner_id=learner.id, brick_id=target_brick_id
         )
         and result["accuracy_score"] >= 0.7
@@ -253,7 +248,7 @@ async def evaluate_pronunciation_audio(
             user_target_text=normalized_learner_text,
             user_target_audio_path=learner_audio_path,
         )
-        review_count = review_service.save_review(
+        review_count = brick_review_service.save_review(
             session=session,
             learner_id=learner.id,
             review_create=review_create,
@@ -261,24 +256,20 @@ async def evaluate_pronunciation_audio(
         print(f"Review saved, {review_count = }")
         if review_count > 100 and review_count % 200 == 0:
             background_tasks.add_task(
-                learning_card_service.optimize_user_scheduler,
+                brick_memory_service.optimize_user_scheduler,
                 learner.id,
             )
             print(
                 f"Triggering background optimization for learner {learner.id}"
             )
 
-        reviewed_brick = brick_service.get_brick(
-            session, target_brick_id, learner.id
+        brick_memory_service.update_learning_card(
+            session=session,
+            learner_id=learner.id,
+            brick_id=target_brick_id,
+            score=result["accuracy_score"],
+            is_answer_revealed=is_answer_revealed_assumed,
         )
-        if reviewed_brick.brick_metadata.unit_type == UnitType.sentence:
-            learning_card_service.update_learning_card(
-                session=session,
-                learner_id=learner.id,
-                brick_id=target_brick_id,
-                score=result["accuracy_score"],
-                is_answer_revealed=is_answer_revealed_assumed,
-            )
-            print("Learning card saved.")
+        print("Learning card saved.")
 
     return result

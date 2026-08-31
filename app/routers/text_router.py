@@ -10,8 +10,8 @@ from app.schemas import (
 )
 from app.services import (
     auth_service,
-    learning_card_service,
-    review_service,
+    brick_memory_service,
+    brick_review_service,
 )
 from app.services.text_service import text_service
 from schemas.sentence import (
@@ -68,7 +68,7 @@ async def compare_learner_pronunciation(
             first_score=evaluation_result.score,
             user_target_text=comparison_payload.sentence1,
         )
-        total_saved_reviews = review_service.save_review(
+        total_saved_reviews = brick_review_service.save_review(
             session=session,
             learner_id=current_learner.id,
             review_create=review_metadata,
@@ -78,14 +78,14 @@ async def compare_learner_pronunciation(
         # Optimize spacing intervals periodically
         if total_saved_reviews > 100 and total_saved_reviews % 200 == 0:
             background_tasks.add_task(
-                learning_card_service.optimize_user_scheduler,
+                brick_memory_service.optimize_user_scheduler,
                 current_learner.id,
             )
             print(
                 f"Triggering background optimization for learner {current_learner.id}"
             )
 
-        learning_card_service.update_learning_card(
+        brick_memory_service.update_learning_card(
             session=session,
             learner_id=current_learner.id,
             brick_id=comparison_payload.review_base.brick_id,
