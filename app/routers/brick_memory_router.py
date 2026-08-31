@@ -5,7 +5,7 @@ from sqlmodel import Session
 
 from app.database import Learner, get_session
 from app.schemas import LearningCardStats, LearningTimeSeries
-from app.services import auth_service, learning_card_service
+from app.services import auth_service, brick_memory_service
 
 router = APIRouter(prefix="/learning-cards", tags=["Learning Cards"])
 
@@ -35,7 +35,7 @@ def get_learning_stats(
         ),
     ] = None,
 ):
-    return learning_card_service.get_learning_stats(
+    return brick_memory_service.get_learning_stats(
         session, learner.id, tz_name, days
     )
 
@@ -57,7 +57,7 @@ def get_learning_timeseries(
     ),
 ):
     result = LearningTimeSeries(
-        **learning_card_service.get_learning_timeseries(
+        **brick_memory_service.get_learning_timeseries(
             session,
             learner.id,
             tz_name,
@@ -65,10 +65,10 @@ def get_learning_timeseries(
             metric,
         )
     )
-    result.data = learning_card_service.fill_missing_days(
+    result.data = brick_memory_service.fill_missing_days(
         result.data,
         days,
         fill_strategy="zero" if metric == "reviews" else "carry",
     )
-    result.data = learning_card_service.downsample_points(result.data)
+    result.data = brick_memory_service.downsample_points(result.data)
     return result

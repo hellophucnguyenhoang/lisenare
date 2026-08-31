@@ -15,7 +15,7 @@ from utils.text_utils import (
     normalize_target_term,
 )
 
-from .learning_card_service import calculate_sentence_familiarity
+from .brick_memory_service import calculate_sentence_familiarity
 
 
 def build_vocab_prompts(word: str) -> str:

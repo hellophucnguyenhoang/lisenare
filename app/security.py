@@ -2,6 +2,7 @@ import random
 from datetime import datetime, timedelta, timezone
 
 import jwt
+from fastapi import Response
 from pwdlib import PasswordHash
 
 from app.config import settings
@@ -34,6 +35,20 @@ def create_access_token(
     to_encode.update({"exp": expire})
     return jwt.encode(
         to_encode, settings.secret_key, algorithm=settings.jwt_algorithm
+    )
+
+
+def set_access_token(response: Response, access_token: str):
+    """
+    Embeds an access token it into an HTTP-only cookie on the response object.
+    """
+
+    response.set_cookie(
+        key="access_token",
+        value=access_token,
+        httponly=True,  # Browser's JavaScript cannot touch this
+        secure=settings.secured_connection,  # Browser's must send cookie over unencrypted connections
+        samesite="lax",  # 'none', 'lax', or 'strict', protects against CSRF
     )
 
 

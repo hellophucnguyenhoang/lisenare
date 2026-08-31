@@ -4,13 +4,8 @@ import json
 
 import soundfile as sf
 from fastapi import APIRouter, Query
-from inference.services.readmepp_service import readmepp_service
-from inference.services.text_service import text_service
 
-from schemas.cefr import (
-    CEFRRequest,
-    CEFRResponse,
-)
+from inference.services.text_service import text_service
 from schemas.sentence import (
     SentenceCompareRequest,
     SentenceCompareResponse,
@@ -45,14 +40,6 @@ def translate(
         text=target_text, lang=target_lang
     )
     return sentence_translate_res
-
-
-@router.post("/cefr-level")
-def predict_cefr(cefr_request: CEFRRequest) -> CEFRResponse:
-    pred = readmepp_service.predict(
-        cefr_request.english_sentence, return_index=False
-    )
-    return CEFRResponse(cefr_level=pred)
 
 
 @router.get("/tts-stream", response_class=WavStreamingResponse)

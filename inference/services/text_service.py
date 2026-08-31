@@ -5,6 +5,7 @@ from kokoro import KPipeline
 from sentence_transformers import SentenceTransformer, util
 from transformers import AutoModelForSeq2SeqLM, AutoTokenizer
 
+from inference.config import logger
 from schemas.sentence import Language
 
 
@@ -31,7 +32,7 @@ class TextService:
         self.tts_pipeline = KPipeline(
             lang_code="a", repo_id="hexgrad/Kokoro-82M", device=self.device
         )
-        print(f"Running Kokoro on: {self.device}")
+        logger.info(f"Running Kokoro on: {self.device}")
 
     def get_similarity(self, s1: str, s2: str) -> float:
         """Computes semantic similarity score between two sentences."""
