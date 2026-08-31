@@ -1,19 +1,14 @@
 import pandas as pd
-from sqlalchemy.orm import selectinload
 from sqlmodel import Session, select
 
-from app.database import Brick, BrickMetadata
+from app.database import Brick
 
 
 def export_bricks_to_csv(
     session: Session, file_path: str = "bricks_export.csv"
 ):
     # 1. Fetch bricks with metadata joined
-    statement = select(Brick).options(
-        selectinload(Brick.brick_metadata).selectinload(
-            BrickMetadata.grammar_points
-        )
-    )
+    statement = select(Brick)
     bricks = session.exec(statement).all()
 
     # 2. Flatten the data into a list of dictionaries

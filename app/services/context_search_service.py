@@ -17,21 +17,6 @@ from app.schemas import (
 )
 
 
-def search_subtitles_literal(
-    session: Session, keyword: str
-) -> list[VideoContextSearchResult]:
-    statement = text("""
-        SELECT video_id AS ytb_video_id, start, duration, transcript
-        FROM youtubesubtitle
-        WHERE to_tsvector('simple', transcript) @@ websearch_to_tsquery('simple', :val)
-        ORDER BY ts_rank(to_tsvector('simple', transcript), websearch_to_tsquery('simple', :val)) DESC
-    """)
-
-    results = session.exec(statement, params={"val": keyword})
-    rows = results.mappings().all()
-    return [VideoContextSearchResult.model_validate(row) for row in rows]
-
-
 def search_bricks_literal(
     session: Session, keyword: str
 ) -> list[BrickContextSearch]:
@@ -41,8 +26,7 @@ def search_bricks_literal(
             native_text,
             target_text, 
             target_audio_path, 
-            cefr_level, 
-            is_public
+            is_private
         FROM brick
         WHERE to_tsvector('simple', target_text || ' ' || native_text) @@ websearch_to_tsquery('simple', :val)
         ORDER BY ts_rank(to_tsvector('simple', target_text), websearch_to_tsquery('simple', :val)) DESC
@@ -61,11 +45,10 @@ def search_snippets_literal(
         SELECT 
             s.id,
             s.content,
-            s.translation, 
-            s.audio_path, 
-            s.created_at, 
+            s.content_audio_path, 
+            s.last_edit_at, 
             l.id as creator_id, 
-            l.full_name 
+            l.name 
         FROM snippet s
         JOIN learner l ON s.creator_id = l.id 
         WHERE to_tsvector('simple', s.content) @@ websearch_to_tsquery('simple', :val)
@@ -77,19 +60,33 @@ def search_snippets_literal(
     for raw_row in raw_rows:
         creator = LearnerRead(
             id=raw_row.creator_id,
-            full_name=raw_row.full_name,
+            name=raw_row.name,
         )
         snippet_read = SnippetRead(
             id=raw_row.id,
             content=raw_row.content,
-            translation=raw_row.translation,
-            audio_path=raw_row.audio_path,
-            created_at=raw_row.created_at,
+            content_audio_path=raw_row.content_audio_path,
+            last_edit_at=raw_row.last_edit_at,
             creator=creator,
         )
         items.append(snippet_read)
 
     return items
+
+
+def search_subtitles_literal(
+    session: Session, keyword: str
+) -> list[VideoContextSearchResult]:
+    statement = text("""
+        SELECT video_id AS ytb_video_id, start, duration, transcript
+        FROM youtubesubtitle
+        WHERE to_tsvector('simple', transcript) @@ websearch_to_tsquery('simple', :val)
+        ORDER BY ts_rank(to_tsvector('simple', transcript), websearch_to_tsquery('simple', :val)) DESC
+    """)
+
+    results = session.exec(statement, params={"val": keyword})
+    rows = results.mappings().all()
+    return [VideoContextSearchResult.model_validate(row) for row in rows]
 
 
 class ContextSearchService:
@@ -128,43 +125,6 @@ class ContextSearchService:
             )
         return store.similarity_search(query, k=10)
 
-    def search_videos_semantic(
-        self, text: str, mmr: bool = True
-    ) -> list[VideoContextSearchResult]:
-        docs = self._fetch_docs("subtitles", text, mmr)
-        return [
-            VideoContextSearchResult(
-                ytb_video_id=d.metadata["video_id"],
-                transcript=d.page_content,
-                start=float(d.metadata["start"]),
-                duration=float(d.metadata["duration"]),
-            )
-            for d in docs
-        ]
-
-    def search_videos(
-        self, session: Session, query: str
-    ) -> list[VideoContextSearchResult]:
-        # 1. Get Literal Results
-        literal_results = search_subtitles_literal(session, query)
-
-        # 2. Get Semantic Results (MMR)
-        semantic_results = self.search_videos_semantic(query, mmr=True)
-
-        # 3. Combine and Deduplicate
-        # We use a set of keys to ensure we don't show the same clip twice
-        seen_clips = set()
-        combined = []
-
-        # Prioritize literal matches, then fill with semantic matches
-        for res in literal_results + semantic_results:
-            identifier = f"{res.ytb_video_id}_{res.start}_{res.duration}"
-            if identifier not in seen_clips:
-                combined.append(res)
-                seen_clips.add(identifier)
-
-        return combined
-
     def search_bricks_semantic(
         self, text: str, mmr: bool = True
     ) -> list[BrickContextSearch]:
@@ -187,7 +147,7 @@ class ContextSearchService:
 
         # Build the visibility filter
         # Everyone sees public bricks
-        filters = [Brick.is_public]
+        filters = [Brick.is_private]
 
         # Logged-in users also see their own private bricks
         if searcher_id is not None:
@@ -272,6 +232,40 @@ class ContextSearchService:
         return [
             doc.metadata["snippet_id"] for doc in results if doc.id is not None
         ]
+
+    def search_videos_semantic(
+        self, text: str, mmr: bool = True
+    ) -> list[VideoContextSearchResult]:
+        docs = self._fetch_docs("subtitles", text, mmr)
+        return [
+            VideoContextSearchResult(
+                ytb_video_id=d.metadata["video_id"],
+                transcript=d.page_content,
+                start=float(d.metadata["start"]),
+                duration=float(d.metadata["duration"]),
+            )
+            for d in docs
+        ]
+
+    def search_videos(
+        self, session: Session, query: str
+    ) -> list[VideoContextSearchResult]:
+        literal_results = search_subtitles_literal(session, query)
+        semantic_results = self.search_videos_semantic(query, mmr=True)
+
+        # Combine and Deduplicate
+        # We use a set of keys to ensure we don't show the same clip twice
+        seen_clips = set()
+        combined = []
+
+        # Prioritize literal matches, then fill with semantic matches
+        for res in literal_results + semantic_results:
+            identifier = f"{res.ytb_video_id}_{res.start}_{res.duration}"
+            if identifier not in seen_clips:
+                combined.append(res)
+                seen_clips.add(identifier)
+
+        return combined
 
     def get_embedding(
         self, session: Session, snippet_id: int
@@ -376,22 +370,9 @@ def create_vector_indexes(session: Session):
 def initialize_embeddings(
     session: Session, search_service: ContextSearchService
 ):
-    # 1. Subtitles: (video_id, start, duration)
-    sync_model_to_langchain(
-        session,
-        search_service,
-        YouTubeSubtitle,
-        "subtitles",
-        lambda s: s.transcript,
-        lambda s: {
-            "video_id": s.video_id,
-            "start": s.start,
-            "duration": s.duration,
-        },
-        lambda s: f"{s.video_id}_{s.start}_{s.duration}",
-    )
+    create_vector_indexes(session)
 
-    # 2. Bricks: (brick_id, native_text)
+    # 1. Bricks: (brick_id, native_text)
     sync_model_to_langchain(
         session,
         search_service,
@@ -406,7 +387,7 @@ def initialize_embeddings(
         lambda b: b.id,
     )
 
-    # 3. Snippets: (snippet_id)
+    # 2. Snippets: (snippet_id)
     sync_model_to_langchain(
         session,
         search_service,
@@ -417,8 +398,22 @@ def initialize_embeddings(
         lambda s: s.id,
     )
 
+    # 3. Subtitles: (video_id, start, duration)
+    sync_model_to_langchain(
+        session,
+        search_service,
+        YouTubeSubtitle,
+        "subtitles",
+        lambda s: s.transcript,
+        lambda s: {
+            "video_id": s.video_id,
+            "start": s.start,
+            "duration": s.duration,
+        },
+        lambda s: f"{s.video_id}_{s.start}_{s.duration}",
+    )
+
     print("All data synced with custom metadata!")
-    create_vector_indexes(session)
 
 
 def add_item_to_vector_store(

@@ -26,14 +26,13 @@ def get_random_snippets(
         Learner | None, Depends(auth_service.decode_token_get_optional_learner)
     ],
     page_size: int = 5,
-) -> SnippetPage:
+) -> list[SnippetRead]:
     snippets = snippet_service.get_random_snippets(session, page_size)
     learner_id = learner.id if learner else None
     snippets = snippet_like_service.attach_reactions(
         session, snippets, learner_id
     )
-    snippet_page = SnippetPage(items=snippets, total=len(snippets))
-    return snippet_page
+    return snippets
 
 
 @router.get("/recommended/{session_id}")
@@ -79,9 +78,9 @@ async def create_snippet(
 ):
     learner_audio_path, _ = await file_utils.save_upload_file(
         file=audio_file,
-        base_dir=settings.snippets_folder,
-        sub_dir="learner_upload_audios",
-        filename_prefix=f"ln{learner.id}rec",
+        base_dir=settings.learner_audios_folder,
+        sub_dir=f"learner-{learner.id}",
+        filename_prefix="snippet",
     )
     snippet = snippet_service.create_snippet(
         session=session,

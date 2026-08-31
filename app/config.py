@@ -1,4 +1,30 @@
+import logging
+from pathlib import Path
+
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+LOG_DIR = PROJECT_ROOT / "logs"
+LOG_FILE_PATH = LOG_DIR / "app.log"
+LOG_DIR.mkdir(parents=True, exist_ok=True)
+
+logger = logging.getLogger("app")
+logger.setLevel(logging.INFO)
+logger.propagate = False  # prevent propagate to the system logger
+
+
+file_handler = logging.FileHandler(LOG_FILE_PATH, encoding="utf-8")
+file_formatter = logging.Formatter(
+    "%(asctime)s - %(levelname)s - [%(filename)s:%(lineno)d] - %(message)s"
+)
+file_handler.setFormatter(file_formatter)
+
+console_handler = logging.StreamHandler()
+console_formatter = logging.Formatter("[APP] %(levelname)s - %(message)s")
+console_handler.setFormatter(console_formatter)
+
+logger.addHandler(file_handler)
+logger.addHandler(console_handler)
 
 
 class Settings(BaseSettings):
@@ -11,50 +37,33 @@ class Settings(BaseSettings):
 
     # Databases
     database_url: str
-    redis_url: str = "redis://localhost:6379/0"
-
-    # Practice session (adaptive practice with Redis)
-    practice_session_ttl: int = 7200
+    redis_url: str
+    brick_max_words: int = 25
+    brick_avg_word_len: int = 8
+    context_max_chars: int = 500
+    max_path_len: int = 512
 
     # Servers and Cloud
     inference_url: str
-    gcs_base_url: str
-    use_cloud_storage: bool = True
+    asset_base_url: str
 
-    # Cloudflare R2 (S3-compatible) — lưu file lịch sử chat dạng JSON
-    r2_account_id: str = ""
-    r2_access_key_id: str = ""
-    r2_secret_access_key: str = ""
-    r2_bucket_name: str = ""
-    r2_endpoint_url: str = ""
     google_app_email_address: str
     google_app_password: str
-    gemini_api_key: str
-    google_cloud_project: str
-
-    # RLM (Recursive Language Model) tutoring chatbot
-    rlm_default_depth: int = 1
 
     # Security
     secret_key: str
     jwt_algorithm: str
-    access_token_expire_minutes: int = 1000
+    access_token_expire_minutes: int
     otp_expire_minutes: int = 5
+    secured_connection: bool = False
 
     # Media
     brick_audios_folder: str = "brick-audios"
     learner_audios_folder: str = "learner-audios"
-    snippets_folder: str = "snippets-data"
+    snippets_folder: str = "snippets-audios"
 
     # Context search
     semantic_emb_dim: int = 384  # all-MiniLM-L6-v2
-
-    # Recommendation: LinUCB (deprecated)
-    post_features_path: str = "models/post_features.pkl"
-    linucb_model_path: str = "models/linucb_weights.npz"
-    item_feature_dim: int = 387
-    item_content_emb_dim: int = 384
-    extra_feature_dim: int = 3
 
     # load value from the .env file
     model_config = SettingsConfigDict(env_file=".env")

@@ -15,22 +15,18 @@ from sqlmodel import Session
 from app.config import settings
 from app.database import Learner, get_session
 from app.schemas import (
-    BrickAudioData,
-    BrickAudioPage,
     BrickCreateRequest,
-    BrickLessonPage,
+    BrickListeningData,
+    BrickListeningPage,
     BrickPage,
     BrickRead,
     BrickSort,
     BrickStatus,
     BrickUpdate,
-    OverrideBrickRequest,
 )
 from app.services import (
     auth_service,
-    brick_override_service,
     brick_service,
-    broken_brick_report_service,
 )
 from utils import file_utils
 from utils.form_utils import JsonFormBody
@@ -38,125 +34,90 @@ from utils.form_utils import JsonFormBody
 router = APIRouter(prefix="/bricks", tags=["Bricks"])
 
 
-@router.get("/pending")
-def get_pending_bricks(
+@router.get("")
+def get_bricks(
     session: Annotated[Session, Depends(get_session)],
-    learner: Annotated[
+    creator: Annotated[
         Learner, Depends(auth_service.decode_token_get_learner)
     ],
-    collection_id: int,
+    collection_ids: Annotated[list[int] | None, Query()] = None,
     status: BrickStatus | None = None,
-    lesson_id: int | None = None,
-    sort_by: BrickSort = BrickSort.RECOMMENDED,
+    sort_by: BrickSort = BrickSort.NEWEST,
     limit: int = 20,
     page: int = 1,
 ) -> BrickPage:
     offset = (page - 1) * limit
 
-    bricks_list = brick_service.get_pending_bricks(
+    bricks_list = brick_service.get_bricks(
         session=session,
-        learner_id=learner.id,
-        collection_ids=[collection_id],
+        creator_id=creator.id,
+        collection_ids=collection_ids,
         status=status,
-        lesson_id=lesson_id,
         sort_by=sort_by,
         offset=offset,
         limit=limit,
     )
 
-    total_count = brick_service.count_pending_bricks(
+    total_count = brick_service.count_bricks(
         session=session,
-        learner_id=learner.id,
-        collection_ids=[collection_id],
+        creator_id=creator.id,
+        collection_ids=collection_ids,
         status=status,
-        lesson_id=lesson_id,
     )
 
     return BrickPage(items=bricks_list, total=total_count)
 
 
-@router.get("/pending/lessons")
-def get_pending_brick_lessons_endpoint(
+@router.get("/next", response_model=BrickRead | None)
+def get_next_brick(
     session: Annotated[Session, Depends(get_session)],
-    learner: Annotated[
-        Learner, Depends(auth_service.decode_token_get_learner)
-    ],
-    collection_id: int,
-    status: BrickStatus | None = None,
-    limit: int = 20,
-    page: int = 1,
-) -> BrickLessonPage:
-    offset = (page - 1) * limit
-
-    lessons = brick_service.get_pending_brick_lessons(
-        session=session,
-        learner_id=learner.id,
-        collection_ids=[collection_id],
-        status=status,
-        offset=offset,
-        limit=limit,
-    )
-
-    total_count = brick_service.count_pending_brick_lessons(
-        session=session,
-        learner_id=learner.id,
-        collection_ids=[collection_id],
-        status=status,
-    )
-
-    return BrickLessonPage(items=lessons, total=total_count)
-
-
-@router.get("/fsrs", response_model=BrickRead | None)
-def get_brick_fsrs(
-    session: Annotated[Session, Depends(get_session)],
-    learner: Annotated[
+    creator: Annotated[
         Learner, Depends(auth_service.decode_token_get_learner)
     ],
     collection_ids: Annotated[list[int] | None, Query()] = None,
 ):
-    return brick_service.get_brick_fsrs(
+    return brick_service.get_next_brick(
         session=session,
-        learner_id=learner.id,
+        creator_id=creator.id,
         collection_ids=collection_ids,
     )
 
 
-@router.get("/audio")
-def get_brick_audios(
+@router.get("/listening")
+def get_listening_bricks(
     session: Annotated[Session, Depends(get_session)],
-    learner: Annotated[
+    creator: Annotated[
         Learner, Depends(auth_service.decode_token_get_learner)
     ],
     collection_ids: Annotated[list[int] | None, Query()] = None,
     offset: Annotated[int, Query(ge=0)] = 0,
     limit: Annotated[int, Query(ge=0, le=100)] = 20,
     shuffle_page: Annotated[bool, Query()] = False,
-) -> BrickAudioPage:
+) -> BrickListeningPage:
     print(f"{collection_ids = }")
-    pending_bricks = brick_service.get_pending_bricks(
+    bricks = brick_service.get_bricks(
         session=session,
-        learner_id=learner.id,
+        creator_id=creator.id,
         collection_ids=collection_ids,
         offset=offset,
         limit=limit,
     )
     if shuffle_page:
-        random.shuffle(pending_bricks)
+        random.shuffle(bricks)
 
-    total = brick_service.count_pending_bricks(
+    total = brick_service.count_bricks(
         session=session,
-        learner_id=learner.id,
+        creator_id=creator.id,
         collection_ids=collection_ids,
     )
-    return BrickAudioPage(
+    return BrickListeningPage(
         items=[
-            BrickAudioData(
+            BrickListeningData(
                 audio_path=brick.target_audio_path,
                 target_text=brick.target_text,
                 native_text=brick.native_text,
             )
-            for brick in pending_bricks
+            for brick in bricks
         ],
         offset=offset,
         limit=limit,
@@ -164,25 +125,19 @@ def get_brick_audios(
     )
 
 
-@router.get("/check-exists", response_model=dict)
+@router.get("/check-exists")
 def check_target_text_exists(
-    target_text: str, session: Session = Depends(get_session)
-):
-    # Search for any brick with the exact target_text
-    exists = brick_service.check_target_text_exists(session, target_text)
-    return {"exists": exists}
-
-
-@router.get("/by-id/{brick_id}", response_model=BrickRead)
-def get_brick_details(
     session: Annotated[Session, Depends(get_session)],
-    learner: Annotated[
-        Learner, Depends(auth_service.decode_token_get_optional_learner)
+    creator: Annotated[
+        Learner, Depends(auth_service.decode_token_get_learner)
     ],
-    brick_id: int,
-):
-    learner_id = learner.id if learner else None
-    return brick_service.get_brick(session, brick_id, learner_id)
+    target_text: str,
+) -> bool:
+    return brick_service.check_target_text_exists(
+        session=session,
+        creator_id=creator.id,
+        target_text=target_text,
+    )
 
 
 @router.post("", response_model=BrickRead)
@@ -191,75 +146,27 @@ async def create_brick(
     learner: Annotated[
         Learner, Depends(auth_service.decode_token_get_learner)
     ],
-    audio_file: Annotated[UploadFile, File()],
+    target_audio_file: Annotated[UploadFile, File()],
     request_data: Annotated[
         BrickCreateRequest, Depends(JsonFormBody(BrickCreateRequest))
     ],
 ):
     creator_id = learner.id
-    learner_audio_path, _ = await file_utils.save_cloud_upload_file(
-        file=audio_file,
-        base_dir=settings.brick_audios_folder,
-        filename_prefix=f"ln{creator_id}rec",
+    target_audio_path, _ = await file_utils.save_upload_file(
+        file=target_audio_file,
+        base_dir=settings.learner_audios_folder,
+        sub_dir=f"learner-{creator_id}",
+        filename_prefix="brick",
     )
     return brick_service.create_brick(
-        session, request_data, creator_id, learner_audio_path
+        session=session,
+        request_data=request_data,
+        creator_id=creator_id,
+        target_audio_path=target_audio_path,
     )
 
 
-@router.post("/override", status_code=status.HTTP_201_CREATED)
-def save_brick_override(
-    session: Annotated[Session, Depends(get_session)],
-    learner: Annotated[
-        Learner, Depends(auth_service.decode_token_get_learner)
-    ],
-    payload: OverrideBrickRequest,
-) -> Response:
-    brick_override_service.save_override_for_brick(
-        session,
-        learner_id=learner.id,
-        brick_id=payload.brick_id,
-        collection_name=payload.collection_name,
-    )
-    return Response(status_code=status.HTTP_201_CREATED)
-
-
-@router.post("/report/{brick_id}", status_code=status.HTTP_201_CREATED)
-def report_broken_brick(
-    session: Annotated[Session, Depends(get_session)],
-    learner: Annotated[
-        Learner, Depends(auth_service.decode_token_get_learner)
-    ],
-    brick_id: int,
-    response: Response,  # Response Injection to change the status code
-    description: str | None = None,
-):
-    is_created = broken_brick_report_service.save_report(
-        session, learner.id, brick_id, description
-    )
-
-    if not is_created:
-        response.status_code = status.HTTP_204_NO_CONTENT
-
-    return Response(status_code=response.status_code)
-
-
-@router.patch(
-    "/{brick_id}",
-    response_model=BrickRead,
-    summary="Update a brick or create/update a personal override",
-    description="""
-If the learner is the creator of the brick,
-the original brick is updated and returned.
-
-If not, a personal override of the brick is created or updated instead.
-The original brick remains unchanged,
-and a brick with the edited information is return.
-
-For creativity encouragement, target_text is globally unique, and
-non-author learners can only override native_text field.
-""",
-)
+@router.patch("/{brick_id}", response_model=BrickRead)
 async def update_brick(
     session: Annotated[Session, Depends(get_session)],
     learner: Annotated[
@@ -267,38 +174,33 @@ async def update_brick(
     ],
     brick_id: int,
     brick_update: Annotated[BrickUpdate, Depends(JsonFormBody(BrickUpdate))],
-    audio_file: Annotated[UploadFile | None, File()] = None,
+    target_audio_file: Annotated[UploadFile | None, File()] = None,
 ):
-    learner_audio_path = None
-    if audio_file:
-        learner_audio_path, _ = await file_utils.save_cloud_upload_file(
-            file=audio_file,
-            base_dir=settings.brick_audios_folder,
-            filename_prefix=f"ln{learner.id}upd",
+    target_audio_path = None
+    if target_audio_file:
+        target_audio_path, _ = await file_utils.save_upload_file(
+            file=target_audio_file,
+            base_dir=settings.learner_audios_folder,
+            sub_dir=f"learner-{learner.id}",
+            filename_prefix="brick",
         )
 
     return brick_service.update_brick(
         session=session,
         brick_id=brick_id,
         brick_update=brick_update,
-        learner_id=learner.id,
-        target_audio_path=learner_audio_path,
+        creator_id=learner.id,
+        target_audio_path=target_audio_path,
     )
 
 
-@router.delete("/{brick_id}")
+@router.delete("/{brick_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_brick(
     session: Annotated[Session, Depends(get_session)],
     learner: Annotated[
         Learner, Depends(auth_service.decode_token_get_learner)
     ],
     brick_id: int,
-):
-    result = brick_service.delete_brick(session, learner.id, brick_id)
-
-    # Complete deletion of the entity -> 204 No Content
-    if result == "BRICK_DELETED":
-        return Response(status_code=status.HTTP_204_NO_CONTENT)
-
-    # Ownership shifted or personal record dropped -> 200 OK
-    return Response(status_code=status.HTTP_200_OK)
+) -> Response:
+    brick_service.delete_brick(session, learner.id, brick_id)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)

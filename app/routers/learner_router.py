@@ -17,10 +17,7 @@ def get_learner_me(
     ],
 ):
     email = learner.account.email if learner.account else None
-
-    return LearnerDetailRead(
-        id=learner.id, full_name=learner.full_name, email=email
-    )
+    return LearnerDetailRead(id=learner.id, name=learner.name, email=email)
 
 
 @router.patch("/me", response_model=LearnerRead)
@@ -34,6 +31,6 @@ def update_my_name(
     updated = learner_service.update_learner_full_name(
         session=session,
         learner=learner,
-        full_name=data.full_name,
+        name=data.name,
     )
     return updated

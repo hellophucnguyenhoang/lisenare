@@ -4,17 +4,24 @@ from sqlalchemy import case
 from sqlalchemy.orm import selectinload
 from sqlmodel import Session, func, select
 
-from app.database import SessionProfile, Snippet, SnippetInteraction
+from app.database import (
+    SessionProfile,
+    Snippet,
+    SnippetAudioContribution,
+    SnippetInteraction,
+)
 from app.exceptions import RequestException
+from app.schemas import SnippetRead
 from app.services.context_search_service import context_search_service
 
 from . import context_search_service as search_service
+from .tag_service import fetch_tags_for_entities
 
 
 def get_random_snippets(
     session: Session,
     limit: int = 5,
-) -> list[Snippet]:
+) -> list[SnippetRead]:
     query = (
         select(Snippet)
         .options(selectinload(Snippet.creator))
@@ -22,7 +29,34 @@ def get_random_snippets(
         .limit(limit)
     )
     snippets = session.exec(query).all()
-    return snippets
+
+    if not snippets:
+        return []
+
+    snippet_ids = [s.id for s in snippets]
+
+    contribution_counts = dict(
+        session.exec(
+            select(
+                SnippetAudioContribution.snippet_id,
+                func.count(SnippetAudioContribution.id),
+            )
+            .where(SnippetAudioContribution.snippet_id.in_(snippet_ids))
+            .group_by(SnippetAudioContribution.snippet_id)
+        ).all()
+    )
+
+    snippet_tags = fetch_tags_for_entities(session, snippet_ids, "Snippet")
+    return [
+        SnippetRead.model_validate(
+            s,
+            update={
+                "tags": snippet_tags[s.id],
+                "contribution_count": contribution_counts.get(s.id, 0),
+            },
+        )
+        for s in snippets
+    ]
 
 
 def get_recommended_snippets(
@@ -71,13 +105,13 @@ def get_recommended_snippets(
 def create_snippet(
     session: Session,
     content: str,
-    audio_path: str,
+    content_audio_path: str,
     creator_id: int,
     translation: str | None = None,
 ) -> Snippet:
     snippet = Snippet(
         content=content,
-        audio_path=audio_path,
+        content_audio_path=content_audio_path,
         creator_id=creator_id,
         translation=translation,
     )

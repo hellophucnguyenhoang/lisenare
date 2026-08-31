@@ -3,7 +3,7 @@ from zoneinfo import ZoneInfo
 
 from sqlmodel import Session, case, func, select
 
-from app.database import Review
+from app.database import BrickReview
 from app.schemas import ReviewCreate
 from utils.db_utils import apply_time_filter
 
@@ -13,7 +13,7 @@ from .spaced_repetition_service import similarity_to_fsrs
 def save_review(
     session: Session, learner_id: int, review_create: ReviewCreate
 ) -> int:
-    db_review = Review(
+    db_review = BrickReview(
         **review_create.model_dump(),
         learner_id=learner_id,
         fsrs_rating=similarity_to_fsrs(
@@ -24,19 +24,19 @@ def save_review(
     session.commit()
 
     # used for triggering the scheduler optimization task
-    statement = select(func.count(Review.id)).where(
-        Review.learner_id == learner_id,
-        Review.fsrs_log_dict.is_not(None),  # Excludes NULLs
-        Review.fsrs_log_dict != {},  # Excludes empty objects
+    statement = select(func.count(BrickReview.id)).where(
+        BrickReview.learner_id == learner_id,
+        BrickReview.fsrs_log_dict.is_not(None),  # Excludes NULLs
+        BrickReview.fsrs_log_dict != {},  # Excludes empty objects
     )
     total_review_count = session.exec(statement).one()
     return total_review_count
 
 
 def review_exists(session: Session, learner_id: int, brick_id: int) -> bool:
-    statement = select(Review).where(
-        Review.learner_id == learner_id,
-        Review.brick_id == brick_id,
+    statement = select(BrickReview).where(
+        BrickReview.learner_id == learner_id,
+        BrickReview.brick_id == brick_id,
     )
     review = session.exec(statement).first()
     return review is not None
@@ -50,12 +50,14 @@ def get_true_retention(
     """
     statement = select(
         func.count().label("total_reviews"),
-        func.count(case((Review.fsrs_rating > 1, 1))).label(
+        func.count(case((BrickReview.fsrs_rating > 1, 1))).label(
             "successful_reviews"
         ),
-    ).where(Review.learner_id == learner_id)
+    ).where(BrickReview.learner_id == learner_id)
 
-    statement = apply_time_filter(statement, Review.reviewed_at, tz_name, days)
+    statement = apply_time_filter(
+        statement, BrickReview.reviewed_at, tz_name, days
+    )
 
     result = session.exec(statement).one()
     if result.total_reviews == 0:
@@ -88,11 +90,13 @@ def get_daily_review_counts(
     """
 
     # 1. Fetch raw timestamps (UTC)
-    statement = select(Review.reviewed_at).where(
-        Review.learner_id == learner_id
+    statement = select(BrickReview.reviewed_at).where(
+        BrickReview.learner_id == learner_id
     )
 
-    statement = apply_time_filter(statement, Review.reviewed_at, tz_name, days)
+    statement = apply_time_filter(
+        statement, BrickReview.reviewed_at, tz_name, days
+    )
 
     rows = session.exec(statement).all()
 

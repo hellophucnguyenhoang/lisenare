@@ -11,13 +11,19 @@ from fsrs import Card, Optimizer, ReviewLog, Scheduler
 from sqlalchemy import Float, cast
 from sqlmodel import Session, case, func, select
 
-from app.database import Brick, LearnerSetting, LearningCard, Review, engine
+from app.database import (
+    Brick,
+    BrickMemory,
+    BrickReview,
+    LearnerSetting,
+    engine,
+)
 from app.exceptions import RequestException
 from app.schemas import TimeSeriesPoint
 from utils.db_utils import apply_time_filter
 from utils.text_utils import calculate_rarity, get_lenient_stems
 
-from .review_service import (
+from .brick_review_service import (
     get_daily_review_counts,
     get_true_retention,
     to_timeseries,
@@ -48,7 +54,9 @@ def optimize_user_scheduler(learner_id: int):
     print(f"Start optimizing scheduler for the learner {learner_id}")
     with Session(engine) as session:
         # 1. Load all reviews to train the optimizer
-        statement = select(Review).where(Review.learner_id == learner_id)
+        statement = select(BrickReview).where(
+            BrickReview.learner_id == learner_id
+        )
         reviews = session.exec(statement).all()
 
         fsrs_logs = [
@@ -101,8 +109,8 @@ def optimize_user_scheduler(learner_id: int):
             optimal_scheduler = Scheduler(optimal_params, optimal_retention)
 
             # Fetch all learning cards for this user
-            card_statement = select(LearningCard).where(
-                LearningCard.learner_id == learner_id
+            card_statement = select(BrickMemory).where(
+                BrickMemory.learner_id == learner_id
             )
             learning_cards = session.exec(card_statement).all()
 
@@ -146,9 +154,9 @@ def update_learning_card(
     score: float,
     is_answer_revealed: bool,
 ):
-    statement = select(LearningCard).where(
-        LearningCard.learner_id == learner_id,
-        LearningCard.brick_id == brick_id,
+    statement = select(BrickMemory).where(
+        BrickMemory.learner_id == learner_id,
+        BrickMemory.brick_id == brick_id,
     )
     db_learning_card = session.exec(statement).first()
     # first time review
@@ -170,19 +178,22 @@ def update_learning_card(
     # IMPORTANT NOTE: assume that the review_service.save_review() was called
     # before this function update_learning_card() be called so there is a review with
     # no fsrs_log_dict to update
-    # You might need to pass this log back to save_review or update the Review row here
+    # You might need to pass this log back to save_review or update the BrickReview row here
     db_review = session.exec(
-        select(Review)
-        .where(Review.learner_id == learner_id, Review.brick_id == brick_id)
+        select(BrickReview)
+        .where(
+            BrickReview.learner_id == learner_id,
+            BrickReview.brick_id == brick_id,
+        )
         .order_by(
-            Review.reviewed_at.desc()
+            BrickReview.reviewed_at.desc()
         )  # the latest review haven't had the log
     ).first()
     db_review.fsrs_log_dict = review_log.to_dict()
 
     # create if needed
     if db_learning_card is None:
-        db_learning_card = LearningCard(
+        db_learning_card = BrickMemory(
             learner_id=learner_id,
             brick_id=brick_id,
         )
@@ -196,18 +207,18 @@ def update_learning_card(
 def get_average_stability(
     session: Session, learner_id: int, tz_name: str, days: int | None = None
 ) -> float:
-    stability_as_text = LearningCard.fsrs_card_dict["stability"].astext
+    stability_as_text = BrickMemory.fsrs_card_dict["stability"].astext
 
     # Reviews within the requested time range
     review_subquery = (
-        select(Review.brick_id)
-        .where(Review.learner_id == learner_id)
+        select(BrickReview.brick_id)
+        .where(BrickReview.learner_id == learner_id)
         .distinct()
     )
 
     review_subquery = apply_time_filter(
         review_subquery,
-        Review.reviewed_at,
+        BrickReview.reviewed_at,
         tz_name,
         days,
     ).subquery()
@@ -215,8 +226,8 @@ def get_average_stability(
     # Average stability of cards that were reviewed
     statement = (
         select(func.avg(cast(stability_as_text, Float)))
-        .where(LearningCard.learner_id == learner_id)
-        .where(LearningCard.brick_id.in_(select(review_subquery.c.brick_id)))
+        .where(BrickMemory.learner_id == learner_id)
+        .where(BrickMemory.brick_id.in_(select(review_subquery.c.brick_id)))
     )
 
     result = session.exec(statement).one()
@@ -227,12 +238,12 @@ def get_average_stability(
 def get_total_memorized(
     session: Session, learner_id: int, tz_name: str, days: int | None = None
 ) -> float:
-    statement = select(LearningCard.fsrs_card_dict).where(
-        LearningCard.learner_id == learner_id
+    statement = select(BrickMemory.fsrs_card_dict).where(
+        BrickMemory.learner_id == learner_id
     )
 
     statement = apply_time_filter(
-        statement, LearningCard.created_at, tz_name, days
+        statement, BrickMemory.created_at, tz_name, days
     )
 
     rows = session.exec(statement).all()
@@ -257,11 +268,11 @@ def get_learning_stats(
     now = datetime.now(timezone.utc)
     statement = select(
         func.count().label("total_learning"),
-        func.count(case((LearningCard.due <= now, 1))).label("due_count"),
-    ).where(LearningCard.learner_id == learner_id)
+        func.count(case((BrickMemory.due <= now, 1))).label("due_count"),
+    ).where(BrickMemory.learner_id == learner_id)
 
     statement = apply_time_filter(
-        statement, LearningCard.created_at, tz_name, days
+        statement, BrickMemory.created_at, tz_name, days
     )
 
     result = session.exec(statement).one()
@@ -312,12 +323,12 @@ def get_daily_learning_counts(
     """
 
     # Fetch raw timestamps (UTC)
-    statement = select(LearningCard.created_at).where(
-        LearningCard.learner_id == learner_id
+    statement = select(BrickMemory.created_at).where(
+        BrickMemory.learner_id == learner_id
     )
 
     statement = apply_time_filter(
-        statement, LearningCard.created_at, tz_name, days
+        statement, BrickMemory.created_at, tz_name, days
     )
 
     rows = session.exec(statement).all()
@@ -523,8 +534,8 @@ def get_learner_seen_stems(
 
     statement = (
         select(Brick.target_text)
-        .join(LearningCard, LearningCard.brick_id == Brick.id)
-        .where(LearningCard.learner_id == learner_id)
+        .join(BrickMemory, BrickMemory.brick_id == Brick.id)
+        .where(BrickMemory.learner_id == learner_id)
     )
 
     sentences = session.exec(statement).all()

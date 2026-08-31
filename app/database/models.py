@@ -1,110 +1,157 @@
 from datetime import datetime, timedelta, timezone
-from enum import Enum
+from typing import Optional
 
 from pydantic import EmailStr
-from sqlalchemy import CheckConstraint, DateTime, Index
+from sqlalchemy import DateTime, Index
 from sqlalchemy.dialects.postgresql import JSONB
-from sqlmodel import (
-    Field,
-    Relationship,
-    SQLModel,
-    text,
-)
+from sqlmodel import Field, Relationship, SQLModel, UniqueConstraint, text
 
 from app.config import settings
-from app.schemas import (
-    GrammarPoint,
-    InteractionType,
-    SentenceFunction,
-    SentenceStructure,
-    UnitType,
-)
-from schemas.cefr import CEFRLevel
-
-
-class ExerciseType(str, Enum):
-    REVIEW = "review"  # ôn tập
-    PRACTICE = "practice"  # luyện tập
-
-
-class BrickMetadataGrammarPoint(SQLModel, table=True):
-    id: int | None = Field(default=None, primary_key=True)
-    brick_metadata_id: int = Field(
-        default=None, foreign_key="brickmetadata.id", ondelete="CASCADE"
-    )
-    grammar_point: GrammarPoint
-
-
-class BrickMetadata(SQLModel, table=True):
-    id: int | None = Field(default=None, primary_key=True)
-    unit_type: UnitType = Field(
-        description="Type of brick unit: word, phrase, or sentence."
-    )
-    structure: SentenceStructure | None = Field(
-        default=None,
-        description="Sentence structure (only for unit_type=sentence).",
-    )
-    function: SentenceFunction | None = Field(
-        default=None,
-        description="Communicative function (only for unit_type=sentence).",
-    )
-    grammar_points: list[BrickMetadataGrammarPoint] | None = Relationship(
-        cascade_delete=True
-    )
 
 
 class Account(SQLModel, table=True):
     id: int | None = Field(default=None, primary_key=True)
-    username: str = Field(index=True, unique=True)
-    hashed_password: str = Field(unique=True)
-    email: EmailStr | None = Field(default=None, index=True, unique=True)
+    username: str = Field(index=True, unique=True, min_length=3, max_length=20)
+    hashed_password: str = Field(max_length=100)
+    email: EmailStr | None = Field(
+        default=None, index=True, unique=True, max_length=254
+    )
     last_login_at: datetime = Field(
         default_factory=lambda: datetime.now(timezone.utc),
         sa_type=DateTime(timezone=True),
     )
-    learner_id: int = Field(foreign_key="learner.id", unique=True)
-    learner: "Learner" = Relationship(back_populates="account")
+
+    learner_id: int = Field(
+        foreign_key="learner.id", unique=True, ondelete="CASCADE"
+    )
+
+    # Have to use `Optional` instead of `"Learner" | None` here
+    learner: Optional["Learner"] = Relationship(back_populates="account")
 
 
-class PushToken(SQLModel, table=True):
+class Brick(SQLModel, table=True):
     id: int | None = Field(default=None, primary_key=True)
-    token: str = Field(index=True, unique=True)
-    last_sent_at: datetime | None = Field(
+    native_text: str = Field(
+        max_length=settings.brick_max_words * settings.brick_avg_word_len
+    )
+    target_text: str = Field(
+        max_length=settings.brick_max_words * settings.brick_avg_word_len
+    )
+    target_audio_path: str = Field(max_length=settings.max_path_len)
+    target_pron: str | None = Field(
+        default=None,
+        max_length=settings.brick_max_words * settings.brick_avg_word_len,
+    )
+    context: str | None = Field(
+        default=None, max_length=settings.context_max_chars
+    )
+    unit_type: str  # 'word' or 'sentence'
+    is_private: bool = True
+    last_edit_at: datetime = Field(
+        default_factory=lambda: datetime.now(timezone.utc),
+        sa_type=DateTime(timezone=True),
+    )
+
+    collection_id: int = Field(
+        foreign_key="collection.id", ondelete="CASCADE", index=True
+    )
+    collection: "Collection" = Relationship(back_populates="bricks")
+
+    creator_id: int = Field(
+        foreign_key="learner.id", ondelete="CASCADE", index=True
+    )
+    creator: "Learner" = Relationship(back_populates="bricks")
+
+    memories: list["BrickMemory"] | None = Relationship(
+        back_populates="brick", cascade_delete=True
+    )
+    reviews: list["BrickReview"] | None = Relationship(
+        back_populates="brick", cascade_delete=True
+    )
+
+
+class BrickMemory(SQLModel, table=True):
+    """
+    Stores the LATEST algorithmic memory state for a brick.
+    Exactly ONE row exists per learner-brick pair. Updated on every review.
+    """
+
+    id: int | None = Field(default=None, primary_key=True)
+
+    learner_id: int = Field(
+        foreign_key="learner.id", ondelete="CASCADE", index=True
+    )
+    learner: "Learner" = Relationship(back_populates="memories")
+
+    brick_id: int = Field(
+        foreign_key="brick.id", ondelete="CASCADE", index=True
+    )
+    brick: Brick = Relationship(back_populates="memories")
+
+    fsrs_card_dict: dict = Field(default={}, sa_type=JSONB)
+    due: datetime = Field(sa_type=DateTime(timezone=True), index=True)
+
+    last_reviewed_at: datetime | None = Field(
         default=None, sa_type=DateTime(timezone=True)
     )
-    device_name: str | None = None
-    last_ticket_id: str | None = None
-    learner_id: int = Field(foreign_key="learner.id")
-    learner: "Learner" = Relationship(back_populates="push_tokens")
+
+
+class Collection(SQLModel, table=True):
+    __table_args__ = (
+        UniqueConstraint(
+            "creator_id", "name", name="uq_creator_collection_name"
+        ),
+    )
+
+    id: int | None = Field(default=None, primary_key=True)
+    name: str = Field(max_length=50)
+    description: str | None = Field(default=None, max_length=100)
+    created_at: datetime = Field(
+        default_factory=lambda: datetime.now(timezone.utc),
+        sa_type=DateTime(timezone=True),
+    )
+
+    creator_id: int = Field(foreign_key="learner.id", ondelete="CASCADE")
+    creator: "Learner" = Relationship(back_populates="collections")
+
+    bricks: list[Brick] | None = Relationship(
+        back_populates="collection", cascade_delete=True
+    )
 
 
 class Learner(SQLModel, table=True):
     id: int | None = Field(default=None, primary_key=True)
-    full_name: str
-    collections: list["Collection"] | None = Relationship(
-        back_populates="creator"
-    )
-    bricks: list["Brick"] | None = Relationship(back_populates="creator")
-    reviews: list["Review"] | None = Relationship(back_populates="learner")
+    name: str = Field(max_length=100)
+
     account: Account | None = Relationship(
-        back_populates="learner"
-    )  # Allow null in runtime
-    brick_overrides: list["BrickOverride"] = Relationship(
-        back_populates="learner"
+        back_populates="learner", cascade_delete=True
     )
-    snippet_interactions: list["SnippetInteraction"] = Relationship(
-        back_populates="learner"
+    collections: list[Collection] | None = Relationship(
+        back_populates="creator", cascade_delete=True
     )
-    push_tokens: list["PushToken"] = Relationship(back_populates="learner")
-    historyanswerquestions: list["HistoryAnswerQuestion"] = Relationship(
-        back_populates="learners"
+    bricks: list[Brick] | None = Relationship(
+        back_populates="creator", cascade_delete=True
     )
-    thetalearnerlessons: list["ThetaLearnerLesson"] = Relationship(
-        back_populates="learner"
+    tags: list["Tag"] | None = Relationship(
+        back_populates="creator", cascade_delete=True
     )
-    historychats: list["HistoryChat"] = Relationship(back_populates="learner")
-    learner_exercises: list["LearnerExercise"] = Relationship(
-        back_populates="learner"
+    memories: list[BrickMemory] | None = Relationship(
+        back_populates="learner", cascade_delete=True
+    )
+    reviews: list["BrickReview"] | None = Relationship(
+        back_populates="learner", cascade_delete=True
+    )
+    audio_contributions: list["SnippetAudioContribution"] | None = (
+        Relationship(back_populates="learner", cascade_delete=True)
+    )
+    snippets: list["Snippet"] | None = Relationship(
+        back_populates="creator", cascade_delete=True
+    )
+    snippet_reports: list["SnippetReport"] | None = Relationship(
+        back_populates="learner", cascade_delete=True
+    )
+    snippet_interactions: list["SnippetInteraction"] | None = Relationship(
+        back_populates="learner", cascade_delete=True
     )
 
 
@@ -112,140 +159,6 @@ class LearnerSetting(SQLModel, table=True):
     learner_id: int = Field(foreign_key="learner.id", primary_key=True)
     fsrs_weights: list[float] | None = Field(default=None, sa_type=JSONB)
     target_retention: float = Field(default=0.9)
-
-
-class Collection(SQLModel, table=True):
-    id: int | None = Field(default=None, primary_key=True)
-    name: str
-    created_at: datetime = Field(
-        default_factory=lambda: datetime.now(timezone.utc),
-        sa_type=DateTime(timezone=True),
-    )
-
-    creator_id: int = Field(foreign_key="learner.id")
-    creator: Learner = Relationship(back_populates="collections")
-
-    bricks: list["Brick"] = Relationship(
-        back_populates="collection", passive_deletes="all"
-    )
-    brick_overrides: list["BrickOverride"] = Relationship(
-        back_populates="collection", cascade_delete=True
-    )
-
-
-class Brick(SQLModel, table=True):
-    id: int | None = Field(default=None, primary_key=True)
-    native_text: str
-    target_text: str = Field(unique=True)
-    target_audio_path: str
-    cefr_level: CEFRLevel | None = None
-    target_text_log_freq: float
-    is_public: bool = True
-    last_edit_at: datetime = Field(
-        default_factory=lambda: datetime.now(timezone.utc),
-        sa_type=DateTime(timezone=True),
-    )
-
-    creator_id: int = Field(foreign_key="learner.id")
-    creator: Learner = Relationship(back_populates="bricks")
-
-    brick_metadata_id: int | None = Field(
-        default=None,
-        foreign_key="brickmetadata.id",
-        unique=True,
-        nullable=False,
-        ondelete="CASCADE",
-    )
-    brick_metadata: BrickMetadata | None = Relationship(
-        cascade_delete=True, sa_relationship_kwargs={"single_parent": True}
-    )
-
-    collection_id: int = Field(
-        foreign_key="collection.id", ondelete="RESTRICT"
-    )
-    collection: Collection = Relationship(back_populates="bricks")
-
-    reviews: list["Review"] | None = Relationship(
-        back_populates="brick", cascade_delete=True
-    )
-    overrides: list["BrickOverride"] = Relationship(
-        back_populates="brick", passive_deletes="all"
-    )
-    learning_cards: list["LearningCard"] = Relationship(
-        back_populates="brick", cascade_delete=True
-    )
-    # System bricks only
-    lesson_id: int | None = Field(default=None, index=True)
-    __table_args__ = (
-        Index(
-            "idx_brick_search",
-            text(
-                "to_tsvector('simple', target_text || ' ' || native_text)"
-            ),  # Use 'simple' or 'english'
-            postgresql_using="gin",
-        ),
-    )
-
-
-class BrickOverride(SQLModel, table=True):
-    learner_id: int = Field(foreign_key="learner.id", primary_key=True)
-    learner: Learner = Relationship(back_populates="brick_overrides")
-
-    brick_id: int = Field(
-        foreign_key="brick.id", primary_key=True, ondelete="RESTRICT"
-    )
-    brick: Brick = Relationship(back_populates="overrides")
-
-    collection_id: int = Field(
-        foreign_key="collection.id", primary_key=True, ondelete="CASCADE"
-    )
-    collection: Collection = Relationship(back_populates="brick_overrides")
-
-    native_text: str | None = None
-    target_audio_path: str | None = None
-    last_edit_at: datetime = Field(
-        default_factory=lambda: datetime.now(timezone.utc),
-        sa_type=DateTime(timezone=True),
-    )
-
-
-class Review(SQLModel, table=True):
-    id: int | None = Field(default=None, primary_key=True)
-
-    learner_id: int = Field(foreign_key="learner.id")
-    learner: Learner = Relationship(back_populates="reviews")
-
-    brick_id: int = Field(foreign_key="brick.id", ondelete="CASCADE")
-    brick: Brick = Relationship(back_populates="reviews")
-
-    first_score: float
-    is_answer_revealed: bool = False
-    fsrs_rating: int = Field(
-        ge=1, le=4
-    )  # Again = 1, Hard = 2, Good = 3, Easy = 4
-    reviewed_at: datetime = Field(
-        default_factory=lambda: datetime.now(timezone.utc),
-        sa_type=DateTime(timezone=True),
-    )
-    fsrs_log_dict: dict = Field(default={}, sa_type=JSONB)
-    user_target_text: str | None = None
-    user_target_audio_path: str | None = None
-
-
-class LearningCard(SQLModel, table=True):
-    learner_id: int = Field(foreign_key="learner.id", primary_key=True)
-
-    brick_id: int = Field(
-        foreign_key="brick.id", primary_key=True, ondelete="CASCADE"
-    )
-    brick: "Brick" = Relationship(back_populates="learning_cards")
-
-    fsrs_card_dict: dict = Field(default={}, sa_type=JSONB)
-    due: datetime = Field(sa_type=DateTime(timezone=True))
-    created_at: datetime = Field(
-        default_factory=lambda: datetime.now(timezone.utc),
-        sa_type=DateTime(timezone=True),
-    )
 
 
 class OTP(SQLModel, table=True):
@@ -262,75 +175,121 @@ class OTP(SQLModel, table=True):
     used: bool = False
 
 
+class BrickReview(SQLModel, table=True):
+    """
+    Stores the immutable historical log of an individual review attempt.
+    Appends a new row every time a learner answers.
+    """
+
+    id: int | None = Field(default=None, primary_key=True)
+    reviewed_at: datetime = Field(
+        default_factory=lambda: datetime.now(timezone.utc),
+        sa_type=DateTime(timezone=True),
+    )
+
+    learner_id: int = Field(
+        foreign_key="learner.id", ondelete="CASCADE", index=True
+    )
+    learner: Learner = Relationship(back_populates="reviews")
+
+    brick_id: int = Field(
+        foreign_key="brick.id", ondelete="CASCADE", index=True
+    )
+    brick: Brick = Relationship(back_populates="reviews")
+
+    # Performance metrics for this specific attempt
+    first_score: float
+    is_answer_revealed: bool = False
+
+    # Again = 1, Hard = 2, Good = 3, Easy = 4
+    fsrs_rating: int = Field(ge=1, le=4)
+    fsrs_log_dict: dict = Field(default={}, sa_type=JSONB)
+
+    # User's actual typed/spoken response payload for this attempt
+    user_target_text: str | None = Field(
+        default=None,
+        max_length=settings.brick_max_words * settings.brick_avg_word_len,
+    )
+    user_target_audio_path: str | None = Field(
+        default=None, max_length=settings.max_path_len
+    )
+
+
 class Snippet(SQLModel, table=True):
     id: int | None = Field(default=None, primary_key=True)
-    content: str
-    audio_path: str
+    content: str = Field(
+        max_length=settings.brick_max_words * settings.brick_avg_word_len
+    )
+    translation: str | None = Field(
+        default=None,
+        max_length=settings.brick_max_words * settings.brick_avg_word_len,
+    )
+    content_audio_path: str | None = Field(
+        default=None, max_length=settings.max_path_len
+    )
+    content_pron: str | None = Field(
+        default=None,
+        max_length=settings.brick_max_words * settings.brick_avg_word_len,
+    )
+    context: str | None = Field(
+        default=None, max_length=settings.context_max_chars
+    )
+    is_public: bool = True
+    last_edit_at: datetime = Field(
+        default_factory=lambda: datetime.now(timezone.utc),
+        sa_type=DateTime(timezone=True),
+    )
 
-    creator_id: int = Field(default=None, foreign_key="learner.id")
-    creator: Learner = Relationship()
+    creator_id: int = Field(foreign_key="learner.id", ondelete="CASCADE")
+    creator: Learner = Relationship(back_populates="snippets")
 
+    audio_contributions: list["SnippetAudioContribution"] = Relationship(
+        back_populates="snippet", cascade_delete=True
+    )
+    reports: list["SnippetReport"] = Relationship(
+        back_populates="snippet", cascade_delete=True
+    )
+    interactions: list["SnippetInteraction"] = Relationship(
+        back_populates="snippet", cascade_delete=True
+    )
+
+
+class SnippetAudioContribution(SQLModel, table=True):
+    id: int | None = Field(default=None, primary_key=True)
+    audio_path: str = Field(max_length=settings.max_path_len)
+    status: str = Field(default="pending")  # approved, pending, rejected
     created_at: datetime = Field(
         default_factory=lambda: datetime.now(timezone.utc),
         sa_type=DateTime(timezone=True),
     )
-    is_public: bool = True
-    translation: str | None = None  # for dynamic translation
 
-    # for feature enhancement later
-    log_frequency: float | None = None
-    audio_duration: float | None = None
+    snippet_id: int = Field(foreign_key="snippet.id", ondelete="CASCADE")
+    snippet: Snippet = Relationship(back_populates="audio_contributions")
 
-    interactions: list["SnippetInteraction"] = Relationship(
-        back_populates="snippet"
-    )
-    __table_args__ = (
-        Index(
-            "idx_snippet_search",
-            text("to_tsvector('simple', content)"),
-            postgresql_using="gin",
-        ),
-    )
+    learner_id: int = Field(foreign_key="learner.id", ondelete="CASCADE")
+    learner: Learner = Relationship(back_populates="audio_contributions")
 
 
 class SnippetInteraction(SQLModel, table=True):
-    __table_args__ = (
-        CheckConstraint(
-            """
-            (type = 'TIME_SPENT' AND duration IS NOT NULL)
-            OR
-            (type != 'TIME_SPENT' AND duration IS NULL)
-            """,
-            name="check_duration_consistency",
-        ),
-    )
     id: int | None = Field(default=None, primary_key=True)
 
-    session_id: str
-    snippet_id: int = Field(foreign_key="snippet.id")
-
-    type: InteractionType
-    duration: float | None = None  # for TIME_SPENT
+    # LISTEN, VIEW_TRANSLATION, LIKE, DISLIKE, REMOVE_REACTION, ADD
+    type: str = Field(max_length=20)
 
     created_at: datetime = Field(
         default_factory=lambda: datetime.now(timezone.utc),
         sa_type=DateTime(timezone=True),
     )
 
-    learner_id: int | None = Field(default=None, foreign_key="learner.id")
-    learner: "Learner" = Relationship(back_populates="snippet_interactions")
+    session_id: str
 
-    snippet: "Snippet" = Relationship(back_populates="interactions")
+    snippet_id: int = Field(foreign_key="snippet.id", ondelete="CASCADE")
+    snippet: Snippet = Relationship(back_populates="interactions")
 
-
-class SnippetReaction(SQLModel, table=True):
-    learner_id: int = Field(foreign_key="learner.id", primary_key=True)
-    snippet_id: int = Field(foreign_key="snippet.id", primary_key=True)
-    reaction: str  # LIKE / DISLIKE
-    updated_at: datetime = Field(
-        default_factory=lambda: datetime.now(timezone.utc),
-        sa_type=DateTime(timezone=True),
+    learner_id: int | None = Field(
+        default=None, foreign_key="learner.id", ondelete="CASCADE"
     )
+    learner: Learner = Relationship(back_populates="snippet_interactions")
 
 
 class SessionProfile(SQLModel, table=True):
@@ -343,121 +302,53 @@ class SessionProfile(SQLModel, table=True):
     )
 
 
-class Topic(SQLModel, table=True):
-    id: int | None = Field(default=None, primary_key=True)
-    name: str
-    description: str | None
-
-    lessons: list["Lesson"] = Relationship(back_populates="topic")
-
-
-class Lesson(SQLModel, table=True):
-    id: int | None = Field(default=None, primary_key=True)
-    name: str
-    description: str | None
-
-    topic_id: int | None = Field(default=None, foreign_key="topic.id")
-    topic: Topic | None = Relationship(back_populates="lessons")
-
-    exercises: list["Exercise"] = Relationship(back_populates="lesson")
-    thetalearnerlessons: list["ThetaLearnerLesson"] = Relationship(
-        back_populates="lesson"
-    )
-
-
-class Exercise(SQLModel, table=True):
-    id: int | None = Field(default=None, primary_key=True)
-    name: str
-    difficulty: float | None = Field(default=0.0)
-    lesson_id: int = Field(default=None, foreign_key="lesson.id")
-    lesson: Lesson | None = Relationship(back_populates="exercises")
-    exercise_type: ExerciseType = ExerciseType.PRACTICE
-    questions: list["Question"] = Relationship(back_populates="exercise")
-    historychats: list["HistoryChat"] = Relationship(back_populates="exercise")
-    learner_exercises: list["LearnerExercise"] = Relationship(
-        back_populates="exercise"
-    )
-
-
-class Question(SQLModel, table=True):
-    id: int | None = Field(default=None, primary_key=True)
-    content: str | None = None
-    question: str | None = None
-    answer: str | None = None
-    correct_answer: str | None = None
-
-    type: str | None = None
-    score: float | None = None
-    difficulty: float | None = Field(default=0.0)
-    last_difficulty_update_at: datetime | None = Field(
-        default=None, sa_type=DateTime(timezone=True)
-    )
-    exercise_id: int = Field(default=None, foreign_key="exercise.id")
-    exercise: Exercise | None = Relationship(back_populates="questions")
-    historyanswerquestions: list["HistoryAnswerQuestion"] = Relationship(
-        back_populates="questions"
-    )
-
-
-class ThetaLearnerLesson(SQLModel, table=True):
-    id: int | None = Field(default=None, primary_key=True)
-    learner_id: int = Field(foreign_key="learner.id")
-    lesson_id: int = Field(foreign_key="lesson.id")
-    theta: float | None = Field(default=0)
-    is_completed: bool = Field(default=False)
-    completed_at: datetime | None = Field(
-        default=None, sa_type=DateTime(timezone=True)
-    )
-
-    lesson: Lesson | None = Relationship(back_populates="thetalearnerlessons")
-    learner: Learner | None = Relationship(
-        back_populates="thetalearnerlessons"
-    )
-
-
-class LearnerExercise(SQLModel, table=True):
-    id: int | None = Field(default=None, primary_key=True)
-    learner_id: int = Field(foreign_key="learner.id", ondelete="CASCADE")
-    exercise_id: int = Field(foreign_key="exercise.id", ondelete="CASCADE")
-    num_correct_questions: int = Field(default=0)
-    num_incorrect_questions: int = Field(default=0)
-    started_at: datetime = Field(
+class SnippetReaction(SQLModel, table=True):
+    learner_id: int = Field(foreign_key="learner.id", primary_key=True)
+    snippet_id: int = Field(foreign_key="snippet.id", primary_key=True)
+    reaction: str = Field(max_length=20)  # LIKE / DISLIKE
+    updated_at: datetime = Field(
         default_factory=lambda: datetime.now(timezone.utc),
         sa_type=DateTime(timezone=True),
     )
-    ended_at: datetime | None = Field(
-        default=None, sa_type=DateTime(timezone=True)
-    )
-    is_completed: bool = Field(default=False)
-
-    learner: Learner = Relationship(back_populates="learner_exercises")
-    exercise: Exercise = Relationship(back_populates="learner_exercises")
-    history_answer_questions: list["HistoryAnswerQuestion"] = Relationship(
-        back_populates="learner_exercise"
-    )
-
-    __table_args__ = (
-        Index(
-            "ix_learnerexercise_learner_exercise",
-            "learner_id",
-            "exercise_id",
-        ),
-    )
 
 
-class HistoryAnswerQuestion(SQLModel, table=True):
+class SnippetReport(SQLModel, table=True):
     id: int | None = Field(default=None, primary_key=True)
-    learner_id: int = Field(foreign_key="learner.id")
-    question_id: int = Field(foreign_key="question.id")
-    user_answer: str | None = None
-    timesecond: datetime | None = None
-    learner_exercise_id: int | None = Field(
-        default=None, foreign_key="learnerexercise.id"
+    reason: str = Field(default="No provided", max_length=1000)
+    status: str = Field(default="open")  # open, resolved, dismissed
+    created_at: datetime = Field(
+        default_factory=lambda: datetime.now(timezone.utc),
+        sa_type=DateTime(timezone=True),
     )
-    questions: Question = Relationship(back_populates="historyanswerquestions")
-    learners: Learner = Relationship(back_populates="historyanswerquestions")
-    learner_exercise: LearnerExercise | None = Relationship(
-        back_populates="history_answer_questions"
+
+    snippet_id: int = Field(foreign_key="snippet.id", ondelete="CASCADE")
+    snippet: Snippet = Relationship(back_populates="reports")
+
+    learner_id: int = Field(foreign_key="learner.id", ondelete="CASCADE")
+    learner: Learner = Relationship(back_populates="snippet_reports")
+
+
+class Tag(SQLModel, table=True):
+    id: int | None = Field(default=None, primary_key=True)
+    name: str = Field(max_length=20)
+
+    creator_id: int = Field(foreign_key="learner.id", ondelete="CASCADE")
+    creator: Learner | None = Relationship(back_populates="tags")
+
+
+class Taggable(SQLModel, table=True):
+    tag_id: int = Field(
+        foreign_key="tag.id", primary_key=True, ondelete="CASCADE"
+    )
+    tag: "Tag" = Relationship()
+    taggable_id: int = Field(primary_key=True, index=True)
+
+    # 'Brick', 'Collection', 'Snippet',...
+    taggable_type: str = Field(primary_key=True, max_length=20, index=True)
+
+    created_at: datetime = Field(
+        default_factory=lambda: datetime.now(timezone.utc),
+        sa_type=DateTime(timezone=True),
     )
 
 
@@ -473,52 +364,4 @@ class YouTubeSubtitle(SQLModel, table=True):
             text("to_tsvector('simple', transcript)"),
             postgresql_using="gin",
         ),
-    )
-
-
-class BrokenBrickReport(SQLModel, table=True):
-    learner_id: int = Field(
-        foreign_key="learner.id", primary_key=True, ondelete="CASCADE"
-    )
-    brick_id: int = Field(
-        foreign_key="brick.id", primary_key=True, ondelete="CASCADE"
-    )
-    description: str | None = None
-    reported_at: datetime = Field(
-        default_factory=lambda: datetime.now(timezone.utc),
-        sa_type=DateTime(timezone=True),
-    )
-
-
-class HistoryChat(SQLModel, table=True):
-    id: int | None = Field(default=None, primary_key=True)
-
-    user_id: int = Field(foreign_key="learner.id")
-    learner: Learner | None = Relationship(back_populates="historychats")
-
-    exercise_id: int = Field(foreign_key="exercise.id")
-    exercise: Exercise | None = Relationship(back_populates="historychats")
-
-    path_storage: str
-
-    created_at: datetime = Field(
-        default_factory=lambda: datetime.now(timezone.utc),
-        sa_type=DateTime(timezone=True),
-    )
-    modified_at: datetime = Field(
-        default_factory=lambda: datetime.now(timezone.utc),
-        sa_type=DateTime(timezone=True),
-    )
-
-
-class MistakeMemory(SQLModel, table=True):
-    id: int | None = Field(default=None, primary_key=True)
-    learner_id: int = Field(foreign_key="learner.id", index=True)
-    mistake_type: str
-    content: str
-    grammar_point: str | None = None
-    suggested_fix: str | None = None
-    created_at: datetime = Field(
-        default_factory=lambda: datetime.now(timezone.utc),
-        sa_type=DateTime(timezone=True),
     )
