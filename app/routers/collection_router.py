@@ -5,8 +5,9 @@ from sqlmodel import Session
 
 from app.database import Learner, get_session
 from app.schemas import (
+    CollectionCreate,
     CollectionRead,
-    CollectionRenameRequest,
+    CollectionUpdate,
 )
 from app.services import (
     auth_service,
@@ -37,25 +38,61 @@ def get_collections(
     ]
 
 
-@router.patch("/{collection_id}/name", response_model=CollectionRead)
-def rename_collection(
-    collection_id: int,
-    payload: CollectionRenameRequest,
+@router.post(
+    "", response_model=CollectionRead, status_code=status.HTTP_201_CREATED
+)
+def create_collection(
+    payload: CollectionCreate,
     session: Annotated[Session, Depends(get_session)],
     creator: Annotated[
         Learner,
         Depends(auth_service.decode_token_get_learner),
     ],
-):
-    return collection_service.rename_collection(
+) -> CollectionRead:
+    collection, tags = collection_service.create_collection(
         session=session,
         creator_id=creator.id,
-        collection_id=collection_id,
-        new_name=payload.new_name,
+        collection_create=payload,
+    )
+    return CollectionRead.model_validate(
+        collection,
+        update={
+            "brick_count": 0,
+            "learned_count": 0,
+            "tags": tags,
+        },
     )
 
 
-@router.delete("", status_code=status.HTTP_204_NO_CONTENT)
+@router.patch("/{collection_id}", response_model=CollectionRead)
+def update_collection(
+    collection_id: int,
+    payload: CollectionUpdate,
+    session: Annotated[Session, Depends(get_session)],
+    creator: Annotated[
+        Learner,
+        Depends(auth_service.decode_token_get_learner),
+    ],
+) -> CollectionRead:
+    collection, brick_count, learned_count, tags = (
+        collection_service.update_collection(
+            session=session,
+            creator_id=creator.id,
+            collection_id=collection_id,
+            collection_update=payload,
+        )
+    )
+    return CollectionRead.model_validate(
+        collection,
+        update={
+            "brick_count": brick_count,
+            "learned_count": learned_count,
+            "tags": tags,
+        },
+    )
+
+
+@router.delete("/{collection_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_collection(
     session: Annotated[Session, Depends(get_session)],
     creator: Annotated[

@@ -83,7 +83,7 @@ def test_send_email_change_otp_success(client: TestClient):
     new_email = "new_verified_email@example.com"
     with patch("app.services.account_service.send_email"):
         response = client.post(
-            "/accounts/me/email/send-otp",
+            "/accounts/email/send-otp",
             json={
                 "old_email": "hellophucnh@gmail.com",
                 "new_email": new_email,
@@ -116,7 +116,7 @@ def test_send_email_change_otp_wrong_old_email(client: TestClient):
     )
 
     response = client.post(
-        "/accounts/me/email/send-otp",
+        "/accounts/email/send-otp",
         json={
             "old_email": "wrong_old_email@example.com",
             "new_email": "brand_new@example.com",
@@ -209,7 +209,7 @@ def test_change_email_success(client: TestClient):
     code = otp_service.create_otp(session, new_email)
 
     response = client.patch(
-        "/accounts/me/email",
+        "/accounts/email",
         json={
             "old_email": "hellophucnh@gmail.com",
             "new_email": new_email,
@@ -247,7 +247,7 @@ def test_change_email_wrong_old_email(client: TestClient):
     code = otp_service.create_otp(session, new_email)
 
     response = client.patch(
-        "/accounts/me/email",
+        "/accounts/email",
         json={
             "old_email": "incorrect_email@example.com",
             "new_email": new_email,
@@ -259,44 +259,6 @@ def test_change_email_wrong_old_email(client: TestClient):
 
     assert response.status_code == 400
     assert response.json()["error_code"] == ErrorCode.INCORRECT_EMAIL.value
-
-
-def test_change_email_post_alias_success(client: TestClient):
-    session_gen = get_session()
-    session = next(session_gen)
-
-    account = session.exec(
-        select(Account).where(Account.username == "hoangphuc")
-    ).first()
-    learner = account.learner
-
-    app.dependency_overrides[auth_service.decode_token_get_learner] = lambda: (
-        learner
-    )
-
-    new_email = "updated_post_hoangphuc@example.com"
-    code = otp_service.create_otp(session, new_email)
-
-    response = client.post(
-        "/accounts/change-email",
-        json={
-            "old_email": "hellophucnh@gmail.com",
-            "new_email": new_email,
-            "otp": code,
-        },
-    )
-
-    app.dependency_overrides.clear()
-
-    assert response.status_code == 204
-
-    session.refresh(account)
-    assert account.email == new_email
-
-    # Restore email
-    account.email = "hellophucnh@gmail.com"
-    session.add(account)
-    session.commit()
 
 
 def test_change_email_taken(client: TestClient):
@@ -322,7 +284,7 @@ def test_change_email_taken(client: TestClient):
 
         code = otp_service.create_otp(session, "other_taken_email@example.com")
         response = client.patch(
-            "/accounts/me/email",
+            "/accounts/email",
             json={
                 "old_email": "hellophucnh@gmail.com",
                 "new_email": "other_taken_email@example.com",
@@ -355,7 +317,7 @@ def test_change_email_invalid_otp(client: TestClient):
     otp_service.create_otp(session, new_email)
 
     response = client.patch(
-        "/accounts/me/email",
+        "/accounts/email",
         json={
             "old_email": "hellophucnh@gmail.com",
             "new_email": new_email,
