@@ -23,7 +23,12 @@ from .brick import (
     BrickStatus,
     BrickUpdate,
 )
-from .collection import CollectionRead, CollectionRenameRequest
+from .collection import (
+    CollectionCreate,
+    CollectionRead,
+    CollectionRenameRequest,
+    CollectionUpdate,
+)
 from .context_search import ContextSearchRequest, VideoContextSearchResult
 from .explanation import (
     ExplanationRequest,
@@ -48,13 +53,15 @@ __all__ = [
     "BrickLearnRead",
     "BrickListeningData",
     "BrickListeningPage",
-    "CollectionRenameRequest",
     "BrickPage",
     "BrickRead",
     "BrickSort",
     "BrickStatus",
     "BrickUpdate",
+    "CollectionCreate",
     "CollectionRead",
+    "CollectionRenameRequest",
+    "CollectionUpdate",
     "ContextSearchRequest",
     "EmailChangeOTPRequest",
     "EmailChangeRequest",
