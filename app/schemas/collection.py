@@ -8,6 +8,16 @@ class CollectionBase(SQLModel):
     description: str | None = None
 
 
+class CollectionCreate(CollectionBase):
+    tags: list[str] = []
+
+
+class CollectionUpdate(SQLModel):
+    name: str | None = None
+    description: str | None = None
+    tags: list[str] | None = None
+
+
 class CollectionRead(CollectionBase):
     id: int
     creator_id: int

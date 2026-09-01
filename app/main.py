@@ -107,7 +107,7 @@ async def http_exception_handler(request, exc: StarletteHTTPException):
 # Allow requests from the frontend
 origins = [
     "http://127.0.0.1:5173",
-    "http://192.168.138.230:5173",  # must use if using phone/other devices
+    "http://192.168.211.230:5173",  # must use if using phone/other devices
 ]
 
 app.add_middleware(
