@@ -15,12 +15,12 @@ async def save_upload_file(
 
     Args:
         file: FastAPI UploadFile
-        base_dir: Base directory (e.g. "learner-audio")
-        sub_dir: Optional subfolder (e.g. f"user-{learner_id}")
-        filename_prefix: Optional prefix (e.g. f"brick_{brick_id}")
+        base_dir: Base directory (e.g. "lisenare-assets/learner-audio")
+        sub_dir: Optional subfolder (e.g. f"learner-{learner_id}")
+        filename_prefix: Optional prefix (e.g. f"brick-{brick_id}")
 
     Returns:
-        Relative path to the saved file, file_bytes
+        Relative path to the saved file after the lisenare-assets/ folder, file_bytes
     """
 
     # Read file bytes once
@@ -40,8 +40,17 @@ async def save_upload_file(
     # Get extension safely
     extension = Path(file.filename).suffix or ".m4a"
 
-    filename = f"{filename_prefix}_{timestamp}{extension}"
+    filename = f"{filename_prefix}-{timestamp}{extension}"
     file_path = save_dir / filename
     file_path.write_bytes(file_bytes)
 
-    return str(file_path), file_bytes
+    # Extract the relative path
+    path_str = file_path.as_posix()
+
+    # Split by the marker and take the part after it
+    if "lisenare-assets/" in path_str:
+        returned_path = path_str.split("lisenare-assets/", 1)[1]
+    else:
+        returned_path = path_str
+
+    return returned_path, file_bytes
