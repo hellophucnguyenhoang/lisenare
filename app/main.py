@@ -2,11 +2,14 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.openapi.utils import get_openapi
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app.config import settings
+from app.schemas import BrickCreateRequest, BrickUpdate
+from utils.form_utils import get_model_example_string
 
 from . import database, http_client
 from .exceptions import RequestException
@@ -139,12 +142,48 @@ app.include_router(text_router.router)
 
 
 app.mount(
-    f"/lisenare-assets/{settings.brick_audios_folder}",
-    StaticFiles(directory=f"lisenare-assets/{settings.brick_audios_folder}"),
+    f"/{settings.brick_audios_folder}",
+    StaticFiles(directory=settings.brick_audios_folder),
     name=settings.brick_audios_folder,
 )
 app.mount(
-    f"/lisenare-assets/{settings.snippets_folder}",
-    StaticFiles(directory=f"lisenare-assets/{settings.snippets_folder}"),
+    f"/{settings.learner_audios_folder}",
+    StaticFiles(directory=settings.learner_audios_folder),
+    name=settings.learner_audios_folder,
+)
+app.mount(
+    f"/{settings.snippets_folder}",
+    StaticFiles(directory=settings.snippets_folder),
     name=settings.snippets_folder,
 )
+
+
+# Extending OpenAPI
+def custom_openapi():
+    if app.openapi_schema:
+        return app.openapi_schema
+
+    openapi_schema = get_openapi(
+        title="Lisenare API", version="0.1.1", routes=app.routes
+    )
+
+    schema_targets = {
+        "Body_create_brick_bricks_post": BrickCreateRequest,
+        "Body_update_brick_bricks__brick_id__patch": BrickUpdate,
+    }
+    schemas = openapi_schema.get("components", {}).get("schemas", {})
+
+    for schema_key, model_class in schema_targets.items():
+        if schema_key in schemas:
+            properties = schemas[schema_key].get("properties", {})
+            if "json_data" in properties:
+                # Dynamically generate the string template using the new Field examples
+                example_json_string = get_model_example_string(model_class)
+                # Overwrite the Swagger example field cleanly
+                properties["json_data"]["example"] = example_json_string
+
+    app.openapi_schema = openapi_schema
+    return app.openapi_schema
+
+
+app.openapi = custom_openapi

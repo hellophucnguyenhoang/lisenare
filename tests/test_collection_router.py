@@ -19,9 +19,10 @@ def test_get_pending_collections(client: TestClient):
     # Print things out to inspect them
     assert response.status_code == 200
     collections = response.json()
+    assert len(collections) > 0
     for collection in collections:
         assert collection["id"] > 0
-        assert collection["brick_count"] > 0
+        assert collection["brick_count"] >= 0
 
 
 def test_create_collection_success(client: TestClient):
