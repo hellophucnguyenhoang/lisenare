@@ -35,7 +35,7 @@ def create_account(
 
 
 @router.post("/send-otp", status_code=status.HTTP_204_NO_CONTENT)
-def send_otp(
+async def send_otp(
     session: Annotated[Session, Depends(get_session)],
     background_tasks: BackgroundTasks,
     request: SendOTPRequest,
@@ -77,7 +77,7 @@ def change_account_password(
 
 
 @router.post("/email/send-otp", status_code=status.HTTP_204_NO_CONTENT)
-def send_email_change_otp(
+async def send_email_change_otp(
     session: Annotated[Session, Depends(get_session)],
     background_tasks: BackgroundTasks,
     learner: Annotated[

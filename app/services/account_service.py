@@ -1,12 +1,11 @@
-import smtplib
 from datetime import datetime, timezone
-from email.message import EmailMessage
 
 from fastapi import BackgroundTasks, status
+from fastapi_mail import MessageSchema, MessageType
 from sqlmodel import Session, or_, select
 
 from app import security
-from app.config import logger, settings
+from app.config import fast_mail, logger, settings
 from app.database import Account, Learner
 from app.exceptions import ErrorCode, RequestException
 from app.schemas import (
@@ -102,19 +101,18 @@ def change_learner_account_password(
     return account
 
 
-def send_email(to_email: str, subject: str, body: str):
-    logger.info(f"Preparing to send email with subject: '{subject}'")
-    EMAIL_ADDRESS = settings.google_app_email_address
-    EMAIL_PASSWORD = settings.google_app_password
-    msg = EmailMessage()
-    msg["Subject"] = subject
-    msg["From"] = EMAIL_ADDRESS
-    msg["To"] = to_email
-    msg.set_content(body)
+async def send_email(to_email: str, subject: str, body: str):
+    logger.info(
+        f"Preparing to send email to {to_email} with subject: '{subject}'"
+    )
+    message = MessageSchema(
+        subject=subject,
+        recipients=[to_email],
+        body=body,
+        subtype=MessageType.html,
+    )
     try:
-        with smtplib.SMTP_SSL("smtp.gmail.com", 465) as smtp:
-            smtp.login(EMAIL_ADDRESS, EMAIL_PASSWORD)
-            smtp.send_message(msg)
+        await fast_mail.send_message(message)
         logger.info("Email successfully sent")
     except Exception as e:
         logger.error(f"Failed to send email. Error: {str(e)}")
@@ -154,10 +152,15 @@ def send_otp_by_username(
     code = otp_service.create_otp(session, account.email)
     subject = "Your OTP Code from Lisenare"
     body = (
-        f"Hello!\n\n"
-        f"Your verification code is: {code}\n"
-        f"This code expires in {settings.otp_expire_minutes} minutes.\n\n"
-        f"Lisenare team."
+        f"<div style=\"font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; font-size: 16px; color: #333333; line-height: 1.6; max-width: 500px; margin: 0 auto; padding: 24px; border: 1px solid #e0e0e0; border-radius: 8px; background-color: #ffffff;\">"
+        f'  <h2 style="color: #00685f; margin-top: 0; font-size: 22px; font-weight: 700;">Security Verification</h2>'
+        f"  Hello!<br><br>"
+        f"  Your verification code is:<br>"
+        f'  <div style="font-size: min(7vw, 28px); font-weight: bold; letter-spacing: 4px; color: #00685f; background-color: #f0f7f6; padding: 14px 8px; text-align: center; border-radius: 6px; margin: 16px 0; border: 1px dashed #00685f;">{code}</div>'
+        f"  This code expires in <strong>{settings.otp_expire_minutes} minutes</strong>.<br><br>"
+        f"  Best regards,<br>"
+        f"  <strong>Lisenare Team</strong>"
+        f"</div>"
     )
     send_email_background(background_tasks, account.email, subject, body)
 
@@ -214,10 +217,15 @@ def send_email_change_otp(
     code = otp_service.create_otp(session, request.new_email)
     subject = "Verify your new email for Lisenare"
     body = (
-        f"Hello!\n\n"
-        f"Your email verification code is: {code}\n"
-        f"This code expires in {settings.otp_expire_minutes} minutes.\n\n"
-        f"Lisenare team."
+        f"<div style=\"font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; font-size: 16px; color: #333333; line-height: 1.6; max-width: 500px; margin: 0 auto; padding: 24px; border: 1px solid #e0e0e0; border-radius: 8px; background-color: #ffffff;\">"
+        f'  <h2 style="color: #00685f; margin-top: 0; font-size: 22px; font-weight: 700;">Verify Your Email</h2>'
+        f"  Hello!<br><br>"
+        f"  Your email verification code is:<br>"
+        f'  <div style="font-size: min(7vw, 28px); font-weight: bold; letter-spacing: 4px; color: #00685f; background-color: #f0f7f6; padding: 14px 8px; text-align: center; border-radius: 6px; margin: 16px 0; border: 1px dashed #00685f;">{code}</div>'
+        f"  This code expires in <strong>{settings.otp_expire_minutes} minutes</strong>.<br><br>"
+        f"  Best regards,<br>"
+        f"  <strong>Lisenare Team</strong>"
+        f"</div>"
     )
     send_email_background(background_tasks, request.new_email, subject, body)
 
