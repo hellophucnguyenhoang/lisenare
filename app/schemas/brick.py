@@ -14,6 +14,7 @@ class BrickUpdate(SQLModel):
     unit_type: str | None = None
     is_private: bool | None = None
     collection_id: int | None = None
+    tags: list[str] | None = None
 
 
 class BrickContextSearch(SQLModel):
@@ -27,15 +28,15 @@ class BrickBase(SQLModel):
     target_text: str
     target_pron: str | None = None
     context: str | None = None
-    unit_type: str
+    unit_type: str = "sentence"
     is_private: bool = True
+    tags: list[str] = []
+    collection_id: int
 
 
 class BrickCreate(BrickBase):
     target_audio_path: str
     creator_id: int
-    collection_id: int
-    tags: list[str] = []
 
 
 class BrickRead(BrickBase):
@@ -44,8 +45,6 @@ class BrickRead(BrickBase):
     last_edit_at: datetime
     creator_id: int
     creator: LearnerRead
-    collection_id: int
-    tags: list[str] = []
 
 
 class BrickLearnRead(BrickRead):
@@ -53,7 +52,7 @@ class BrickLearnRead(BrickRead):
 
 
 class BrickCreateRequest(BrickBase):
-    collection_name: str
+    pass
 
 
 class BrickPage(SQLModel):

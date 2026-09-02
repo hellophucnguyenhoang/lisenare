@@ -115,7 +115,7 @@ async def evaluate_audio(
     (
         learner_audio_path,
         learner_audio_bytes,
-    ) = await file_utils.save_cloud_upload_file(
+    ) = await file_utils.save_upload_file(
         file=learner_file,
         base_dir=settings.learner_audios_folder,
         sub_dir=f"user_{learner.id}",
@@ -201,7 +201,7 @@ async def evaluate_pronunciation_audio(
     (
         learner_audio_path,
         learner_audio_bytes,
-    ) = await file_utils.save_cloud_upload_file(
+    ) = await file_utils.save_upload_file(
         file=learner_file,
         base_dir=settings.learner_audios_folder,
         sub_dir=f"user_{learner.id}",

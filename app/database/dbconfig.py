@@ -235,7 +235,7 @@ def init_snippets(session: Session):
     snippets = []
 
     for row in df.to_dict("records"):
-        audio_path = Path(settings.snippets_folder) / row["filename"]
+        audio_path = Path("snippets-audios") / row["filename"]
         snippets.append(
             Snippet(
                 content=row["text"],
