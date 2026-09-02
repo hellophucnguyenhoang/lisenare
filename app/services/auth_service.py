@@ -55,9 +55,7 @@ async def decode_token_get_learner(
     token: Annotated[str | None, Depends(oauth2_scheme)],
     access_token: Annotated[
         str | None,
-        Cookie(
-            description="Assigning does nothing, browser's JS can't touch this cookie"
-        ),
+        Cookie(description="Browser's JS can't touch this cookie"),
     ] = None,
 ) -> Learner:
     # One general exception to avoid auth information leak

@@ -3,20 +3,25 @@ from datetime import datetime, timezone
 from fastapi import status
 from sqlmodel import Session, and_, exists, func, not_, select
 
-from app.database import Brick, BrickMemory, BrickReview
+from app.database import Brick, BrickMemory, BrickReview, Collection
 from app.exceptions import RequestException
 from app.schemas import (
     BrickCreate,
     BrickCreateRequest,
     BrickLearnRead,
+    BrickRead,
     BrickSort,
     BrickStatus,
     BrickUpdate,
 )
 
-from . import collection_service
 from . import context_search_service as search_service
-from .tag_service import fetch_tags_for_entities
+from .tag_service import (
+    delete_tags_for_entity,
+    fetch_tags_for_entities,
+    fetch_tags_for_entity,
+    set_tags_for_entity,
+)
 
 
 def get_bricks(
@@ -128,7 +133,7 @@ def get_next_brick(
     session: Session,
     creator_id: int,
     collection_ids: list[int] | None = None,
-) -> Brick | None:
+) -> BrickRead | None:
     now = datetime.now(timezone.utc)
     broken_brick_ids = []  # TODO: Get reported brick id
 
@@ -154,7 +159,8 @@ def get_next_brick(
     brick = session.exec(due_stmt).first()
     if brick:
         print("FSRS Case 1: Get the least overdue card")
-        return brick
+        tags = fetch_tags_for_entity(session, brick.id, "Brick")
+        return BrickRead.model_validate(brick, update={"tags": tags})
 
     print("FSRS Case 2: Get a new card")
     new_stmt = (
@@ -171,7 +177,11 @@ def get_next_brick(
     )
 
     new_stmt = apply_filters(new_stmt)
-    return session.exec(new_stmt).first()
+    brick = session.exec(new_stmt).first()
+    if brick:
+        tags = fetch_tags_for_entity(session, brick.id, "Brick")
+        return BrickRead.model_validate(brick, update={"tags": tags})
+    return None
 
 
 def check_target_text_exists(
@@ -191,23 +201,42 @@ def create_brick(
     request_data: BrickCreateRequest,
     creator_id: int,
     target_audio_path: str,
-) -> Brick:
-    collection = collection_service.get_or_create_collection(
-        session,
-        request_data.collection_name,
-        creator_id,
-    )
+) -> BrickRead:
+    collection = session.get(Collection, request_data.collection_id)
+    if not collection:
+        raise RequestException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            debug_message=f"Collection with id {request_data.collection_id} not found",
+        )
+
+    if collection.creator_id != creator_id:
+        raise RequestException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            debug_message=f"{creator_id=} is not the creator of collection {request_data.collection_id}",
+        )
 
     brick_create = BrickCreate(
         native_text=request_data.native_text,
         target_text=request_data.target_text,
-        target_audio_path=target_audio_path,  # e.g. "brick-audios/learner_1_audio.m4a"
+        target_audio_path=target_audio_path,
         is_private=request_data.is_private,
         creator_id=creator_id,
         collection_id=collection.id,
     )
     brick = Brick.model_validate(brick_create)
     session.add(brick)
+    session.flush()
+
+    tags: list[str] = []
+    if request_data.tags:
+        tags = set_tags_for_entity(
+            session=session,
+            entity_id=brick.id,
+            entity_type="Brick",
+            tag_names=request_data.tags,
+            creator_id=creator_id,
+        )
+
     session.commit()
     session.refresh(brick)
 
@@ -223,7 +252,7 @@ def create_brick(
         },
         id_prefix="Brick",
     )
-    return brick
+    return BrickRead.model_validate(brick, update={"tags": tags})
 
 
 def update_brick(
@@ -232,7 +261,7 @@ def update_brick(
     brick_update: BrickUpdate,
     creator_id: int,
     target_audio_path: str | None = None,
-) -> Brick:
+) -> BrickRead:
     stmt = select(Brick).where(Brick.id == brick_id)
     brick = session.exec(stmt).first()
     if not brick:
@@ -251,6 +280,8 @@ def update_brick(
             debug_message=f"{creator_id=} is not the creator to update {brick_id=}",
         )
 
+    tags_to_update = update_data.pop("tags", None)
+
     # Update top-level brick fields
     for key, value in update_data.items():
         setattr(brick, key, value)
@@ -261,9 +292,21 @@ def update_brick(
 
     brick.last_edit_at = datetime.now(timezone.utc)
     session.add(brick)
+
+    if tags_to_update is not None:
+        tags = set_tags_for_entity(
+            session=session,
+            entity_id=brick.id,
+            entity_type="Brick",
+            tag_names=tags_to_update,
+            creator_id=creator_id,
+        )
+    else:
+        tags = fetch_tags_for_entity(session, brick.id, "Brick")
+
     session.commit()
     session.refresh(brick)
-    return brick
+    return BrickRead.model_validate(brick, update={"tags": tags})
 
 
 def delete_brick(session: Session, creator_id: int, brick_id: int) -> str:
@@ -287,6 +330,7 @@ def delete_brick(session: Session, creator_id: int, brick_id: int) -> str:
         id_prefix="Brick",
     )
 
+    delete_tags_for_entity(session, brick_id, "Brick")
     session.delete(brick)
     session.commit()
 
