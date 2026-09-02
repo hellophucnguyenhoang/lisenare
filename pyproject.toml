@@ -10,6 +10,7 @@ dependencies = [
     "boto3>=1.43.18",
     "en-core-web-sm",
     "fakeredis>=2.35.1",
+    "fastapi-mail>=1.6.8",
     "fastapi[standard]>=0.120.1",
     "fastdtw>=0.3.4",
     "ffmpeg-python>=0.2.0",

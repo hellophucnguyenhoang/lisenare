@@ -1,12 +1,14 @@
-from unittest.mock import patch
+from unittest.mock import AsyncMock, patch
 
+import pytest
 from fastapi.testclient import TestClient
+from fastapi_mail import MessageType
 from sqlmodel import select
 
 from app.database import Account, OTP, get_session
 from app.exceptions import ErrorCode
 from app.main import app
-from app.services import auth_service, otp_service
+from app.services import account_service, auth_service, otp_service
 
 
 def test_send_otp_by_username_success(client: TestClient):
@@ -329,3 +331,25 @@ def test_change_email_invalid_otp(client: TestClient):
 
     assert response.status_code == 400
     assert response.json()["error_code"] == ErrorCode.INVALID_OTP.value
+
+
+@pytest.fixture
+def anyio_backend():
+    return "asyncio"
+
+
+@pytest.mark.anyio
+async def test_send_email_async_direct():
+    with patch.object(
+        account_service.fast_mail, "send_message", new_callable=AsyncMock
+    ) as mock_send:
+        await account_service.send_email(
+            to_email="test@example.com",
+            subject="Test Subject",
+            body="Hello!<br><br>Your email verification code is: <strong>123456</strong>",
+        )
+        mock_send.assert_awaited_once()
+        message = mock_send.call_args[0][0]
+        assert message.subject == "Test Subject"
+        assert message.subtype == MessageType.html
+        assert "<strong>123456</strong>" in message.body
