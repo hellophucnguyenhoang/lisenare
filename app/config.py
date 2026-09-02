@@ -1,6 +1,7 @@
 import logging
 from pathlib import Path
 
+from fastapi_mail import ConnectionConfig, FastMail
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
@@ -70,3 +71,16 @@ class Settings(BaseSettings):
 
 
 settings = Settings()
+
+mail_config = ConnectionConfig(
+    MAIL_USERNAME=settings.google_app_email_address,
+    MAIL_PASSWORD=settings.google_app_password,
+    MAIL_FROM=settings.google_app_email_address,
+    MAIL_PORT=465,
+    MAIL_SERVER="smtp.gmail.com",
+    MAIL_STARTTLS=False,
+    MAIL_SSL_TLS=True,
+    USE_CREDENTIALS=True,
+    VALIDATE_CERTS=True,
+)
+fast_mail = FastMail(mail_config)
