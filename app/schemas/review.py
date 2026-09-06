@@ -5,13 +5,13 @@ from sqlmodel import Field, SQLModel
 
 
 class ReviewBase(SQLModel):
-    brick_id: int
     reviewed_at: datetime = Field(
         default_factory=lambda: datetime.now(timezone.utc)
     )
+    brick_id: int
     is_answer_revealed: bool = False
-    user_target_text: str | None = None
-    user_target_audio_path: str | None = None
+    learner_target_text: str | None = None
+    learner_target_audio_path: str | None = None
 
 
 class ReviewCreate(ReviewBase):
