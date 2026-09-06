@@ -1,3 +1,4 @@
+import re
 from datetime import datetime, timezone
 
 from fastapi import status
@@ -129,6 +130,17 @@ def get_brick(session: Session, brick_id: int, creator_id: int) -> Brick:
     return brick
 
 
+def get_brick_by_audio_path(session: Session, audio_path: str) -> Brick:
+    stmt = select(Brick).where(Brick.target_audio_path == audio_path)
+    brick = session.exec(stmt).first()
+    if not brick:
+        raise RequestException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            debug_message=f"Brick with audio path '{audio_path}' not found",
+        )
+    return brick
+
+
 def get_next_brick(
     session: Session,
     creator_id: int,
@@ -184,13 +196,16 @@ def get_next_brick(
     return None
 
 
-def check_target_text_exists(
+def check_brick_exists(
     session: Session, creator_id: int, target_text: str
 ) -> bool:
+    # \w matches Unicode word characters (letters, digits, underscores) globally
+    cleaned_target = re.sub(r"[^\w]", "", target_text).lower()
+
     stmt = select(Brick).where(
         Brick.creator_id == creator_id,
-        func.lower(func.trim(Brick.target_text))
-        == target_text.strip().lower(),
+        func.lower(func.regexp_replace(Brick.target_text, r"[^\w]", "", "g"))
+        == cleaned_target,
     )
     result = session.exec(stmt).first()
     return result is not None

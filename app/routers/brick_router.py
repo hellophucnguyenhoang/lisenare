@@ -125,15 +125,15 @@ def get_listening_bricks(
     )
 
 
-@router.get("/check-exists")
-def check_target_text_exists(
+@router.get("/exists")
+def check_brick_exists(
     session: Annotated[Session, Depends(get_session)],
     creator: Annotated[
         Learner, Depends(auth_service.decode_token_get_learner)
     ],
     target_text: str,
 ) -> bool:
-    return brick_service.check_target_text_exists(
+    return brick_service.check_brick_exists(
         session=session,
         creator_id=creator.id,
         target_text=target_text,
