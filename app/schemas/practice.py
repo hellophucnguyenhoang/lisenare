@@ -10,7 +10,7 @@ class AnswerPracticeRequest(BaseModel):
     session_id: str
     learner_id: int
     question_id: int
-    user_answer: str
+    learner_answer: str
 
 
 class EndPracticeRequest(BaseModel):

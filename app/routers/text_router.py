@@ -27,7 +27,7 @@ router = APIRouter(prefix="/text", tags=["Text Features"])
 
 
 @router.post("/sentence-comparison")
-async def compare_learner_pronunciation(
+async def compare_sentences(
     session: Annotated[Session, Depends(get_session)],
     current_learner: Annotated[
         Learner, Depends(auth_service.decode_token_get_learner)
@@ -66,32 +66,25 @@ async def compare_learner_pronunciation(
         review_metadata = ReviewCreate(
             **comparison_payload.review_base.model_dump(exclude_none=True),
             first_score=evaluation_result.score,
-            user_target_text=comparison_payload.sentence1,
         )
-        total_saved_reviews = brick_review_service.save_review(
+        total_learner_reviews = brick_review_service.save_review(
             session=session,
             learner_id=current_learner.id,
             review_create=review_metadata,
         )
-        print(f"Review saved, {total_saved_reviews = }")
+        print(f"Review saved, {total_learner_reviews=}")
 
         # Optimize spacing intervals periodically
-        if total_saved_reviews > 100 and total_saved_reviews % 200 == 0:
-            background_tasks.add_task(
-                brick_memory_service.optimize_user_scheduler,
-                current_learner.id,
-            )
-            print(
-                f"Triggering background optimization for learner {current_learner.id}"
-            )
-
-        brick_memory_service.update_learning_card(
-            session=session,
-            learner_id=current_learner.id,
-            brick_id=comparison_payload.review_base.brick_id,
-            score=evaluation_result.score,
-            is_answer_revealed=comparison_payload.review_base.is_answer_revealed,
-        )
+        if total_learner_reviews > 100:
+            interval = max(200, int(total_learner_reviews**0.5 * 20))
+            if total_learner_reviews % interval == 0:
+                background_tasks.add_task(
+                    brick_memory_service.optimize_learner_scheduler,
+                    current_learner.id,
+                )
+                print(
+                    f"Triggering background optimization for learner {current_learner.id}"
+                )
 
     return evaluation_result
 

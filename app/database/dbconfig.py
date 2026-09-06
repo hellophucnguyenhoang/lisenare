@@ -259,15 +259,16 @@ def transfer_subtitles():
 
     with Session(engine) as session_new:
         try:
-            for row in results:
-                new_entry = YouTubeSubtitle(
+            entries = [
+                YouTubeSubtitle(
                     video_id=row.video_id,
                     start=row.start,
                     duration=row.duration,
                     transcript=row.text,
                 )
-                session_new.add(new_entry)
-
+                for row in results
+            ]
+            session_new.add_all(entries)
             session_new.commit()
             logger.info(
                 f"Transferred {len(results)} YouTube subtitles to the database."

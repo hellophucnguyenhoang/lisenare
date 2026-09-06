@@ -25,7 +25,6 @@ from .routers import (
     learner_router,
     snippet_interaction_router,
     snippet_router,
-    test_router,
     text_router,
 )
 
@@ -110,7 +109,7 @@ async def http_exception_handler(request, exc: StarletteHTTPException):
 # Allow requests from the frontend
 origins = [
     "http://127.0.0.1:5173",
-    "http://192.168.68.230:5173",  # must use if using phone/other devices
+    "http://192.168.28.230:5173",  # must use if using phone/other devices
 ]
 
 app.add_middleware(
@@ -126,7 +125,7 @@ app.add_middleware(
     allow_headers=["Authorization", "Content-Type"],
 )
 
-app.include_router(test_router.router)
+# app.include_router(test_router.router)
 app.include_router(account_router.router)
 app.include_router(audio_router.router)
 app.include_router(auth_router.router)
