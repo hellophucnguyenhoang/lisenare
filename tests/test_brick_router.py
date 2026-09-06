@@ -1,6 +1,6 @@
 import io
 import json
-from unittest.mock import patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 from fastapi.testclient import TestClient
 from sqlmodel import select
@@ -164,3 +164,94 @@ def test_create_brick_collection_forbidden(client: TestClient):
 
     app.dependency_overrides.clear()
     assert response.status_code == 403
+
+
+def test_forced_align_with_brick_success(client: TestClient):
+    session = next(get_session())
+    brick = session.exec(select(Brick)).first()
+    assert brick is not None
+
+    mock_response = MagicMock()
+    mock_response.json.return_value = {
+        "segments": [
+            {"word": "hello", "start_sec": 0.1, "end_sec": 0.5},
+            {"word": "world", "start_sec": 0.6, "end_sec": 1.0},
+        ]
+    }
+
+    mock_client = MagicMock()
+    mock_client.post = AsyncMock(return_value=mock_response)
+
+    with patch("app.http_client.get_client", return_value=mock_client):
+        response = client.get(
+            f"/audio/forced-alignment/{brick.target_audio_path}"
+        )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert len(data) == 2
+    assert data[0]["word"] == "hello"
+    assert data[0]["start_sec"] == 0.1
+    assert data[0]["end_sec"] == 0.5
+
+    mock_client.post.assert_awaited_once()
+    posted_payload = mock_client.post.call_args[1]["json"]
+    assert posted_payload["transcript"] == brick.target_text
+
+
+def test_forced_align_brick_not_found(client: TestClient):
+    response = client.get(
+        "/audio/forced-alignment/non_existent/audio/path.wav"
+    )
+    assert response.status_code == 404
+
+
+def test_save_review_integrated_learning_card():
+    from app.database import BrickMemory, BrickReview
+    from app.schemas import ReviewCreate
+    from app.services import brick_review_service
+
+    session = next(get_session())
+    brick = session.exec(select(Brick).where(Brick.creator_id == 2)).first()
+    assert brick is not None
+
+    review_create = ReviewCreate(
+        brick_id=brick.id,
+        is_answer_revealed=False,
+        first_score=0.9,
+        learner_target_text=brick.target_text,
+    )
+
+    total_reviews = brick_review_service.save_review(
+        session=session,
+        learner_id=2,
+        review_create=review_create,
+    )
+
+    assert isinstance(total_reviews, int)
+    assert total_reviews >= 1
+
+    # Verify BrickReview has fsrs_log_dict
+    review = session.exec(
+        select(BrickReview)
+        .where(BrickReview.learner_id == 2, BrickReview.brick_id == brick.id)
+        .order_by(BrickReview.reviewed_at.desc())
+    ).first()
+    assert review is not None
+    assert review.fsrs_log_dict is not None
+    assert "rating" in review.fsrs_log_dict
+
+    # Verify BrickMemory was updated
+    memory = session.exec(
+        select(BrickMemory).where(
+            BrickMemory.learner_id == 2,
+            BrickMemory.brick_id == brick.id,
+        )
+    ).first()
+    assert memory is not None
+    assert memory.due is not None
+    assert "stability" in memory.fsrs_card_dict
+
+    # Cleanup review
+    session.delete(review)
+    session.commit()

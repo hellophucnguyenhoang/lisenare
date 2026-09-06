@@ -205,12 +205,12 @@ class BrickReview(SQLModel, table=True):
     fsrs_rating: int = Field(ge=1, le=4)
     fsrs_log_dict: dict = Field(default={}, sa_type=JSONB)
 
-    # User's actual typed/spoken response payload for this attempt
-    user_target_text: str | None = Field(
+    # Learner's actual typed/spoken response payload for this attempt
+    learner_target_text: str | None = Field(
         default=None,
         max_length=settings.brick_max_words * settings.brick_avg_word_len,
     )
-    user_target_audio_path: str | None = Field(
+    learner_target_audio_path: str | None = Field(
         default=None, max_length=settings.max_path_len
     )
 

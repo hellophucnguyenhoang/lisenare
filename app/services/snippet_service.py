@@ -137,7 +137,7 @@ def get_snippet_by_audio_path(
 ) -> Snippet | None:
     query = (
         select(Snippet)
-        .where(Snippet.audio_path == audio_path)
+        .where(Snippet.content_audio_path == audio_path)
         .options(selectinload(Snippet.creator))
     )
     snippet = session.exec(query).first()

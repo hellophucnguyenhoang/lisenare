@@ -28,29 +28,10 @@ from .brick_review_service import (
     get_true_retention,
     to_timeseries,
 )
-from .spaced_repetition_service import similarity_to_fsrs
+from .spaced_repetition_service import get_scheduler_for_learner
 
 
-def get_scheduler_for_learner(session: Session, learner_id: int) -> Scheduler:
-    """
-    Loads a personalized FSRS scheduler for a specific learner.
-    Falls back to a default scheduler if no settings exist.
-    """
-    # Fetch user-specific settings from the LearnerSetting table
-    settings = session.get(LearnerSetting, learner_id)
-
-    if settings and settings.fsrs_weights:
-        # Initialize with optimized parameters and retention
-        return Scheduler(
-            settings.fsrs_weights,
-            settings.target_retention,
-        )
-
-    # Fallback to default scheduler if the user hasn't been optimized yet
-    return Scheduler()
-
-
-def optimize_user_scheduler(learner_id: int):
+def optimize_learner_scheduler(learner_id: int):
     print(f"Start optimizing scheduler for the learner {learner_id}")
     with Session(engine) as session:
         # 1. Load all reviews to train the optimizer
@@ -145,63 +126,6 @@ def optimize_user_scheduler(learner_id: int):
         except Exception as e:
             print(f"Optimization failed for learner {learner_id}: {e}")
             traceback.print_exc()
-
-
-def update_learning_card(
-    session: Session,
-    learner_id: int,
-    brick_id: int,
-    score: float,
-    is_answer_revealed: bool,
-):
-    statement = select(BrickMemory).where(
-        BrickMemory.learner_id == learner_id,
-        BrickMemory.brick_id == brick_id,
-    )
-    db_learning_card = session.exec(statement).first()
-    # first time review
-    if db_learning_card is None:
-        card = Card()
-    # existing card
-    else:
-        card = Card.from_dict(db_learning_card.fsrs_card_dict)
-
-    rating = similarity_to_fsrs(score, is_answer_revealed)
-
-    statement = select(LearnerSetting).where(
-        LearnerSetting.learner_id == learner_id
-    )
-    scheduler = get_scheduler_for_learner(session, learner_id)
-    card, review_log = scheduler.review_card(card, rating)
-
-    # save the log for the optimizer
-    # IMPORTANT NOTE: assume that the review_service.save_review() was called
-    # before this function update_learning_card() be called so there is a review with
-    # no fsrs_log_dict to update
-    # You might need to pass this log back to save_review or update the BrickReview row here
-    db_review = session.exec(
-        select(BrickReview)
-        .where(
-            BrickReview.learner_id == learner_id,
-            BrickReview.brick_id == brick_id,
-        )
-        .order_by(
-            BrickReview.reviewed_at.desc()
-        )  # the latest review haven't had the log
-    ).first()
-    db_review.fsrs_log_dict = review_log.to_dict()
-
-    # create if needed
-    if db_learning_card is None:
-        db_learning_card = BrickMemory(
-            learner_id=learner_id,
-            brick_id=brick_id,
-        )
-
-    db_learning_card.fsrs_card_dict = card.to_dict()
-    db_learning_card.due = card.due
-    session.add(db_learning_card)
-    session.commit()
 
 
 def get_average_stability(

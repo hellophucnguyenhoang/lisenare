@@ -1,36 +1,70 @@
 from collections import defaultdict
 from zoneinfo import ZoneInfo
 
+from fsrs import Card
 from sqlmodel import Session, case, func, select
 
-from app.database import BrickReview
+from app.database import BrickMemory, BrickReview
 from app.schemas import ReviewCreate
 from utils.db_utils import apply_time_filter
 
-from .spaced_repetition_service import similarity_to_fsrs
+from .spaced_repetition_service import (
+    get_scheduler_for_learner,
+    similarity_to_fsrs,
+)
 
 
 def save_review(
     session: Session, learner_id: int, review_create: ReviewCreate
 ) -> int:
+    fsrs_rating = similarity_to_fsrs(
+        review_create.first_score, review_create.is_answer_revealed
+    )
+
+    # 1. Fetch or initialize learning card
+    statement = select(BrickMemory).where(
+        BrickMemory.learner_id == learner_id,
+        BrickMemory.brick_id == review_create.brick_id,
+    )
+    db_learning_card = session.exec(statement).first()
+    if db_learning_card is None:
+        card = Card()
+    else:
+        card = Card.from_dict(db_learning_card.fsrs_card_dict)
+
+    # 2. Review card using learner's scheduler
+    scheduler = get_scheduler_for_learner(session, learner_id)
+    card, review_log = scheduler.review_card(card, fsrs_rating)
+
+    # 3. Create review with fsrs log
     db_review = BrickReview(
         **review_create.model_dump(),
         learner_id=learner_id,
-        fsrs_rating=similarity_to_fsrs(
-            review_create.first_score, review_create.is_answer_revealed
-        ),
+        fsrs_rating=fsrs_rating,
+        fsrs_log_dict=review_log.to_dict(),
     )
     session.add(db_review)
+
+    # 4. Update or create BrickMemory
+    if db_learning_card is None:
+        db_learning_card = BrickMemory(
+            learner_id=learner_id,
+            brick_id=review_create.brick_id,
+        )
+
+    db_learning_card.fsrs_card_dict = card.to_dict()
+    db_learning_card.due = card.due
+    session.add(db_learning_card)
     session.commit()
 
-    # used for triggering the scheduler optimization task
+    # 5. Count total reviews for background optimization
     statement = select(func.count(BrickReview.id)).where(
         BrickReview.learner_id == learner_id,
-        BrickReview.fsrs_log_dict.is_not(None),  # Excludes NULLs
-        BrickReview.fsrs_log_dict != {},  # Excludes empty objects
+        BrickReview.fsrs_log_dict.is_not(None),
+        BrickReview.fsrs_log_dict != {},
     )
-    total_review_count = session.exec(statement).one()
-    return total_review_count
+    total_learner_reviews = session.exec(statement).one()
+    return total_learner_reviews
 
 
 def review_exists(session: Session, learner_id: int, brick_id: int) -> bool:

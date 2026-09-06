@@ -16,7 +16,6 @@ from app.services import (
     brick_memory_service,
     brick_review_service,
     brick_service,
-    snippet_service,
 )
 from app.services.text_service import text_service
 from schemas.audio import STTResponse
@@ -56,16 +55,16 @@ async def forced_align(
     session: Annotated[Session, Depends(get_session)], audio_path: str
 ) -> list[WordSegmentSecond]:
     """
-    Fetches the snippet text via audio path, sends it to the AI server on port 8001
+    Fetches the brick text via audio path, sends it to the AI server on port 8001
     for forced alignment, and maps the results to seconds.
     """
-    # Fetch the snippet using the existing service method
-    snippet = snippet_service.get_snippet_by_audio_path(session, audio_path)
+    # Fetch the brick using the service method
+    brick = brick_service.get_brick_by_audio_path(session, audio_path)
 
     # Build the payload for the port 8001 server
     payload = {
-        "audio_url": f"{settings.gcs_base_url}/{audio_path}",
-        "transcript": snippet.content,
+        "audio_url": f"{settings.asset_base_url}/{audio_path}",
+        "transcript": brick.target_text,
     }
 
     # Request the alignment details from the port 8001 AI service
@@ -118,7 +117,7 @@ async def evaluate_audio(
     ) = await file_utils.save_upload_file(
         file=learner_file,
         base_dir=settings.learner_audios_folder,
-        sub_dir=f"user_{learner.id}",
+        sub_dir=f"learner_{learner.id}",
         filename_prefix=f"brick_{target_brick_id}",
     )
 
@@ -153,32 +152,25 @@ async def evaluate_audio(
             brick_id=target_brick_id,
             is_answer_revealed=is_answer_revealed_assumed,
             first_score=result["accuracy_score"],
-            user_target_text=normalized_learner_text,
-            user_target_audio_path=learner_audio_path,
+            learner_target_text=normalized_learner_text,
+            learner_target_audio_path=learner_audio_path,
         )
-        review_count = brick_review_service.save_review(
+        total_learner_reviews = brick_review_service.save_review(
             session=session,
             learner_id=learner.id,
             review_create=review_create,
         )
-        print(f"Review saved, {review_count = }")
-        if review_count > 100 and review_count % 200 == 0:
-            background_tasks.add_task(
-                brick_memory_service.optimize_user_scheduler,
-                learner.id,
-            )
-            print(
-                f"Triggering background optimization for learner {learner.id}"
-            )
-
-        brick_memory_service.update_learning_card(
-            session=session,
-            learner_id=learner.id,
-            brick_id=target_brick_id,
-            score=result["accuracy_score"],
-            is_answer_revealed=is_answer_revealed_assumed,
-        )
-        print("Learning card saved.")
+        print(f"Review saved, {total_learner_reviews=}")
+        if total_learner_reviews > 100:
+            interval = max(200, int(total_learner_reviews**0.5 * 20))
+            if total_learner_reviews % interval == 0:
+                background_tasks.add_task(
+                    brick_memory_service.optimize_learner_scheduler,
+                    learner.id,
+                )
+                print(
+                    f"Triggering background optimization for learner {learner.id}"
+                )
 
     return result
 
@@ -204,7 +196,7 @@ async def evaluate_pronunciation_audio(
     ) = await file_utils.save_upload_file(
         file=learner_file,
         base_dir=settings.learner_audios_folder,
-        sub_dir=f"user_{learner.id}",
+        sub_dir=f"learner_{learner.id}",
         filename_prefix=f"brick_{target_brick_id}",
     )
 
@@ -245,31 +237,24 @@ async def evaluate_pronunciation_audio(
             brick_id=target_brick_id,
             is_answer_revealed=is_answer_revealed_assumed,
             first_score=result["accuracy_score"],
-            user_target_text=normalized_learner_text,
-            user_target_audio_path=learner_audio_path,
+            learner_target_text=normalized_learner_text,
+            learner_target_audio_path=learner_audio_path,
         )
-        review_count = brick_review_service.save_review(
+        total_learner_reviews = brick_review_service.save_review(
             session=session,
             learner_id=learner.id,
             review_create=review_create,
         )
-        print(f"Review saved, {review_count = }")
-        if review_count > 100 and review_count % 200 == 0:
-            background_tasks.add_task(
-                brick_memory_service.optimize_user_scheduler,
-                learner.id,
-            )
-            print(
-                f"Triggering background optimization for learner {learner.id}"
-            )
-
-        brick_memory_service.update_learning_card(
-            session=session,
-            learner_id=learner.id,
-            brick_id=target_brick_id,
-            score=result["accuracy_score"],
-            is_answer_revealed=is_answer_revealed_assumed,
-        )
-        print("Learning card saved.")
+        print(f"Review saved, {total_learner_reviews=}")
+        if total_learner_reviews > 100:
+            interval = max(200, int(total_learner_reviews**0.5 * 20))
+            if total_learner_reviews % interval == 0:
+                background_tasks.add_task(
+                    brick_memory_service.optimize_learner_scheduler,
+                    learner.id,
+                )
+                print(
+                    f"Triggering background optimization for learner {learner.id}"
+                )
 
     return result
