@@ -125,7 +125,7 @@ def get_brick(session: Session, brick_id: int, creator_id: int) -> Brick:
     if not brick:
         raise RequestException(
             status_code=status.HTTP_404_NOT_FOUND,
-            debug_message=f"Brick with ID {brick_id} not found",
+            debug_message=f"Brick {brick_id} not found for creator {creator_id}",
         )
     return brick
 
@@ -145,7 +145,13 @@ def get_next_brick(
     session: Session,
     creator_id: int,
     collection_ids: list[int] | None = None,
+    brick_id: int | None = None,
 ) -> BrickRead | None:
+    if brick_id is not None:
+        brick = get_brick(session, brick_id, creator_id)
+        tags = fetch_tags_for_entity(session, brick.id, "Brick")
+        return BrickRead.model_validate(brick, update={"tags": tags})
+
     now = datetime.now(timezone.utc)
     broken_brick_ids = []  # TODO: Get reported brick id
 

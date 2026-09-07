@@ -55,7 +55,7 @@ async def forced_align(
     session: Annotated[Session, Depends(get_session)], audio_path: str
 ) -> list[WordSegmentSecond]:
     """
-    Fetches the brick text via audio path, sends it to the AI server on port 8001
+    Fetches the text and audio file via audio path, sends it to the AI server
     for forced alignment, and maps the results to seconds.
     """
     # Fetch the brick using the service method
