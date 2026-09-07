@@ -255,3 +255,63 @@ def test_save_review_integrated_learning_card():
     # Cleanup review
     session.delete(review)
     session.commit()
+
+
+def test_get_next_brick_with_brick_id_success(client: TestClient):
+    existing_learner = Learner(id=2)
+    app.dependency_overrides[auth_service.decode_token_get_learner] = lambda: (
+        existing_learner
+    )
+
+    session = next(get_session())
+    brick = session.exec(select(Brick).where(Brick.creator_id == 2)).first()
+    assert brick is not None
+
+    response = client.get(f"/bricks/next?brick_id={brick.id}")
+    app.dependency_overrides.clear()
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["id"] == brick.id
+    assert data["target_text"] == brick.target_text
+    assert "tags" in data
+
+
+def test_get_next_brick_with_brick_id_not_found(client: TestClient):
+    existing_learner = Learner(id=2)
+    app.dependency_overrides[auth_service.decode_token_get_learner] = lambda: (
+        existing_learner
+    )
+
+    response = client.get("/bricks/next?brick_id=999999")
+    app.dependency_overrides.clear()
+
+    assert response.status_code == 404
+
+
+def test_get_next_brick_with_brick_id_forbidden(client: TestClient):
+    other_learner = Learner(id=99999)
+    app.dependency_overrides[auth_service.decode_token_get_learner] = lambda: (
+        other_learner
+    )
+
+    session = next(get_session())
+    brick = session.exec(select(Brick).where(Brick.creator_id == 2)).first()
+    assert brick is not None
+
+    response = client.get(f"/bricks/next?brick_id={brick.id}")
+    app.dependency_overrides.clear()
+
+    assert response.status_code == 404
+
+
+def test_get_next_brick_without_brick_id(client: TestClient):
+    existing_learner = Learner(id=2)
+    app.dependency_overrides[auth_service.decode_token_get_learner] = lambda: (
+        existing_learner
+    )
+
+    response = client.get("/bricks/next")
+    app.dependency_overrides.clear()
+
+    assert response.status_code == 200
