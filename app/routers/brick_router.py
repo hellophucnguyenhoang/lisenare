@@ -75,11 +75,13 @@ def get_next_brick(
         Learner, Depends(auth_service.decode_token_get_learner)
     ],
     collection_ids: Annotated[list[int] | None, Query()] = None,
+    brick_id: int | None = None,
 ):
     return brick_service.get_next_brick(
         session=session,
         creator_id=creator.id,
         collection_ids=collection_ids,
+        brick_id=brick_id,
     )
 
 
