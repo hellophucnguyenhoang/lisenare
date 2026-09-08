@@ -45,6 +45,7 @@ class BrickRead(BrickBase):
     last_edit_at: datetime
     creator_id: int
     creator: LearnerRead
+    reaction: str | None = None
 
 
 class BrickLearnRead(BrickRead):

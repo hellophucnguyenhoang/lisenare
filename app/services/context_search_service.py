@@ -8,11 +8,9 @@ from numpy.typing import NDArray
 from sqlmodel import Session, or_, select, text
 
 from app.config import settings
-from app.database import Brick, Snippet, YouTubeSubtitle
+from app.database import Brick, YouTubeSubtitle
 from app.schemas import (
     BrickContextSearch,
-    LearnerRead,
-    SnippetRead,
     VideoContextSearchResult,
 )
 
@@ -35,43 +33,6 @@ def search_bricks_literal(
     results = session.exec(statement, params={"val": keyword})
     rows = results.mappings().all()
     return [BrickContextSearch.model_validate(row) for row in rows]
-
-
-def search_snippets_literal(
-    session: Session,
-    keyword: str,
-) -> list[SnippetRead]:
-    statement = text("""
-        SELECT 
-            s.id,
-            s.content,
-            s.content_audio_path, 
-            s.last_edit_at, 
-            l.id as creator_id, 
-            l.name 
-        FROM snippet s
-        JOIN learner l ON s.creator_id = l.id 
-        WHERE to_tsvector('simple', s.content) @@ websearch_to_tsquery('simple', :val)
-        ORDER BY ts_rank(to_tsvector('simple', s.content), websearch_to_tsquery('simple', :val)) DESC
-    """)
-
-    raw_rows = session.exec(statement, params={"val": keyword}).all()
-    items = []
-    for raw_row in raw_rows:
-        creator = LearnerRead(
-            id=raw_row.creator_id,
-            name=raw_row.name,
-        )
-        snippet_read = SnippetRead(
-            id=raw_row.id,
-            content=raw_row.content,
-            content_audio_path=raw_row.content_audio_path,
-            last_edit_at=raw_row.last_edit_at,
-            creator=creator,
-        )
-        items.append(snippet_read)
-
-    return items
 
 
 def search_subtitles_literal(
@@ -104,13 +65,6 @@ class ContextSearchService:
                 embeddings=self.embeddings,
                 embedding_length=settings.semantic_emb_dim,
                 collection_name="brick",
-                connection=settings.database_url,
-                use_jsonb=True,
-            ),
-            "snippets": PGVector(
-                embeddings=self.embeddings,
-                embedding_length=settings.semantic_emb_dim,
-                collection_name="snippet",
                 connection=settings.database_url,
                 use_jsonb=True,
             ),
@@ -171,68 +125,6 @@ class ContextSearchService:
 
         return combined
 
-    def search_snippets_semantic(
-        self, session: Session, text: str, mmr: bool = True
-    ):
-        docs = self._fetch_docs("snippets", text, mmr=False)
-        print(f"Semantic search number: {len(docs) = }")
-        snippet_ids = [d.metadata["snippet_id"] for d in docs]
-        snippets = session.exec(
-            select(Snippet).where(Snippet.id.in_(snippet_ids))
-        ).all()
-        snippets = sorted(snippets, key=lambda s: snippet_ids.index(s.id))
-        return [SnippetRead.model_validate(s) for s in snippets]
-
-    def search_snippets(self, session: Session, query: str):
-        literal_results = search_snippets_literal(session, query)
-        semantic_results = self.search_snippets_semantic(
-            session, query, mmr=True
-        )
-        seen = set()
-        combined = []
-
-        for res in literal_results + semantic_results:
-            if res.id not in seen:
-                combined.append(res)
-                seen.add(res.id)
-
-        return combined
-
-    def get_relevant_snippets(
-        self,
-        profile_vector: list[float],
-        limit: int = 5,
-        exclude_ids: list[int] = [],
-        mmr: bool = True,
-        fetch_k: int = 20,
-        lambda_mult: float = 0.5,
-    ) -> list[int]:
-        """Returns a list of snippet IDs closest to the profile vector."""
-        filter_ = None
-        if exclude_ids:
-            filter_ = {"snippet_id": {"$nin": [str(i) for i in exclude_ids]}}
-
-        if mmr:
-            results = self.stores[
-                "snippets"
-            ].max_marginal_relevance_search_by_vector(
-                embedding=profile_vector,
-                k=limit,
-                fetch_k=fetch_k,
-                lambda_mult=lambda_mult,
-                filter=filter_,
-            )
-        else:
-            results = self.stores["snippets"].similarity_search_by_vector(
-                embedding=profile_vector,
-                k=limit,
-                filter=filter_,
-            )
-
-        return [
-            doc.metadata["snippet_id"] for doc in results if doc.id is not None
-        ]
-
     def search_videos_semantic(
         self, text: str, mmr: bool = True
     ) -> list[VideoContextSearchResult]:
@@ -268,10 +160,10 @@ class ContextSearchService:
         return combined
 
     def get_embedding(
-        self, session: Session, snippet_id: int
+        self, session: Session, brick_id: int
     ) -> NDArray | None:
 
-        doc_id = f"Snippet_{snippet_id}"
+        doc_id = f"Brick_{brick_id}"
 
         query = text("""
             SELECT embedding FROM langchain_pg_embedding 
@@ -387,18 +279,7 @@ def initialize_embeddings(
         lambda b: b.id,
     )
 
-    # 2. Snippets: (snippet_id)
-    sync_model_to_langchain(
-        session,
-        search_service,
-        Snippet,
-        "snippets",
-        lambda s: s.content,
-        lambda s: {"snippet_id": s.id},
-        lambda s: s.id,
-    )
-
-    # 3. Subtitles: (video_id, start, duration)
+    # 2. Subtitles: (video_id, start, duration)
     sync_model_to_langchain(
         session,
         search_service,
@@ -418,7 +299,7 @@ def initialize_embeddings(
 
 def add_item_to_vector_store(
     search_service: ContextSearchService,
-    item,  # This is a Brick or Snippet instance
+    item,  # This is a Brick instance
     store_key: str,
     text_getter,
     metadata_getter,

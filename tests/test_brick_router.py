@@ -5,7 +5,15 @@ from unittest.mock import AsyncMock, MagicMock, patch
 from fastapi.testclient import TestClient
 from sqlmodel import select
 
-from app.database import Brick, Collection, Learner, Taggable, get_session
+from app.database import (
+    Brick,
+    Collection,
+    Learner,
+    Session,
+    Taggable,
+    engine,
+    get_session,
+)
 from app.main import app
 from app.services import auth_service
 
@@ -16,11 +24,12 @@ def test_create_brick_with_tags_success(client: TestClient):
         existing_learner
     )
 
-    session = next(get_session())
-    col = session.exec(
-        select(Collection).where(Collection.creator_id == 2)
-    ).first()
-    assert col is not None
+    with Session(engine) as session:
+        col = session.exec(
+            select(Collection).where(Collection.creator_id == 2)
+        ).first()
+        assert col is not None
+        col_id = col.id
 
     brick_payload = {
         "native_text": "Xin chào",
