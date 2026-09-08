@@ -10,11 +10,9 @@ class InteractionType(str, Enum):
     DISLIKE = "DISLIKE"
     REMOVE_REACTION = "REMOVE_REACTION"
     ADD = "ADD"
-    TIME_SPENT = "TIME_SPENT"  # seconds
 
 
-class SnippetInteractionCreate(SQLModel):
+class BrickInteractionCreate(SQLModel):
     session_id: str
-    snippet_id: int
+    brick_id: int
     interaction_type: InteractionType
-    duration: float | None = None

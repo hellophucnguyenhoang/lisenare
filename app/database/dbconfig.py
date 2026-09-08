@@ -21,7 +21,6 @@ from .models import (
     Brick,
     Collection,
     Learner,
-    Snippet,
     Tag,
     Taggable,
     YouTubeSubtitle,
@@ -41,7 +40,7 @@ def init_db():
     """
     # Use SQLAlchemy to check if tables exist
     inspector = inspect(engine)
-    if not inspector.has_table("snippet"):
+    if not inspector.has_table("brick"):
         logger.info("Database tables not found, creating schema...")
 
         # Create SQLModel tables
@@ -52,7 +51,6 @@ def init_db():
             session.exec(text("CREATE EXTENSION IF NOT EXISTS vector;"))
 
             init_bricks(session)
-            init_snippets(session)
             session.commit()
 
         transfer_subtitles()
@@ -225,28 +223,6 @@ def init_bricks(session: Session):
         f"Imported {len(brick_metadata_df)} bricks, "
         f"{len(lesson_tags)} lesson tags."
     )
-
-
-def init_snippets(session: Session):
-    csv_name = "snippets-metadata.csv"
-    creator_id: int = 1
-
-    df = pd.read_csv(csv_name)
-    snippets = []
-
-    for row in df.to_dict("records"):
-        audio_path = Path("snippets-audios") / row["filename"]
-        snippets.append(
-            Snippet(
-                content=row["text"],
-                content_audio_path=str(audio_path),
-                creator_id=creator_id,
-            )
-        )
-
-    session.add_all(snippets)
-    session.commit()
-    logger.info(f"{len(snippets)} snippets imported from {csv_name}")
 
 
 def transfer_subtitles():
