@@ -17,14 +17,13 @@ from .routers import (
     account_router,
     audio_router,
     auth_router,
+    brick_interaction_router,
     brick_router,
     chat_router,
     collection_router,
     context_search_router,
     explanation_router,
     learner_router,
-    snippet_interaction_router,
-    snippet_router,
     text_router,
 )
 
@@ -36,7 +35,7 @@ async def lifespan(app: FastAPI):
     await http_client.init_client()
     yield
     # Shutdown code
-    # database.delete_db()
+    database.delete_db()
     await http_client.close_client()
 
 
@@ -135,8 +134,7 @@ app.include_router(collection_router.router)
 app.include_router(context_search_router.router)
 app.include_router(explanation_router.router)
 app.include_router(learner_router.router)
-app.include_router(snippet_interaction_router.router)
-app.include_router(snippet_router.router)
+app.include_router(brick_interaction_router.router)
 app.include_router(text_router.router)
 
 
@@ -149,11 +147,6 @@ app.mount(
     f"/{settings.learner_audios_folder}",
     StaticFiles(directory=settings.learner_audios_folder),
     name=settings.learner_audios_folder,
-)
-app.mount(
-    f"/{settings.snippets_folder}",
-    StaticFiles(directory=settings.snippets_folder),
-    name=settings.snippets_folder,
 )
 
 
