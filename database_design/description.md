@@ -22,12 +22,6 @@ Mỗi brick chỉ thuộc về một collection duy nhất, và mỗi collection
 Một tài khoản (**Account**) gồm mã tài khoản, username, password, tùy chọn email address để đổi password, và thời điểm đăng nhập gần nhất.
 Mỗi learner sở hữu đúng một và không dùng chung account.
 
-Một bài viết (**Snippet**) bao gồm mã snippet, nội dung, ngôn ngữ, tùy chọn âm thanh, và thời điểm chỉnh sửa gần nhất.
-
-Snippet là công khai (hoặc giữa những learner bạn bè với nhau sau này).
-Những learner khác có thể đóng góp âm thanh cho snippet đó.
-Những learner khác có thể vote chất lượng âm thanh, hoặc báo cáo snippet về bản quyền, nội dung nhạy cảm,...
-
 Một thẻ (**Tag**) sẽ bao gồm mã tag, và tên.
 
 Người học có thể thêm các thẻ (Tags) cho Brick, Collection,... để phục vụ mục đích cá nhân như gom nhóm và phân loại một cách linh hoạt.

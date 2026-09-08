@@ -41,15 +41,15 @@ from .learning_card import (
     LearningTimeSeries,
     TimeSeriesPoint,
 )
+from .brick_interaction import BrickInteractionCreate, InteractionType
 from .review import ReviewBase, ReviewCreate
-from .snippet import SnippetPage, SnippetRead
-from .snippet_interaction import InteractionType, SnippetInteractionCreate
 from .text import PronunciationAnalysisResponse
 
 __all__ = [
     "BrickContextSearch",
     "BrickCreate",
     "BrickCreateRequest",
+    "BrickInteractionCreate",
     "BrickLearnRead",
     "BrickListeningData",
     "BrickListeningPage",
@@ -81,9 +81,6 @@ __all__ = [
     "ReviewBase",
     "ReviewCreate",
     "SendOTPRequest",
-    "SnippetInteractionCreate",
-    "SnippetPage",
-    "SnippetRead",
     "TimeSeriesPoint",
     "Token",
     "TokenPayload",

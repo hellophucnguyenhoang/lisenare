@@ -5,15 +5,15 @@ from sqlmodel import Session
 
 from app.database import Learner, get_session
 from app.schemas import (
-    SnippetInteractionCreate,
+    BrickInteractionCreate,
 )
 from app.services import (
     auth_service,
-    snippet_interaction_service,
+    brick_interaction_service,
 )
 
 router = APIRouter(
-    prefix="/snippet-interactions", tags=["Snippet Interactions"]
+    prefix="/brick-interactions", tags=["Brick Interactions"]
 )
 
 
@@ -23,9 +23,9 @@ def create_interaction(
     learner: Annotated[
         Learner | None, Depends(auth_service.decode_token_get_optional_learner)
     ],
-    data: SnippetInteractionCreate,
+    data: BrickInteractionCreate,
 ) -> Response:
-    snippet_interaction_service.handle_interaction_and_update_profile(
+    brick_interaction_service.handle_interaction_and_update_profile(
         session=session,
         data=data,
         learner_id=learner.id if learner else None,

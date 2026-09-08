@@ -4,6 +4,7 @@ import numpy as np
 from numpy.typing import NDArray
 from sqlmodel import Session
 
+from app.config import settings
 from app.database import SessionProfile
 from app.schemas import InteractionType
 from utils import np_utils
@@ -18,10 +19,7 @@ def calculate_incremental_mean(
     return current_mean + (new_vector - current_mean) / count
 
 
-def calculate_interaction_rating(
-    interaction_type: InteractionType,
-    duration: float | None = None,
-) -> float:
+def calculate_interaction_rating(interaction_type: InteractionType) -> float:
     """
     Convert a raw interaction into a signed numeric rating in [-1, 1].
 
@@ -37,10 +35,6 @@ def calculate_interaction_rating(
     - VIEW_TRANSLATION: medium positive
     - DISLIKE: strong negative
     - REMOVE_REACTION: neutral here, because this function is stateless
-    - TIME_SPENT: derived from duration
-
-    For TIME_SPENT, we use a smooth score and keep it in range [-0.8, 0.7]:
-        tanh((duration - 3) / 3)
 
     So:
     - very short time -> negative
@@ -65,13 +59,6 @@ def calculate_interaction_rating(
     if interaction_type == InteractionType.REMOVE_REACTION:
         return 0.0
 
-    if interaction_type == InteractionType.TIME_SPENT:
-        if duration is None or duration <= 0:
-            return 0.0
-
-        time_rating = np.tanh((duration - 3.0) / 3.0)
-        return float(np.clip(time_rating, -0.8, 0.7))
-
     return 0.0
 
 
@@ -79,7 +66,6 @@ def calculate_rocchio_update(
     current_profile: NDArray,
     new_item_vec: NDArray,
     interaction_type: InteractionType,
-    duration: float | None = None,
     alpha: float = 0.8,
     beta: float = 0.2,
     gamma: float = 0.9,
@@ -104,7 +90,7 @@ def calculate_rocchio_update(
     - `beta` controls how strongly positive items are added.
     - `gamma` controls how strongly negative items are pushed away.
     """
-    rating = calculate_interaction_rating(interaction_type, duration)
+    rating = calculate_interaction_rating(interaction_type)
 
     if rating > 0:
         return (alpha * current_profile) + (beta * new_item_vec)
@@ -119,7 +105,6 @@ def calculate_weighted_rocchio_update(
     current_profile: NDArray,
     new_item_vec: NDArray,
     interaction_type: InteractionType,
-    duration: float | None = None,
     alpha: float = 0.8,
     beta: float = 0.2,
     gamma: float = 0.9,
@@ -159,7 +144,7 @@ def calculate_weighted_rocchio_update(
     - similarity_scale: how strongly similarity affects influence
     - rating_scale: how strongly interaction strength affects influence
     """
-    rating = calculate_interaction_rating(interaction_type, duration)
+    rating = calculate_interaction_rating(interaction_type)
 
     if rating == 0:
         return current_profile.copy()
@@ -183,34 +168,40 @@ def calculate_weighted_rocchio_update(
     return (alpha * current_profile) - (gamma * weighted_item_vec)
 
 
+def get_random_embedding(dim: int = settings.semantic_emb_dim) -> NDArray:
+    """
+    Generate a unit-normalized random embedding vector with reasonable range.
+    """
+    vec = np.random.randn(dim)
+    norm = np.linalg.norm(vec)
+    if norm > 0:
+        vec = vec / norm
+    return vec.astype(np.float64)
+
+
 def update_session_profile(
     db_session: Session,
     session_id: str,
-    new_snippet_embedding: NDArray,
+    new_brick_embedding: NDArray,
     interaction_type: InteractionType,
-    duration: float | None = None,
-    initial_mean_path: str = "assets/embeddings/snippets_mean.npy",
     commit: bool = True,
 ):
     profile = db_session.get(SessionProfile, session_id)
     if not profile:
-        initial_mean: np.ndarray = np.load(initial_mean_path)
-        print(f"initial_mean sum: {np.sum(initial_mean)}")
+        initial_vector = get_random_embedding(settings.semantic_emb_dim)
         profile = SessionProfile(
             session_id=session_id,
-            profile_vector=initial_mean.tobytes(),
+            profile_vector=initial_vector.tobytes(),
             interaction_count=0,
         )
 
     current_profile = np.frombuffer(profile.profile_vector, np.float64)
     profile.interaction_count += 1
-    print(f"current_profile sum: {np.sum(current_profile)}")
 
     updated_profile = calculate_weighted_rocchio_update(
         current_profile=current_profile,
-        new_item_vec=new_snippet_embedding,
+        new_item_vec=new_brick_embedding,
         interaction_type=interaction_type,
-        duration=duration,
     )
 
     profile.profile_vector = updated_profile.astype(np.float64).tobytes()
