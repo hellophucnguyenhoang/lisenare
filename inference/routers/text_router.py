@@ -1,10 +1,6 @@
-import base64
-import io
-import json
+from fastapi import APIRouter, HTTPException, Response, status
 
-import soundfile as sf
-from fastapi import APIRouter, Query
-
+from app.config import settings
 from inference.services.text_service import text_service
 from schemas.sentence import (
     SentenceCompareRequest,
@@ -12,7 +8,7 @@ from schemas.sentence import (
     SentenceTranslateRequest,
     SentenceTranslateResponse,
 )
-from schemas.text import WavStreamingResponse
+from schemas.text import TTSRequest
 
 router = APIRouter(prefix="/text", tags=["Text Features"])
 
@@ -42,15 +38,19 @@ def translate(
     return sentence_translate_res
 
 
-@router.get("/tts-stream", response_class=WavStreamingResponse)
-def stream_audio_get(
-    data: str = Query(description="Base64 encoded JSON string"),
-):
-    decoded_json = json.loads(base64.b64decode(data))
-    text = decoded_json.get("text", "")
+@router.post("/to-speech")
+def generate_tts_audio(
+    tts_request: TTSRequest,
+) -> Response:
+    max_chars = settings.brick_max_words * settings.brick_avg_word_len
+    if len(tts_request.text) > max_chars:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Text exceeds maximum length of {max_chars} characters",
+        )
 
-    generator = text_service.tts_pipeline(text, voice="af_heart")
-    for _, _, audio in generator:
-        buffer = io.BytesIO()
-        sf.write(buffer, audio, 24000, format="WAV")
-        yield buffer.getvalue()
+    audio_bytes = text_service.generate_tts_wav(
+        text=tts_request.text,
+        voice=tts_request.voice,
+    )
+    return Response(content=audio_bytes, media_type="audio/wav")
