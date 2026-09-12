@@ -119,8 +119,9 @@ class BrickMemory(SQLModel, table=True):
     fsrs_card_dict: dict = Field(default={}, sa_type=JSONB)
     due: datetime = Field(sa_type=DateTime(timezone=True), index=True)
 
-    last_reviewed_at: datetime | None = Field(
-        default=None, sa_type=DateTime(timezone=True)
+    created_at: datetime = Field(
+        default_factory=lambda: datetime.now(timezone.utc),
+        sa_type=DateTime(timezone=True),
     )
 
 
@@ -148,6 +149,46 @@ class BrickReport(SQLModel, table=True):
 
     learner_id: int = Field(foreign_key="learner.id", ondelete="CASCADE")
     learner: "Learner" = Relationship(back_populates="brick_reports")
+
+
+class BrickReview(SQLModel, table=True):
+    """
+    Stores the immutable historical log of an individual review attempt.
+    Appends a new row every time a learner answers.
+    """
+
+    id: int | None = Field(default=None, primary_key=True)
+    reviewed_at: datetime = Field(
+        default_factory=lambda: datetime.now(timezone.utc),
+        sa_type=DateTime(timezone=True),
+    )
+
+    learner_id: int = Field(
+        foreign_key="learner.id", ondelete="CASCADE", index=True
+    )
+    learner: "Learner" = Relationship(back_populates="reviews")
+
+    brick_id: int = Field(
+        foreign_key="brick.id", ondelete="CASCADE", index=True
+    )
+    brick: Brick = Relationship(back_populates="reviews")
+
+    # Performance metrics for this specific attempt
+    first_score: float
+    is_answer_revealed: bool = False
+
+    # Again = 1, Hard = 2, Good = 3, Easy = 4
+    fsrs_rating: int = Field(ge=1, le=4)
+    fsrs_log_dict: dict = Field(default={}, sa_type=JSONB)
+
+    # Learner's actual typed/spoken response payload for this attempt
+    learner_target_text: str | None = Field(
+        default=None,
+        max_length=settings.brick_max_words * settings.brick_avg_word_len,
+    )
+    learner_target_audio_path: str | None = Field(
+        default=None, max_length=settings.max_path_len
+    )
 
 
 class Collection(SQLModel, table=True):
@@ -221,46 +262,6 @@ class OTP(SQLModel, table=True):
         sa_type=DateTime(timezone=True),
     )
     used: bool = False
-
-
-class BrickReview(SQLModel, table=True):
-    """
-    Stores the immutable historical log of an individual review attempt.
-    Appends a new row every time a learner answers.
-    """
-
-    id: int | None = Field(default=None, primary_key=True)
-    reviewed_at: datetime = Field(
-        default_factory=lambda: datetime.now(timezone.utc),
-        sa_type=DateTime(timezone=True),
-    )
-
-    learner_id: int = Field(
-        foreign_key="learner.id", ondelete="CASCADE", index=True
-    )
-    learner: Learner = Relationship(back_populates="reviews")
-
-    brick_id: int = Field(
-        foreign_key="brick.id", ondelete="CASCADE", index=True
-    )
-    brick: Brick = Relationship(back_populates="reviews")
-
-    # Performance metrics for this specific attempt
-    first_score: float
-    is_answer_revealed: bool = False
-
-    # Again = 1, Hard = 2, Good = 3, Easy = 4
-    fsrs_rating: int = Field(ge=1, le=4)
-    fsrs_log_dict: dict = Field(default={}, sa_type=JSONB)
-
-    # Learner's actual typed/spoken response payload for this attempt
-    learner_target_text: str | None = Field(
-        default=None,
-        max_length=settings.brick_max_words * settings.brick_avg_word_len,
-    )
-    learner_target_audio_path: str | None = Field(
-        default=None, max_length=settings.max_path_len
-    )
 
 
 class SessionProfile(SQLModel, table=True):

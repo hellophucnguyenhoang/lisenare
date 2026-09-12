@@ -18,6 +18,7 @@ from .routers import (
     audio_router,
     auth_router,
     brick_interaction_router,
+    brick_memory_router,
     brick_router,
     chat_router,
     collection_router,
@@ -35,7 +36,7 @@ async def lifespan(app: FastAPI):
     await http_client.init_client()
     yield
     # Shutdown code
-    database.delete_db()
+    # database.delete_db()
     await http_client.close_client()
 
 
@@ -128,13 +129,14 @@ app.add_middleware(
 app.include_router(account_router.router)
 app.include_router(audio_router.router)
 app.include_router(auth_router.router)
-app.include_router(chat_router.router)
+app.include_router(brick_interaction_router.router)
+app.include_router(brick_memory_router.router)
 app.include_router(brick_router.router)
+app.include_router(chat_router.router)
 app.include_router(collection_router.router)
 app.include_router(context_search_router.router)
 app.include_router(explanation_router.router)
 app.include_router(learner_router.router)
-app.include_router(brick_interaction_router.router)
 app.include_router(text_router.router)
 
 
