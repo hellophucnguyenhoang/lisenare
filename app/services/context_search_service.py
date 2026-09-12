@@ -159,9 +159,7 @@ class ContextSearchService:
 
         return combined
 
-    def get_embedding(
-        self, session: Session, brick_id: int
-    ) -> NDArray | None:
+    def get_embedding(self, session: Session, brick_id: int) -> NDArray | None:
 
         doc_id = f"Brick_{brick_id}"
 

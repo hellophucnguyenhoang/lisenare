@@ -1,15 +1,14 @@
 import io
 import json
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import MagicMock, patch
 
 from fastapi.testclient import TestClient
-from sqlmodel import select
+from sqlmodel import Session, select
 
 from app.database import (
     Brick,
     Collection,
     Learner,
-    Session,
     Taggable,
     engine,
     get_session,
@@ -34,7 +33,7 @@ def test_create_brick_with_tags_success(client: TestClient):
     brick_payload = {
         "native_text": "Xin chào",
         "target_text": "Hello world unique test brick",
-        "collection_id": col.id,
+        "collection_id": col_id,
         "tags": ["greeting", "basic"],
     }
     audio_file = io.BytesIO(b"fake audio data")
@@ -189,7 +188,7 @@ def test_forced_align_with_brick_success(client: TestClient):
     }
 
     mock_client = MagicMock()
-    mock_client.post = AsyncMock(return_value=mock_response)
+    mock_client.post.return_value = mock_response
 
     with patch("app.http_client.get_client", return_value=mock_client):
         response = client.get(
@@ -203,7 +202,7 @@ def test_forced_align_with_brick_success(client: TestClient):
     assert data[0]["start_sec"] == 0.1
     assert data[0]["end_sec"] == 0.5
 
-    mock_client.post.assert_awaited_once()
+    mock_client.post.assert_called_once()
     posted_payload = mock_client.post.call_args[1]["json"]
     assert posted_payload["transcript"] == brick.target_text
 

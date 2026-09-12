@@ -12,9 +12,7 @@ from app.services import (
     brick_interaction_service,
 )
 
-router = APIRouter(
-    prefix="/brick-interactions", tags=["Brick Interactions"]
-)
+router = APIRouter(prefix="/brick-interactions", tags=["Brick Interactions"])
 
 
 @router.post("", status_code=status.HTTP_201_CREATED)
