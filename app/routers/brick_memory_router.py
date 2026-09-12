@@ -7,7 +7,7 @@ from app.database import Learner, get_session
 from app.schemas import LearningCardStats, LearningTimeSeries
 from app.services import auth_service, brick_memory_service
 
-router = APIRouter(prefix="/learning-cards", tags=["Learning Cards"])
+router = APIRouter(prefix="/brick-memories", tags=["Brick Memories"])
 
 
 @router.get(
@@ -42,6 +42,7 @@ def get_learning_stats(
 
 @router.get(
     "/stats/timeseries",
+    summary="Get learner practice history",
     response_model=LearningTimeSeries,
 )
 def get_learning_timeseries(
@@ -49,13 +50,27 @@ def get_learning_timeseries(
     learner: Annotated[
         Learner, Depends(auth_service.decode_token_get_learner)
     ],
-    tz_name: str = "Asia/Ho_Chi_Minh",
-    days: int | None = Query(default=None, ge=0),
-    metric: str = Query(
-        default="total_learning",
-        description="Metric type: total_learning | reviews",
-    ),
+    metric: Annotated[
+        str,
+        Query(
+            description="Metric type: total_learning | reviews",
+        ),
+    ] = "total_learning",
+    tz_name: Annotated[
+        str,
+        Query(
+            description="Your IANA timezone string (e.g., 'Asia/Ho_Chi_Minh')"
+        ),
+    ] = "Asia/Ho_Chi_Minh",
+    days: Annotated[
+        int | None,
+        Query(
+            description="Number of days to look back calendar-based. 0 = Today (since local midnight), None = All time.",
+            ge=0,
+        ),
+    ] = None,
 ):
+    print(f"{metric=},{tz_name=},{days=}")
     result = LearningTimeSeries(
         **brick_memory_service.get_learning_timeseries(
             session,

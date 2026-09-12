@@ -47,6 +47,7 @@ dependencies = [
     "textstat>=0.7.12",
     "torchaudio==2.9",
     "torchcodec==0.9",
+    "tzdata>=2025.2",
     "wordfreq>=3.1.1",
     "youtube-transcript-api>=1.2.3",
     "yt-dlp>=2025.11.12",
