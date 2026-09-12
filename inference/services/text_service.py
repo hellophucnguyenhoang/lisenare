@@ -1,5 +1,7 @@
+import io
 import string
 
+import soundfile as sf
 import torch
 from kokoro import KPipeline
 from sentence_transformers import SentenceTransformer, util
@@ -29,8 +31,11 @@ class TextService:
         ).to(self.device)
 
         # 3. Load text to speech model
-        self.tts_pipeline = KPipeline(
+        self.tts_pipeline_en = KPipeline(
             lang_code="a", repo_id="hexgrad/Kokoro-82M", device=self.device
+        )
+        self.tts_pipeline_jp = KPipeline(
+            lang_code="ja", repo_id="hexgrad/Kokoro-82M", device=self.device
         )
         logger.info(f"Running Kokoro on: {self.device}")
 
@@ -56,8 +61,8 @@ class TextService:
         target_lang: "vi" for En->Vi, "en" for Vi->En
         """
         # Prefix is required by EnViT5: "en: " or "vi: "
-        prefix = "en: " if target_lang is Language.vi else "vi: "
-        input_text = f"{prefix}{text}"
+        prefix = "en" if target_lang is Language.vi else "vi"
+        input_text = f"{prefix}: {text}"
         inputs = self.trans_tokenizer(
             input_text, return_tensors="pt", padding=True
         ).to(self.device)
@@ -71,6 +76,29 @@ class TextService:
         return decoded[4:], (
             Language.en if decoded[:2] == Language.en.value else Language.vi
         )
+
+    def generate_tts_wav(
+        self, text: str | list[str], voice: str = "af_heart"
+    ) -> bytes | list[bytes]:
+        """Generate WAV audio bytes from input text (str or list of str) using Kokoro TTS model."""
+        if not text:
+            return [] if isinstance(text, list) else b""
+
+        pipeline = (
+            self.tts_pipeline_jp
+            if voice.startswith("j")
+            else self.tts_pipeline_en
+        )
+        generator = pipeline(text, voice=voice)
+        audio_files = []
+        for _, _, audio in generator:
+            buffer = io.BytesIO()
+            sf.write(buffer, audio, 24000, format="WAV")
+            audio_files.append(buffer.getvalue())
+
+        if isinstance(text, list):
+            return audio_files
+        return audio_files[0] if audio_files else b""
 
 
 text_service = TextService()

@@ -61,6 +61,7 @@ class Settings(BaseSettings):
     # Media
     brick_audios_folder: str = "lisenare-assets/brick-audios"
     learner_audios_folder: str = "lisenare-assets/learner-audios"
+    generated_audios_folder: str = "lisenare-assets/generated-audios"
 
     # Context search
     semantic_emb_dim: int = 384  # all-MiniLM-L6-v2
