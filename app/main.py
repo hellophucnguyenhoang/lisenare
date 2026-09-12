@@ -33,11 +33,13 @@ from .routers import (
 async def lifespan(app: FastAPI):
     # Startup code
     database.init_db()
-    await http_client.init_client()
+    http_client.init_client()
+    await http_client.init_async_client()
     yield
     # Shutdown code
     # database.delete_db()
-    await http_client.close_client()
+    http_client.close_client()
+    await http_client.close_async_client()
 
 
 app = FastAPI(title="Lisenare API", lifespan=lifespan)
@@ -149,6 +151,11 @@ app.mount(
     f"/{settings.learner_audios_folder}",
     StaticFiles(directory=settings.learner_audios_folder),
     name=settings.learner_audios_folder,
+)
+app.mount(
+    f"/{settings.generated_audios_folder}",
+    StaticFiles(directory=settings.generated_audios_folder),
+    name=settings.generated_audios_folder,
 )
 
 

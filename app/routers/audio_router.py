@@ -25,33 +25,33 @@ router = APIRouter(prefix="/audio", tags=["Audio"])
 
 
 @router.post("/transcripts", response_model=STTResponse)
-async def transcribe_audio(file: UploadFile):
+def transcribe_audio(file: UploadFile):
     files = {
         "file": (
             file.filename,
-            await file.read(),
+            file.file.read(),
             file.content_type,
         )
     }
-    r = await http_client.get_client().post("/audio/transcripts", files=files)
+    r = http_client.get_client().post("/audio/transcripts", files=files)
     return r.json()
 
 
 @router.post("/phonemes", response_model=STTResponse)
-async def get_phonemes(file: UploadFile):
+def get_phonemes(file: UploadFile):
     files = {
         "file": (
             file.filename,
-            await file.read(),
+            file.file.read(),
             file.content_type,
         )
     }
-    r = await http_client.get_client().post("/audio/phonemes", files=files)
+    r = http_client.get_client().post("/audio/phonemes", files=files)
     return r.json()
 
 
 @router.get("/forced-alignment/{audio_path:path}")
-async def forced_align(
+def forced_align(
     session: Annotated[Session, Depends(get_session)], audio_path: str
 ) -> list[WordSegmentSecond]:
     """
@@ -68,7 +68,7 @@ async def forced_align(
     }
 
     # Request the alignment details from the port 8001 AI service
-    http_response = await http_client.get_client().post(
+    http_response = http_client.get_client().post(
         "/audio/align",
         json=payload,
     )
@@ -128,7 +128,7 @@ async def evaluate_audio(
             learner_file.content_type,
         )
     }
-    learner_result = await http_client.get_client().post(
+    learner_result = http_client.get_client().post(
         "/audio/transcripts", files=learner_files
     )
 
@@ -209,12 +209,12 @@ async def evaluate_pronunciation_audio(
     }
     teacher_url = f"{settings.gcs_base_url}/{target_brick.target_audio_path}"
 
-    learner_response = await http_client.get_client().post(
+    learner_response = http_client.get_client().post(
         "/audio/phonemes", files=learner_files
     )
     learner_phonemes = learner_response.json()["transcript"]
 
-    teacher_response = await http_client.get_client().post(
+    teacher_response = http_client.get_client().post(
         "/audio/phonemes", params={"audio_url": teacher_url}
     )
     teacher_phonemes = teacher_response.json()["transcript"]

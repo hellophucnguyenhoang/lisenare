@@ -1,10 +1,12 @@
 from typing import Annotated
 
-from fastapi import APIRouter, BackgroundTasks, Depends, Query
+from fastapi import APIRouter, BackgroundTasks, Depends, status
 from sqlmodel import Session
 
 import app.http_client as http_client
+from app.config import settings
 from app.database import Learner, get_session
+from app.exceptions import RequestException
 from app.schemas import (
     ReviewCreate,
 )
@@ -20,14 +22,14 @@ from schemas.sentence import (
     SentenceTranslateRequest,
     SentenceTranslateResponse,
 )
-from schemas.text import WavStreamingResponse
-from utils import text_utils
+from schemas.text import TTSRequest
+from utils import file_utils, text_utils
 
 router = APIRouter(prefix="/text", tags=["Text Features"])
 
 
 @router.post("/sentence-comparison")
-async def compare_sentences(
+def compare_sentences(
     session: Annotated[Session, Depends(get_session)],
     current_learner: Annotated[
         Learner, Depends(auth_service.decode_token_get_learner)
@@ -36,7 +38,7 @@ async def compare_sentences(
     comparison_payload: SentenceCompareRequest,
 ) -> SentenceCompareResponse:
     # 1. Fetch external semantic evaluation
-    http_response = await http_client.get_client().post(
+    http_response = http_client.get_client().post(
         "/text/semantic-comparison",
         json=comparison_payload.model_dump(mode="json"),
     )
@@ -90,10 +92,10 @@ async def compare_sentences(
 
 
 @router.post("/translations")
-async def translate(
+def translate(
     sentence_translate_request: SentenceTranslateRequest,
 ) -> SentenceTranslateResponse:
-    r = await http_client.get_client().post(
+    r = http_client.get_client().post(
         "/text/translations",
         json=sentence_translate_request.model_dump(mode="json"),
     )
@@ -103,17 +105,34 @@ async def translate(
     return sentence_translate_respond
 
 
-@router.get(
-    "/tts-stream",
-    response_class=WavStreamingResponse,
-    description="Only works for SHORT TEXT only.",
+@router.post(
+    "/to-speech",
+    description="Convert text to speech, save audio locally, and return relative path.",
 )
-async def proxy_tts_stream(
-    data: str = Query(description="Base64 encoded JSON string"),
-):
-    # Update to a POST + GET for longer text
-    async with http_client.get_client().stream(
-        "GET", "/text/tts-stream", params={"data": data}
-    ) as r:
-        async for chunk in r.aiter_bytes():
-            yield chunk
+def text_to_speech(
+    tts_request: TTSRequest,
+) -> str:
+    max_chars = settings.brick_max_words * settings.brick_avg_word_len
+    if len(tts_request.text) > max_chars:
+        raise RequestException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            debug_message=f"Text exceeds maximum length of {max_chars} characters",
+        )
+
+    response = http_client.get_client().post(
+        "/text/to-speech",
+        json=tts_request.model_dump(mode="json"),
+    )
+    if response.status_code != status.HTTP_200_OK:
+        raise RequestException(
+            status_code=response.status_code,
+            debug_message=f"Inference server error: {response.text}",
+        )
+
+    relative_path = file_utils.save_file_bytes(
+        content=response.content,
+        base_dir=settings.generated_audios_folder,
+        filename_prefix="tts",
+        extension=".wav",
+    )
+    return relative_path

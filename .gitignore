@@ -30,18 +30,9 @@ lisenare-assets/
 # Logs
 logs/
 
-# Chat history JSON storage (runtime data)
-data/chat_histories/
-data/chat_histories.json
-
+# Temporary files
 todo.md
 ttest*
 temp*
 commands.md
-
-.agents*
-.specify*
-agents*
-.docs*
-docs/
-logs/rlm
+*.wav
