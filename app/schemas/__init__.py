@@ -23,6 +23,7 @@ from .brick import (
     BrickStatus,
     BrickUpdate,
 )
+from .brick_interaction import BrickInteractionCreate, InteractionType
 from .collection import (
     CollectionCreate,
     CollectionRead,
@@ -35,13 +36,16 @@ from .explanation import (
     ExplanationResponse,
 )
 from .forced_alignment import WordSegmentSecond
-from .learner import LearnerDetailRead, LearnerRead, LearnerUpdateName
+from .learner import (
+    LearnerDetailRead,
+    LearnerRead,
+    LearnerUpdate,
+)
 from .learning_card import (
     LearningCardStats,
     LearningTimeSeries,
     TimeSeriesPoint,
 )
-from .brick_interaction import BrickInteractionCreate, InteractionType
 from .review import ReviewBase, ReviewCreate
 from .text import PronunciationAnalysisResponse
 
@@ -71,7 +75,7 @@ __all__ = [
     "LearnerAccountCreate",
     "LearnerDetailRead",
     "LearnerRead",
-    "LearnerUpdateName",
+    "LearnerUpdate",
     "LearningCardStats",
     "LearningTimeSeries",
     "PasswordChangeRequest",

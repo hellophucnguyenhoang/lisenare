@@ -66,7 +66,7 @@ def test_app_to_speech_success():
         )
         mock_save.assert_called_once_with(
             content=fake_wav,
-            base_dir=settings.brick_audios_folder,
+            base_dir=settings.generated_audios_folder,
             filename_prefix="tts",
             extension=".wav",
         )

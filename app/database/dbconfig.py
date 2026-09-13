@@ -21,6 +21,7 @@ from .models import (
     Brick,
     Collection,
     Learner,
+    LearnerSetting,
     Tag,
     Taggable,
     YouTubeSubtitle,
@@ -80,7 +81,11 @@ def init_bricks(session: Session):
         session: Session, learner_account_create: LearnerAccountCreate
     ) -> Account:
         # Create Learner first
-        learner = Learner(name=learner_account_create.name)
+        default_setting = LearnerSetting()
+        learner = Learner(
+            name=learner_account_create.name,
+            setting=default_setting,
+        )
 
         hashed_password = security.get_password_hash(
             learner_account_create.password
@@ -189,6 +194,7 @@ def init_bricks(session: Session):
             target_audio_path=str(
                 Path("brick-audios") / row["source_audio_file"]
             ),
+            target_lang="en",
             unit_type=row["unit_type"],
             creator=me_account.learner,
             collection=collection,
