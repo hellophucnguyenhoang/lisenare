@@ -82,6 +82,7 @@ def get_next_brick(
         creator_id=creator.id,
         collection_ids=collection_ids,
         brick_id=brick_id,
+        practice_lang=creator.practice_lang,
     )
 
 
