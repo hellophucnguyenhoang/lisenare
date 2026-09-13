@@ -38,6 +38,11 @@ class Brick(SQLModel, table=True):
         max_length=settings.brick_max_words * settings.brick_avg_word_len
     )
     target_audio_path: str = Field(max_length=settings.max_path_len)
+    target_lang: str = Field(
+        default="en",
+        max_length=2,
+        index=True,
+    )  # ISO 639-1 code
     target_pron: str | None = Field(
         default=None,
         max_length=settings.brick_max_words * settings.brick_avg_word_len,
@@ -227,8 +232,11 @@ class Learner(SQLModel, table=True):
     bricks: list[Brick] | None = Relationship(
         back_populates="creator", cascade_delete=True
     )
-    tags: list["Tag"] | None = Relationship(
-        back_populates="creator", cascade_delete=True
+    brick_interactions: list[BrickInteraction] | None = Relationship(
+        back_populates="learner", cascade_delete=True
+    )
+    brick_reports: list["BrickReport"] | None = Relationship(
+        back_populates="learner", cascade_delete=True
     )
     memories: list[BrickMemory] | None = Relationship(
         back_populates="learner", cascade_delete=True
@@ -236,18 +244,29 @@ class Learner(SQLModel, table=True):
     reviews: list["BrickReview"] | None = Relationship(
         back_populates="learner", cascade_delete=True
     )
-    brick_interactions: list[BrickInteraction] | None = Relationship(
+    setting: "LearnerSetting" = Relationship(
         back_populates="learner", cascade_delete=True
     )
-    brick_reports: list["BrickReport"] | None = Relationship(
-        back_populates="learner", cascade_delete=True
+    tags: list["Tag"] | None = Relationship(
+        back_populates="creator", cascade_delete=True
     )
+
+    @property
+    def practice_lang(self) -> str:
+        try:
+            return self.setting.practice_lang if self.setting else "en"
+        except Exception:
+            return "en"
 
 
 class LearnerSetting(SQLModel, table=True):
-    learner_id: int = Field(foreign_key="learner.id", primary_key=True)
+    learner_id: int = Field(
+        foreign_key="learner.id", primary_key=True, ondelete="CASCADE"
+    )
     fsrs_weights: list[float] | None = Field(default=None, sa_type=JSONB)
     target_retention: float = Field(default=0.9)
+    practice_lang: str = Field(default="en", max_length=2)  # ISO 639-1 code
+    learner: "Learner" = Relationship(back_populates="setting")
 
 
 class OTP(SQLModel, table=True):
