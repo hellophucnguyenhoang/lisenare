@@ -1,12 +1,12 @@
 from fastapi.testclient import TestClient
 
-from app.database import Learner
+from app.database import Learner, LearnerSetting
 from app.main import app
 from app.services import auth_service
 
 
 def test_get_pending_collections(client: TestClient):
-    existing_learner = Learner(id=2)
+    existing_learner = Learner(id=2, setting=LearnerSetting())
 
     app.dependency_overrides[auth_service.decode_token_get_learner] = lambda: (
         existing_learner
@@ -26,7 +26,7 @@ def test_get_pending_collections(client: TestClient):
 
 
 def test_create_collection_success(client: TestClient):
-    existing_learner = Learner(id=2)
+    existing_learner = Learner(id=2, setting=LearnerSetting())
     app.dependency_overrides[auth_service.decode_token_get_learner] = lambda: (
         existing_learner
     )
@@ -52,8 +52,9 @@ def test_create_collection_success(client: TestClient):
     assert data["tags"] == []
 
     # Clean up test collection
-    from app.database import Collection, get_session
     from sqlmodel import select
+
+    from app.database import Collection, get_session
 
     session = next(get_session())
     created = session.exec(
@@ -65,7 +66,7 @@ def test_create_collection_success(client: TestClient):
 
 
 def test_create_collection_duplicate_name(client: TestClient):
-    existing_learner = Learner(id=2)
+    existing_learner = Learner(id=2, setting=LearnerSetting())
     app.dependency_overrides[auth_service.decode_token_get_learner] = lambda: (
         existing_learner
     )
@@ -85,7 +86,7 @@ def test_create_collection_duplicate_name(client: TestClient):
 
 
 def test_create_collection_empty_name(client: TestClient):
-    existing_learner = Learner(id=2)
+    existing_learner = Learner(id=2, setting=LearnerSetting())
     app.dependency_overrides[auth_service.decode_token_get_learner] = lambda: (
         existing_learner
     )
@@ -104,7 +105,7 @@ def test_create_collection_empty_name(client: TestClient):
 
 
 def test_create_collection_with_tags_success(client: TestClient):
-    existing_learner = Learner(id=2)
+    existing_learner = Learner(id=2, setting=LearnerSetting())
     app.dependency_overrides[auth_service.decode_token_get_learner] = lambda: (
         existing_learner
     )
@@ -131,8 +132,9 @@ def test_create_collection_with_tags_success(client: TestClient):
     assert sorted(data["tags"]) == ["travel", "vocabulary"]
 
     # Verify Taggable in DB and cleanup
-    from app.database import Collection, Taggable, get_session
     from sqlmodel import select
+
+    from app.database import Collection, Taggable, get_session
 
     session = next(get_session())
     created = session.exec(
@@ -155,7 +157,7 @@ def test_create_collection_with_tags_success(client: TestClient):
 
 
 def test_update_collection_success(client: TestClient):
-    existing_learner = Learner(id=2)
+    existing_learner = Learner(id=2, setting=LearnerSetting())
     app.dependency_overrides[auth_service.decode_token_get_learner] = lambda: (
         existing_learner
     )
@@ -195,7 +197,7 @@ def test_update_collection_success(client: TestClient):
 
 
 def test_update_collection_duplicate_name(client: TestClient):
-    existing_learner = Learner(id=2)
+    existing_learner = Learner(id=2, setting=LearnerSetting())
     app.dependency_overrides[auth_service.decode_token_get_learner] = lambda: (
         existing_learner
     )
@@ -226,7 +228,7 @@ def test_update_collection_duplicate_name(client: TestClient):
 
 
 def test_delete_collection_success(client: TestClient):
-    existing_learner = Learner(id=2)
+    existing_learner = Learner(id=2, setting=LearnerSetting())
     app.dependency_overrides[auth_service.decode_token_get_learner] = lambda: (
         existing_learner
     )
@@ -247,8 +249,9 @@ def test_delete_collection_success(client: TestClient):
     assert del_res.status_code == 204
 
     # Verify collection and taggable are deleted
-    from app.database import Collection, Taggable, get_session
     from sqlmodel import select
+
+    from app.database import Collection, Taggable, get_session
 
     session = next(get_session())
     col = session.get(Collection, col_id)
@@ -266,14 +269,15 @@ def test_delete_collection_success(client: TestClient):
 
 
 def test_delete_collection_forbidden(client: TestClient):
-    other_learner = Learner(id=99999)
+    other_learner = Learner(id=99999, setting=LearnerSetting())
     app.dependency_overrides[auth_service.decode_token_get_learner] = lambda: (
         other_learner
     )
 
     # Try to delete collection belonging to learner 2
-    from app.database import Collection, get_session
     from sqlmodel import select
+
+    from app.database import Collection, get_session
 
     session = next(get_session())
     col = session.exec(

@@ -6,7 +6,7 @@ from sqlmodel import Session, or_, select
 
 from app import security
 from app.config import fast_mail, logger, settings
-from app.database import Account, Learner
+from app.database import Account, Learner, LearnerSetting
 from app.exceptions import ErrorCode, RequestException
 from app.schemas import (
     EmailChangeOTPRequest,
@@ -48,8 +48,11 @@ def create_learner_account(
             debug_message="Username or email registration conflicts.",
             error_code=ErrorCode.USERNAME_OR_EMAIL_TAKEN,
         )
-
-    learner = Learner(name=learner_account_create.name)
+    default_setting = LearnerSetting()
+    learner = Learner(
+        name=learner_account_create.name,
+        setting=default_setting,
+    )
     hashed_password = security.get_password_hash(
         learner_account_create.password
     )

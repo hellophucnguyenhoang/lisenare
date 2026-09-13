@@ -9,6 +9,7 @@ from app.schemas.learner import LearnerRead
 class BrickUpdate(SQLModel):
     native_text: str | None = None
     target_text: str | None = None
+    target_lang: str | None = None
     target_pron: str | None = None
     context: str | None = None
     unit_type: str | None = None
@@ -26,6 +27,7 @@ class BrickContextSearch(SQLModel):
 class BrickBase(SQLModel):
     native_text: str
     target_text: str
+    target_lang: str = "en"
     target_pron: str | None = None
     context: str | None = None
     unit_type: str = "sentence"

@@ -4,7 +4,13 @@ from datetime import datetime, timezone
 from fastapi import status
 from sqlmodel import Session, and_, exists, func, not_, select
 
-from app.database import Brick, BrickMemory, BrickReview, Collection
+from app.database import (
+    Brick,
+    BrickMemory,
+    BrickReview,
+    Collection,
+    LearnerSetting,
+)
 from app.exceptions import RequestException
 from app.schemas import (
     BrickCreate,
@@ -146,11 +152,16 @@ def get_next_brick(
     creator_id: int,
     collection_ids: list[int] | None = None,
     brick_id: int | None = None,
+    practice_lang: str | None = None,
 ) -> BrickRead | None:
     if brick_id is not None:
         brick = get_brick(session, brick_id, creator_id)
         tags = fetch_tags_for_entity(session, brick.id, "Brick")
         return BrickRead.model_validate(brick, update={"tags": tags})
+
+    if practice_lang is None:
+        setting = session.get(LearnerSetting, creator_id)
+        practice_lang = setting.practice_lang if setting else "en"
 
     now = datetime.now(timezone.utc)
     broken_brick_ids = []  # TODO: Get reported brick id
@@ -160,6 +171,8 @@ def get_next_brick(
             stmt = stmt.where(Brick.collection_id.in_(collection_ids))
         if broken_brick_ids:
             stmt = stmt.where(Brick.id.not_in(broken_brick_ids))
+        if practice_lang:
+            stmt = stmt.where(Brick.target_lang == practice_lang)
         return stmt
 
     due_stmt = (
@@ -239,6 +252,10 @@ def create_brick(
     brick_create = BrickCreate(
         native_text=request_data.native_text,
         target_text=request_data.target_text,
+        target_lang=request_data.target_lang,
+        target_pron=request_data.target_pron,
+        context=request_data.context,
+        unit_type=request_data.unit_type,
         target_audio_path=target_audio_path,
         is_private=request_data.is_private,
         creator_id=creator_id,
@@ -270,6 +287,7 @@ def create_brick(
             "brick_id": b.id,
             "target_text": b.target_text,
             "native_text": b.native_text,
+            "target_lang": b.target_lang,
         },
         id_prefix="Brick",
     )
