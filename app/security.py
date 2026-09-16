@@ -47,7 +47,7 @@ def set_access_token(response: Response, access_token: str):
         key="access_token",
         value=access_token,
         httponly=True,  # Browser's JavaScript cannot touch this
-        secure=settings.secured_connection,  # Browser's must send cookie over unencrypted connections
+        secure=settings.secured_connection,  # Browser must only send cookie over encrypted connections
         samesite="lax",  # 'none', 'lax', or 'strict', protects against CSRF
     )
 
