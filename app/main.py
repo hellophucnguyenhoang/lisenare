@@ -111,7 +111,7 @@ async def http_exception_handler(request, exc: StarletteHTTPException):
 # Allow requests from the frontend
 origins = [
     "http://127.0.0.1:5173",
-    "http://192.168.56.230:5173",  # must use if using phone/other devices
+    "http://192.168.1.105:5173",
 ]
 
 app.add_middleware(
@@ -127,36 +127,32 @@ app.add_middleware(
     allow_headers=["Authorization", "Content-Type"],
 )
 
-# app.include_router(test_router.router)
-app.include_router(account_router.router)
-app.include_router(audio_router.router)
-app.include_router(auth_router.router)
-app.include_router(brick_interaction_router.router)
-app.include_router(brick_memory_router.router)
-app.include_router(brick_router.router)
-app.include_router(chat_router.router)
-app.include_router(collection_router.router)
-app.include_router(context_search_router.router)
-app.include_router(explanation_router.router)
-app.include_router(learner_router.router)
-app.include_router(text_router.router)
+API_PREFIX = "/api"
+for router_module in [
+    account_router,
+    audio_router,
+    auth_router,
+    brick_interaction_router,
+    brick_memory_router,
+    brick_router,
+    chat_router,
+    collection_router,
+    context_search_router,
+    explanation_router,
+    learner_router,
+    text_router,
+]:
+    app.include_router(router_module.router, prefix=API_PREFIX)
 
 
-app.mount(
-    f"/{settings.brick_audios_folder}",
-    StaticFiles(directory=settings.brick_audios_folder),
-    name=settings.brick_audios_folder,
-)
-app.mount(
-    f"/{settings.learner_audios_folder}",
-    StaticFiles(directory=settings.learner_audios_folder),
-    name=settings.learner_audios_folder,
-)
-app.mount(
-    f"/{settings.generated_audios_folder}",
-    StaticFiles(directory=settings.generated_audios_folder),
-    name=settings.generated_audios_folder,
-)
+for folder in [
+    settings.brick_audios_folder,
+    settings.learner_audios_folder,
+    settings.generated_audios_folder,
+]:
+    app.mount(
+        f"{API_PREFIX}/{folder}", StaticFiles(directory=folder), name=folder
+    )
 
 
 # Extending OpenAPI
@@ -188,3 +184,5 @@ def custom_openapi():
 
 
 app.openapi = custom_openapi
+
+# app.frontend("/", directory="dist")
