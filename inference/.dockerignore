@@ -1,0 +1,25 @@
+# Environment & Dependencies
+.venv
+.env
+
+# IDEs & Tools
+.vscode
+.idea
+.ruff_cache
+.pytest_cache
+.mypy_cache
+.DS_Store
+
+# Python leftovers
+**/__pycache__
+**/*.pyc
+**/*.pyo
+**/*.pyd
+
+# Git
+.git
+.gitignore
+
+# Docker logs
+Dockerfile
+.dockerignore

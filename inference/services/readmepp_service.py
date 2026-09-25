@@ -1,6 +1,6 @@
 from transformers import pipeline
 
-from inference.config import logger
+from config import logger
 
 
 class ReadMePPService:
