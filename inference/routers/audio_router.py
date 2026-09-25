@@ -1,16 +1,16 @@
 from fastapi import APIRouter, HTTPException, UploadFile, status
-from inference.schemas.audio import (
+
+from schemas.audio import (
     AlignmentRequest,
     AlignmentResponse,
     WordSegmentResponse,
 )
-from inference.services.transcription_service import (
+from services.transcription_service import (
     phoneme_recognition_service,
     preprocess_upload_file,
     transcription_service,
 )
-
-from schemas.audio import STTResponse
+from shared_schemas.audio import STTResponse
 
 router = APIRouter(prefix="/audio", tags=["Audio Features"])
 

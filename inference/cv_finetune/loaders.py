@@ -5,7 +5,7 @@ from contextlib import contextmanager
 import torch
 import torch.nn as nn
 
-from inference.config import logger
+from config import logger
 
 _LORA_ENABLED = True
 
