@@ -15,13 +15,13 @@ from transformers import (
     pipeline,
 )
 
-from inference.config import logger
-from inference.cv_finetune.loaders import (
+from config import logger
+from cv_finetune.loaders import (
     apply_lora_to_wav2vec2,
     load_lora_adapter,
     lora_mode,
 )
-from inference.schemas.audio import WordSegment
+from schemas.audio import WordSegment
 
 
 async def preprocess_upload_file(file: UploadFile) -> np.ndarray:

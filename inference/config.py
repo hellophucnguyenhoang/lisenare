@@ -1,14 +1,18 @@
 import logging
+import os
 from pathlib import Path
 
-PROJECT_ROOT = Path(__file__).resolve().parent.parent
-LOG_DIR = PROJECT_ROOT / "logs"
+if os.path.exists("../logs"):
+    LOG_DIR = Path("../logs").resolve()
+else:
+    LOG_DIR = Path("logs").resolve()
+
 LOG_FILE_PATH = LOG_DIR / "inference.log"
 LOG_DIR.mkdir(parents=True, exist_ok=True)
 
 logger = logging.getLogger("inference")
 logger.setLevel(logging.INFO)
-logger.propagate = False  # prevent propagate to the system logger
+logger.propagate = False
 
 
 file_handler = logging.FileHandler(LOG_FILE_PATH, encoding="utf-8")
