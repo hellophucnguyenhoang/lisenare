@@ -41,14 +41,14 @@ class ContextSearchService:
                 embeddings=self.embeddings,
                 embedding_length=SEMANTIC_EMB_DIM,
                 collection_name="youtubesubtitle",
-                connection=settings.database_url,
+                connection=settings.db_url,
                 use_jsonb=True,
             ),
             "bricks": PGVector(
                 embeddings=self.embeddings,
                 embedding_length=SEMANTIC_EMB_DIM,
                 collection_name="brick",
-                connection=settings.database_url,
+                connection=settings.db_url,
                 use_jsonb=True,
             ),
         }

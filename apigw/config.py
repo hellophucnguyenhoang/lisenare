@@ -46,6 +46,8 @@ class Settings(BaseSettings):
     db_user: str
     db_password: str
     db_name: str
+    db_url: str
+    redis_url: str
 
     # Servers and Cloud
     inference_url: str
@@ -66,12 +68,7 @@ class Settings(BaseSettings):
     generated_audios_folder: str = "lisenare-assets/generated-audios"
 
     # load value from the .env file
-    model_config = SettingsConfigDict(env_file=".env")
-
-    @property
-    def database_url(self) -> str:
-        # Connects directly via Docker internal network gateway using the name 'database'
-        return f"postgresql://{self.db_user}:{self.db_password}@database:5432/{self.db_name}"
+    model_config = SettingsConfigDict(env_file=os.getenv("TARGET_ENV", ".env"))
 
 
 settings = Settings()

@@ -26,7 +26,7 @@ from .models import (
     Taggable,
 )
 
-engine = create_engine(settings.database_url, echo=False)
+engine = create_engine(settings.db_url, echo=False)
 
 
 def get_session() -> Iterator[Session]:
