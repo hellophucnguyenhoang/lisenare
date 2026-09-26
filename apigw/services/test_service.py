@@ -1,6 +1,7 @@
 import pandas as pd
 from sqlmodel import Session, select
 
+from config import logger
 from database import Brick
 
 
@@ -37,4 +38,4 @@ def export_bricks_to_csv(
     # 3. Use Pandas to save to CSV
     df = pd.DataFrame(data)
     df.to_csv(file_path, index=False, encoding="utf-8-sig")
-    print(f"Exported {len(data)} bricks to {file_path}")
+    logger.info(f"Exported {len(data)} bricks to {file_path}")

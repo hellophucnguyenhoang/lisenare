@@ -5,6 +5,8 @@ from typing import Any
 import yt_dlp
 from youtube_transcript_api import YouTubeTranscriptApi
 
+from config import logger
+
 ytt_api = YouTubeTranscriptApi()
 video_ids_file = Path("video_ids.json")
 transcripts_folder = Path("transcripts")
@@ -233,4 +235,6 @@ if __name__ == "__main__":
 
     segments = create_hybrid_searchable_segments(sample_chunks)
     for s in segments:
-        print(f"[{s['start']:>6.2f}s -> +{s['duration']:.2f}s] {s['text']}")
+        logger.info(
+            f"[{s['start']:>6.2f}s -> +{s['duration']:.2f}s] {s['text']}"
+        )

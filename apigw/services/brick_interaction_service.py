@@ -3,6 +3,7 @@ from datetime import datetime, timezone
 from fastapi import status
 from sqlmodel import Session
 
+from config import logger
 from database import BrickInteraction, BrickReaction
 from exceptions import RequestException
 from schemas import BrickInteractionCreate, InteractionType
@@ -106,7 +107,7 @@ def handle_interaction_and_update_profile(
                 commit=True,
             )
         else:
-            print("embedding None, consider to add brick embeddings")
+            logger.warning("embedding None, consider to add brick embeddings")
 
         return interaction
     except Exception as e:
