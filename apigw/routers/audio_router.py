@@ -4,7 +4,7 @@ from fastapi import APIRouter, BackgroundTasks, Depends, UploadFile
 from sqlmodel import Session
 
 import http_client as http_client
-from config import settings
+from config import logger, settings
 from database import Learner, get_session
 from schemas import (
     PronunciationAnalysisResponse,
@@ -172,7 +172,7 @@ async def evaluate_audio(
             learner_id=learner.id,
             review_create=review_create,
         )
-        print(f"Review saved, {total_learner_reviews=}")
+        logger.info(f"Review saved, {total_learner_reviews=}")
         if total_learner_reviews > 100:
             interval = max(200, int(total_learner_reviews**0.5 * 20))
             if total_learner_reviews % interval == 0:
@@ -180,7 +180,7 @@ async def evaluate_audio(
                     brick_memory_service.optimize_learner_scheduler,
                     learner.id,
                 )
-                print(
+                logger.info(
                     f"Triggering background optimization for learner {learner.id}"
                 )
 
@@ -267,7 +267,7 @@ async def evaluate_pronunciation_audio(
             learner_id=learner.id,
             review_create=review_create,
         )
-        print(f"Review saved, {total_learner_reviews=}")
+        logger.info(f"Review saved, {total_learner_reviews=}")
         if total_learner_reviews > 100:
             interval = max(200, int(total_learner_reviews**0.5 * 20))
             if total_learner_reviews % interval == 0:
@@ -275,7 +275,7 @@ async def evaluate_pronunciation_audio(
                     brick_memory_service.optimize_learner_scheduler,
                     learner.id,
                 )
-                print(
+                logger.info(
                     f"Triggering background optimization for learner {learner.id}"
                 )
 

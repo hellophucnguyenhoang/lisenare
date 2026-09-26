@@ -4,6 +4,7 @@ from datetime import datetime, timezone
 from fastapi import status
 from sqlmodel import Session, and_, exists, func, not_, select
 
+from config import logger
 from database import (
     Brick,
     BrickMemory,
@@ -189,11 +190,11 @@ def get_next_brick(
     due_stmt = apply_filters(due_stmt)
     brick = session.exec(due_stmt).first()
     if brick:
-        print("FSRS Case 1: Get the least overdue card")
+        logger.info("FSRS Case 1: Get the least overdue card")
         tags = fetch_tags_for_entity(session, brick.id, "Brick")
         return BrickRead.model_validate(brick, update={"tags": tags})
 
-    print("FSRS Case 2: Get a new card")
+    logger.info("FSRS Case 2: Get a new card")
     new_stmt = (
         select(Brick)
         .where(

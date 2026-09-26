@@ -7,7 +7,7 @@ from langchain_postgres import PGVector
 from numpy.typing import NDArray
 from sqlmodel import Session, or_, select, text
 
-from config import settings
+from config import logger, settings
 from constants import SEMANTIC_EMB_DIM
 from database import Brick, YouTubeSubtitle
 from schemas import BrickContextSearch
@@ -66,7 +66,7 @@ class ContextSearchService:
         self, text: str, mmr: bool = True
     ) -> list[BrickContextSearch]:
         docs = self._fetch_docs("bricks", text, mmr)
-        print(f"brick semantic: {len(docs)}")
+        logger.info(f"brick semantic: {len(docs)}")
         return [
             BrickContextSearch(
                 brick_id=d.metadata["brick_id"],
@@ -152,15 +152,15 @@ def sync_model_to_langchain(
             text("SELECT id FROM langchain_pg_embedding")
         ).all()
         existing_ids = {row[0] for row in result if row[0]}
-        print(f"DEBUG: Found {len(existing_ids)} existing IDs in DB.")
+        logger.debug(f"Found {len(existing_ids)} existing IDs in DB.")
     except Exception as e:
-        print(
+        logger.warning(
             f"Note: Could not fetch existing IDs, will try to sync all. Error: {e}"
         )
 
     batch_size = 256
     total = len(items)
-    print(
+    logger.info(
         f"Syncing {total} {model.__name__}s to LangChain in batches of {batch_size}..."
     )
 
@@ -182,18 +182,18 @@ def sync_model_to_langchain(
 
         if documents:
             store.add_documents(documents, ids=ids)
-            print(
-                f"[{store_key}] Added {len(documents)} new items. \
-                    Progress: {min(i + batch_size, total)}/{total}"
+            logger.info(
+                f"[{store_key}] Added {len(documents)} new items. "
+                f"Progress: {min(i + batch_size, total)}/{total}"
             )
         else:
-            print(
+            logger.info(
                 f"[{store_key}] Batch {i // batch_size + 1}: Skipping (all exist)."
             )
 
 
 def create_vector_indexes(session: Session):
-    print("Creating HNSW indexes for semantic search...")
+    logger.info("Creating HNSW indexes for semantic search...")
     # Lưu ý: LangChain lưu vector trong bảng 'langchain_pg_embedding'
     # và cột chứa vector tên là 'embedding'
     session.exec(
@@ -203,7 +203,7 @@ def create_vector_indexes(session: Session):
     """)
     )
     session.commit()
-    print("Indexes created successfully!")
+    logger.info("Indexes created successfully!")
 
 
 def initialize_embeddings(
@@ -241,7 +241,7 @@ def initialize_embeddings(
         lambda s: f"{s.video_id}_{s.start}_{s.duration}",
     )
 
-    print("All data synced with custom metadata!")
+    logger.info("All data synced with custom metadata!")
 
 
 def add_item_to_vector_store(
@@ -265,7 +265,7 @@ def add_item_to_vector_store(
 
     # Add to the store
     store.add_documents([document], ids=[doc_id])
-    print(f"[{store_key}] Successfully embedded item ID: {doc_id}")
+    logger.info(f"[{store_key}] Successfully embedded item ID: {doc_id}")
 
 
 def delete_item_from_vector_store(
@@ -283,6 +283,8 @@ def delete_item_from_vector_store(
     try:
         # LangChain stores usually provide a .delete() method for IDs
         store.delete(ids=[doc_id])
-        print(f"[{store_key}] Successfully deleted embedding for ID: {doc_id}")
+        logger.info(
+            f"[{store_key}] Successfully deleted embedding for ID: {doc_id}"
+        )
     except Exception as e:
-        print(f"[{store_key}] Error deleting ID {doc_id}: {e}")
+        logger.error(f"[{store_key}] Error deleting ID {doc_id}: {e}")

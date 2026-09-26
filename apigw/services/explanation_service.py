@@ -7,6 +7,7 @@ from ollama import generate
 from pydantic import BaseModel
 from sqlmodel import Session
 
+from config import logger
 from exceptions import ErrorCode, RequestException
 from schemas import ExplanationResponse
 from utils.text_utils import (
@@ -244,11 +245,11 @@ def generate_vocab_item_for_learner(
         model=model,
         prompt=user_prompt,
     )
-    print(f"{raw_result=}")
+    logger.debug(f"{raw_result=}")
 
     item = parse_vocab_response(raw_text=raw_result)
 
-    print("refine explanation")
+    logger.info("Refining explanation...")
     # Refine explanation
     item.explanation, explanation_metric = simplify_until_better(
         session=session,
@@ -261,7 +262,7 @@ def generate_vocab_item_for_learner(
         max_rounds=max_simplification_rounds,
     )
 
-    print("refine example")
+    logger.info("Refining examples...")
     # Refine each example independently
     refined_examples: list[str] = []
     example_metrics = []
@@ -362,8 +363,8 @@ def validate_explanation_response(
         example_stems = get_lenient_stems(example)
 
         if not target_stems.issubset(example_stems):
-            print(f"{target_stems=}")
-            print(f"{example_stems=}")
+            logger.warning(f"{target_stems=}")
+            logger.warning(f"{example_stems=}")
             raise RequestException(
                 status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                 debug_message=(

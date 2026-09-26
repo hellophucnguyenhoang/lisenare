@@ -4,6 +4,7 @@ from typing import Annotated
 from fastapi import APIRouter, Body, Depends
 from sqlmodel import Session
 
+from config import logger
 from database import Learner, get_session
 from schemas import (
     ExplanationRequest,
@@ -35,10 +36,10 @@ def get_explanations(
             target_term=explanation_request.target_term,
         )
     )
-    print(f"simplified responses: {response=}")
+    logger.info(f"simplified responses: {response=}")
     explanation_service.validate_explanation_response(response)
     elapsed_ms = (time.perf_counter() - start) * 1000
-    print(f"Explanation time: {elapsed_ms} ms")
+    logger.info(f"Explanation time: {elapsed_ms} ms")
     response.familiarity_before = evaluation_metric.familiarity_before
     response.familiarity_after = evaluation_metric.familiarity_after
     response.familiarity_improvement = (

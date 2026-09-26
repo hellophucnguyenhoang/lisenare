@@ -3,6 +3,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, Query
 from sqlmodel import Session
 
+from config import logger
 from database import Learner, get_session
 from schemas import LearningCardStats, LearningTimeSeries
 from services import auth_service, brick_memory_service
@@ -70,7 +71,7 @@ def get_learning_timeseries(
         ),
     ] = None,
 ):
-    print(f"{metric=},{tz_name=},{days=}")
+    logger.info(f"{metric=}, {tz_name=}, {days=}")
     result = LearningTimeSeries(
         **brick_memory_service.get_learning_timeseries(
             session,
