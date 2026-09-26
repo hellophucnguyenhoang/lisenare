@@ -1,7 +1,7 @@
 [project]
-name = "lisenare"
+name = "lisenare-apigw"
 version = "0.1.0"
-description = "Add your description here"
+description = "API gateway responsible for routing and coordinating services"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
