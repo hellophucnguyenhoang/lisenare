@@ -4,7 +4,7 @@ from fastapi import APIRouter, BackgroundTasks, Depends, status
 from sqlmodel import Session
 
 import http_client as http_client
-from config import settings
+from config import logger, settings
 from database import Learner, get_session
 from exceptions import RequestException
 from schemas import (
@@ -87,7 +87,7 @@ def compare_sentences(
             learner_id=current_learner.id,
             review_create=review_metadata,
         )
-        print(f"Review saved, {total_learner_reviews=}")
+        logger.info(f"Review saved, {total_learner_reviews=}")
 
         # Optimize spacing intervals periodically
         if total_learner_reviews > 100:
@@ -97,7 +97,7 @@ def compare_sentences(
                     brick_memory_service.optimize_learner_scheduler,
                     current_learner.id,
                 )
-                print(
+                logger.info(
                     f"Triggering background optimization for learner {current_learner.id}"
                 )
 

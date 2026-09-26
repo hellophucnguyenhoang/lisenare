@@ -4,6 +4,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, Response, status
 from sqlmodel import Session
 
+from config import logger
 from database import Learner, get_session
 from schemas import (
     BrickContextSearch,
@@ -30,7 +31,7 @@ def init_embeddings(
     start = time.time()
     initialize_embeddings(session, context_search_service)
     end = time.time()
-    print(f"Initialization time: {(end - start)}s")
+    logger.info(f"Initialization time: {(end - start)}s")
     return Response(status_code=status.HTTP_201_CREATED)
 
 
@@ -50,5 +51,5 @@ def search_context_bricks(
         learner_id,
     )
     end = time.time()
-    print(f"brick search time: {(end - start) * 1000} ms")
+    logger.info(f"brick search time: {(end - start) * 1000} ms")
     return search_result[:30]

@@ -1,6 +1,6 @@
 import math
 import random
-import traceback
+from config import logger
 from collections import defaultdict
 from datetime import datetime, timedelta, timezone
 from typing import Literal
@@ -32,7 +32,7 @@ from .spaced_repetition_service import get_scheduler_for_learner
 
 
 def optimize_learner_scheduler(learner_id: int):
-    print(f"Start optimizing scheduler for the learner {learner_id}")
+    logger.info(f"Start optimizing scheduler for the learner {learner_id}")
     with Session(engine) as session:
         # 1. Load all reviews to train the optimizer
         statement = select(BrickReview).where(
@@ -46,10 +46,10 @@ def optimize_learner_scheduler(learner_id: int):
             if r.fsrs_log_dict
         ]
         log_count = len(fsrs_logs)
-        print(f"Found {log_count} valid FSRS logs")
+        logger.info(f"Found {log_count} valid FSRS logs")
 
         if log_count < 100:
-            print(
+            logger.warning(
                 f"Optimization aborted: Not enough logs ({len(fsrs_logs)} < 100)"
             )
             return
@@ -59,7 +59,7 @@ def optimize_learner_scheduler(learner_id: int):
             optimizer = Optimizer(fsrs_logs)
             # Weights can usually be computed with ~100+ logs
             optimal_params = optimizer.compute_optimal_parameters()
-            print(f"Done computing optimal params for {learner_id = }")
+            logger.info(f"Done computing optimal params for {learner_id = }")
 
             # Retention requires 512. Check count before calling.
             optimal_retention = 0.9  # Default
@@ -68,13 +68,15 @@ def optimize_learner_scheduler(learner_id: int):
                     optimal_retention = optimizer.compute_optimal_retention(
                         optimal_params
                     )
-                    print(
+                    logger.info(
                         f"Done computing optimal retention for {learner_id = }"
                     )
                 except ValueError as e:
-                    print(f"Retention optimization failed, using 0.9: {e}")
+                    logger.warning(
+                        f"Retention optimization failed, using 0.9: {e}"
+                    )
             else:
-                print(
+                logger.info(
                     f"Skipping retention optimization for learner {learner_id} (Need 512, have {log_count})"
                 )
 
@@ -121,11 +123,13 @@ def optimize_learner_scheduler(learner_id: int):
                 session.add(db_card)
 
             session.commit()
-            print(f"Successfully optimized for learner {learner_id}")
+            logger.info(f"Successfully optimized for learner {learner_id}")
 
         except Exception as e:
-            print(f"Optimization failed for learner {learner_id}: {e}")
-            traceback.print_exc()
+            logger.error(
+                f"Optimization failed for learner {learner_id}: {e}",
+                exc_info=True,
+            )
 
 
 def get_average_stability(
@@ -495,7 +499,7 @@ def calculate_sentence_familiarity(
     unknown_stems = sentence_stems - learner_seen_stems
 
     unknown_ratio = len(unknown_stems) / len(sentence_stems)
-    print(f"{unknown_ratio=}")
+    logger.debug(f"{unknown_ratio=}")
     # No unknown words -> perfectly familiar
     if not unknown_stems:
         return 1.0
@@ -503,9 +507,8 @@ def calculate_sentence_familiarity(
     avg_unknown_rarity = sum(
         calculate_rarity(word) for word in unknown_stems
     ) / len(unknown_stems)
-    print(f"{avg_unknown_rarity=}")
+    logger.debug(f"{avg_unknown_rarity=}")
 
     familiarity = math.exp(-unknown_ratio - avg_unknown_rarity)
-    print(f"{familiarity=}|{sentence=}")
-    print()
+    logger.debug(f"{familiarity=}|{sentence=}")
     return familiarity

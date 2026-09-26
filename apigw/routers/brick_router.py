@@ -12,7 +12,7 @@ from fastapi import (
 )
 from sqlmodel import Session
 
-from config import settings
+from config import logger, settings
 from database import Learner, get_session
 from schemas import (
     BrickCreateRequest,
@@ -97,7 +97,7 @@ def get_listening_bricks(
     limit: Annotated[int, Query(ge=0, le=100)] = 20,
     shuffle_page: Annotated[bool, Query()] = False,
 ) -> BrickListeningPage:
-    print(f"{collection_ids = }")
+    logger.info(f"{collection_ids = }")
     bricks = brick_service.get_bricks(
         session=session,
         creator_id=creator.id,
