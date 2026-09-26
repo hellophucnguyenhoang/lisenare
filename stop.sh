@@ -1,3 +1,8 @@
 #!/bin/bash
 
-fuser -k 8000/tcp 8001/tcp
+echo "🛑 Stopping and removing containers..."
+
+# Stops and tears down the stack safely
+docker compose down
+
+echo "✨ All services stopped successfully."

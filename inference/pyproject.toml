@@ -1,7 +1,7 @@
 [project]
-name = "lisenare"
+name = "lisenare-inference"
 version = "0.1.0"
-description = "Add your description here"
+description = "Server dedicated to AI model inference"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
