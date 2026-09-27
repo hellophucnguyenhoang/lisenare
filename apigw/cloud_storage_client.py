@@ -36,3 +36,35 @@ def download_file(s3_key: str, local_path: Path):
     local_path.parent.mkdir(parents=True, exist_ok=True)
     s3.download_file(settings.bucket_name, s3_key, str(local_path))
     logger.info(f"Downloaded '{s3_key}' to '{local_path}'")
+
+
+def upload_bytes(
+    content: bytes,
+    s3_key: str,
+    content_type: str = "audio/wav",
+):
+    """Upload bytes directly to cloud storage at s3_key."""
+    s3 = get_s3_client()
+    s3.put_object(
+        Bucket=settings.bucket_name,
+        Key=s3_key,
+        Body=content,
+        ContentType=content_type,
+    )
+    logger.info(f"Uploaded bytes to cloud storage '{s3_key}'")
+
+
+def upload_file(
+    local_path: Path,
+    s3_key: str,
+    content_type: str = "audio/wav",
+):
+    """Upload a local file to cloud storage at s3_key."""
+    s3 = get_s3_client()
+    s3.upload_file(
+        str(local_path),
+        settings.bucket_name,
+        s3_key,
+        ExtraArgs={"ContentType": content_type},
+    )
+    logger.info(f"Uploaded '{local_path}' to '{s3_key}'")

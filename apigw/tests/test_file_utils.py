@@ -1,7 +1,7 @@
 import asyncio
 import io
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 from fastapi import UploadFile
 
@@ -10,7 +10,12 @@ from constants import (
     GENERATED_AUDIOS_DIR,
     LEARNER_AUDIOS_DIR,
 )
-from utils.file_utils import save_file_bytes, save_upload_file
+from utils.file_utils import (
+    save_file_bytes,
+    save_file_bytes_to_cloud,
+    save_upload_file,
+    save_upload_file_to_cloud,
+)
 
 
 def test_constants():
@@ -80,5 +85,56 @@ def test_save_upload_file(tmp_path):
             full_path = tmp_path / rel_path
             assert full_path.exists()
             assert full_path.read_bytes() == file_content
+
+    asyncio.run(_test())
+
+
+def test_save_file_bytes_to_cloud():
+    mock_upload = MagicMock()
+    with patch("cloud_storage_client.upload_bytes", mock_upload):
+        data = b"RIFFcloud_wav_data"
+        s3_key = save_file_bytes_to_cloud(
+            content=data,
+            relative_path=GENERATED_AUDIOS_DIR,
+            filename_prefix="tts",
+            extension=".wav",
+        )
+
+        assert s3_key.startswith("generated-audios/tts-")
+        assert s3_key.endswith(".wav")
+
+        mock_upload.assert_called_once_with(
+            content=data,
+            s3_key=s3_key,
+            content_type="audio/wav",
+        )
+
+
+def test_save_upload_file_to_cloud():
+    async def _test():
+        mock_upload = MagicMock()
+        with patch("cloud_storage_client.upload_bytes", mock_upload):
+            file_content = b"cloud_upload_audio"
+            upload = UploadFile(
+                file=io.BytesIO(file_content),
+                filename="learner_audio.mp3",
+                headers={"content-type": "audio/mpeg"},
+            )
+
+            s3_key, returned_bytes = await save_upload_file_to_cloud(
+                file=upload,
+                relative_path=LEARNER_AUDIOS_DIR / "learner-99",
+                filename_prefix="brick",
+            )
+
+            assert s3_key.startswith("learner-audios/learner-99/brick-")
+            assert s3_key.endswith(".mp3")
+            assert returned_bytes == file_content
+
+            mock_upload.assert_called_once_with(
+                content=file_content,
+                s3_key=s3_key,
+                content_type="audio/mpeg",
+            )
 
     asyncio.run(_test())

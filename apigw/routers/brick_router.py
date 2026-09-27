@@ -172,7 +172,7 @@ async def create_brick(
     ],
 ):
     creator_id = learner.id
-    target_audio_path, _ = await file_utils.save_upload_file(
+    target_audio_path, _ = await file_utils.save_upload_file_to_cloud(
         file=target_audio_file,
         relative_path=LEARNER_AUDIOS_DIR / f"learner-{creator_id}",
         filename_prefix="brick",
@@ -197,7 +197,7 @@ async def update_brick(
 ):
     target_audio_path = None
     if target_audio_file:
-        target_audio_path, _ = await file_utils.save_upload_file(
+        target_audio_path, _ = await file_utils.save_upload_file_to_cloud(
             file=target_audio_file,
             relative_path=LEARNER_AUDIOS_DIR / f"learner-{learner.id}",
             filename_prefix="brick",

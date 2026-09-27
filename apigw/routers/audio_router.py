@@ -65,24 +65,32 @@ def trigger_cache_cleanup() -> dict:
     return {"deleted_files": deleted, "count": len(deleted)}
 
 
-@router.get("/forced-alignment/{audio_path:path}")
+@router.get("/forced-alignment/{brick_id}")
 def forced_align(
-    session: Annotated[Session, Depends(get_session)], audio_path: str
+    session: Annotated[Session, Depends(get_session)],
+    learner: Annotated[
+        Learner, Depends(auth_service.decode_token_get_learner)
+    ],
+    brick_id: int,
 ) -> list[WordSegmentSecond]:
     """
-    Fetches the text and audio file via audio path, sends it to the AI server
+    Fetches the text and cached audio URL via brick_id, sends it to the AI server
     for forced alignment, and maps the results to seconds.
     """
-    # Fetch the brick using the service method
-    brick = brick_service.get_brick_by_audio_path(session, audio_path)
+    brick = brick_service.get_brick(session, brick_id, learner.id)
+    audio_url = audio_cache_service.get_brick_audio_url(
+        session=session,
+        brick_id=brick_id,
+        learner_id=learner.id,
+    )
 
-    # Build the payload for the port 8001 server
+    # Build the payload for the AI service
     payload = {
-        "audio_url": f"{settings.asset_base_url}/{audio_path}",
+        "audio_url": audio_url,
         "transcript": brick.target_text,
     }
 
-    # Request the alignment details from the port 8001 AI service
+    # Request the alignment details from the AI service
     http_response = http_client.get_client().post(
         "/audio/align",
         json=payload,
@@ -90,7 +98,6 @@ def forced_align(
     alignment_data = http_response.json()
 
     # Map the fields directly back into the WordSegmentSecond list
-    # Note: Port 8001 already calculates 'start_sec' and 'end_sec' for us!
     return [
         WordSegmentSecond(
             word=seg["word"],
@@ -129,7 +136,7 @@ async def evaluate_audio(
     (
         learner_audio_path,
         learner_audio_bytes,
-    ) = await file_utils.save_upload_file(
+    ) = await file_utils.save_upload_file_to_cloud(
         file=learner_file,
         relative_path=LEARNER_AUDIOS_DIR / f"learner_{learner.id}",
         filename_prefix=f"brick_{target_brick_id}",
@@ -215,7 +222,7 @@ async def evaluate_pronunciation_audio(
     (
         learner_audio_path,
         learner_audio_bytes,
-    ) = await file_utils.save_upload_file(
+    ) = await file_utils.save_upload_file_to_cloud(
         file=learner_file,
         relative_path=LEARNER_AUDIOS_DIR / f"learner_{learner.id}",
         filename_prefix=f"brick_{target_brick_id}",
