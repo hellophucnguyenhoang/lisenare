@@ -68,3 +68,101 @@ async def save_upload_file(
         extension=extension,
     )
     return returned_path, file_bytes
+
+
+def _get_content_type(extension: str) -> str:
+    ext = extension.lower().lstrip(".")
+    mapping = {
+        "wav": "audio/wav",
+        "mp3": "audio/mpeg",
+        "m4a": "audio/mp4",
+        "ogg": "audio/ogg",
+        "webm": "audio/webm",
+        "flac": "audio/flac",
+    }
+    return mapping.get(ext, "application/octet-stream")
+
+
+def save_file_bytes_to_cloud(
+    content: bytes,
+    relative_path: str | Path = "",
+    filename_prefix: str = "file",
+    extension: str = ".wav",
+    content_type: str | None = None,
+    **kwargs,
+) -> str:
+    """
+    Save bytes directly to cloud storage (S3/Backblaze) under relative_path.
+
+    Args:
+        content: Audio or file bytes
+        relative_path: Directory/prefix relative to bucket root (e.g. "generated-audios")
+        filename_prefix: Prefix for the generated filename (default: "file")
+        extension: File extension (default: ".wav")
+        content_type: Optional MIME content type (e.g. "audio/wav")
+
+    Returns:
+        Relative cloud key / path of the saved file
+    """
+    import cloud_storage_client
+
+    dest_dir = kwargs.get("relative_dir", kwargs.get("folder", relative_path))
+    dest_str = (
+        Path(dest_dir).as_posix()
+        if isinstance(dest_dir, Path)
+        else str(dest_dir)
+    )
+    dest_str = dest_str.strip("/")
+
+    timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
+    if not extension.startswith("."):
+        extension = f".{extension}"
+
+    filename = f"{filename_prefix}-{timestamp}{extension}"
+    s3_key = f"{dest_str}/{filename}" if dest_str else filename
+
+    mime_type = content_type or _get_content_type(extension)
+    cloud_storage_client.upload_bytes(
+        content=content,
+        s3_key=s3_key,
+        content_type=mime_type,
+    )
+    return s3_key
+
+
+async def save_upload_file_to_cloud(
+    file: UploadFile,
+    relative_path: str | Path = "",
+    filename_prefix: str = "file",
+    **kwargs,
+) -> tuple[str, bytes]:
+    """
+    Save an UploadFile directly to cloud storage.
+
+    Args:
+        file: FastAPI UploadFile
+        relative_path: Directory/prefix relative to bucket root (e.g. "learner-audios/learner-1")
+        filename_prefix: Prefix for the generated filename (default: "file")
+
+    Returns:
+        Tuple of (relative cloud key, file_bytes)
+    """
+    dest_dir = kwargs.get("relative_dir", kwargs.get("folder", relative_path))
+    file_bytes = await file.read()
+    extension = Path(file.filename).suffix or ".m4a"
+    content_type = file.content_type or _get_content_type(extension)
+    s3_key = save_file_bytes_to_cloud(
+        content=file_bytes,
+        relative_path=dest_dir,
+        filename_prefix=filename_prefix,
+        extension=extension,
+        content_type=content_type,
+    )
+    return s3_key, file_bytes
+
+
+# Aliases for convenience
+save_cloud_file_bytes = save_file_bytes_to_cloud
+save_cloud_upload_file = save_upload_file_to_cloud
+save_file_bytes_cloud = save_file_bytes_to_cloud
+save_upload_file_cloud = save_upload_file_to_cloud

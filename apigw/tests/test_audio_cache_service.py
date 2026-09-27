@@ -224,3 +224,89 @@ def test_cleanup_expired_audio_files(tmp_path):
         assert active_file.exists()
 
     redis.delete("cached_audio:system-brick-audios/active.wav")
+
+
+def test_forced_align_unauthenticated_fails(client):
+    """Accessing forced alignment without authentication should fail (401)."""
+    response = client.get("/api/audio/forced-alignment/1")
+    assert response.status_code == 401
+
+
+def test_forced_align_not_belonging_to_learner_fails(client):
+    """Accessing forced alignment for a brick of another learner returns 404."""
+    brick = _setup_test_brick(learner_id=1)
+
+    other_learner = Learner(id=999, name="Other Learner")
+    app.dependency_overrides[auth_service.decode_token_get_learner] = lambda: (
+        other_learner
+    )
+
+    try:
+        response = client.get(f"/api/audio/forced-alignment/{brick.id}")
+        assert response.status_code == 404
+    finally:
+        app.dependency_overrides.clear()
+
+
+def test_forced_align_caches_and_aligns(client, tmp_path):
+    """On cache miss, forced_align downloads/caches audio and calls inference align."""
+    brick = _setup_test_brick(learner_id=1)
+    learner = Learner(id=1, name="Test Learner")
+
+    cache_key = f"{BRICK_CACHE_PREFIX}{brick.id}"
+    redis = get_redis_client()
+    redis.delete(cache_key)
+
+    mock_download = MagicMock()
+
+    def fake_download(s3_key, local_path):
+        local_path.parent.mkdir(parents=True, exist_ok=True)
+        local_path.write_bytes(b"AUDIO_DATA_FOR_ALIGN")
+
+    mock_download.side_effect = fake_download
+
+    mock_response = MagicMock()
+    mock_response.json.return_value = {
+        "segments": [
+            {"word": "Hello", "start_sec": 0.0, "end_sec": 0.5},
+        ]
+    }
+    mock_client = MagicMock()
+    mock_client.post.return_value = mock_response
+
+    app.dependency_overrides[auth_service.decode_token_get_learner] = lambda: (
+        learner
+    )
+
+    try:
+        with (
+            patch("services.audio_cache_service.download_file", mock_download),
+            patch("services.audio_cache_service.ASSETS_DIR", tmp_path),
+            patch("http_client.get_client", return_value=mock_client),
+        ):
+            response = client.get(f"/api/audio/forced-alignment/{brick.id}")
+            assert response.status_code == 200
+            data = response.json()
+            assert len(data) == 1
+            assert data[0]["word"] == "Hello"
+            assert data[0]["start_sec"] == 0.0
+            assert data[0]["end_sec"] == 0.5
+
+            # Verified audio file downloaded to local cache
+            saved_file = tmp_path / brick.target_audio_path
+            assert saved_file.exists()
+
+            # Verified cached in Redis
+            assert redis.get(cache_key) == brick.target_audio_path
+
+            # Verified alignment payload
+            mock_client.post.assert_called_once()
+            call_kwargs = mock_client.post.call_args
+            assert call_kwargs[0][0] == "/audio/align"
+            assert call_kwargs[1]["json"]["transcript"] == brick.target_text
+            assert (
+                brick.target_audio_path in call_kwargs[1]["json"]["audio_url"]
+            )
+    finally:
+        app.dependency_overrides.clear()
+        redis.delete(cache_key)

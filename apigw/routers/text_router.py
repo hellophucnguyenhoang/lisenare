@@ -143,7 +143,7 @@ def text_to_speech(
             debug_message=f"Inference server error: {response.text}",
         )
 
-    relative_path = file_utils.save_file_bytes(
+    relative_path = file_utils.save_file_bytes_to_cloud(
         content=response.content,
         relative_path=GENERATED_AUDIOS_DIR,
         filename_prefix="tts",
