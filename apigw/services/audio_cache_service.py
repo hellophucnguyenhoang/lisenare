@@ -5,12 +5,13 @@ from sqlmodel import Session
 
 from cloud_storage_client import download_file
 from config import logger, settings
+from constants import ASSETS_DIR
 from redis_client import get_redis_client
 from services import brick_service
 
 ONE_DAY_SECONDS = 86400  # 24 hours in seconds
 BRICK_CACHE_PREFIX = "brick_audio:"
-ASSETS_DIR = Path("lisenare-assets")
+
 
 _cleanup_scheduler: BackgroundScheduler | None = None
 
