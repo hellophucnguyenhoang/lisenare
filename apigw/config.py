@@ -65,11 +65,6 @@ class Settings(BaseSettings):
     aws_endpoint_url: str
     bucket_name: str
 
-    # Local audio storage
-    system_brick_audios_folder: str = "lisenare-assets/system-brick-audios"
-    learner_audios_folder: str = "lisenare-assets/learner-audios"
-    generated_audios_folder: str = "lisenare-assets/generated-audios"
-
     # load value from the .env file
     model_config = SettingsConfigDict(env_file=os.getenv("TARGET_ENV", ".env"))
 

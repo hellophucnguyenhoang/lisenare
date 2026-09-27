@@ -5,6 +5,7 @@ from sqlmodel import Session
 
 import http_client as http_client
 from config import logger, settings
+from constants import LEARNER_AUDIOS_DIR
 from database import Learner, get_session
 from schemas import (
     PronunciationAnalysisResponse,
@@ -130,8 +131,7 @@ async def evaluate_audio(
         learner_audio_bytes,
     ) = await file_utils.save_upload_file(
         file=learner_file,
-        base_dir=settings.learner_audios_folder,
-        sub_dir=f"learner_{learner.id}",
+        relative_path=LEARNER_AUDIOS_DIR / f"learner_{learner.id}",
         filename_prefix=f"brick_{target_brick_id}",
     )
 
@@ -217,8 +217,7 @@ async def evaluate_pronunciation_audio(
         learner_audio_bytes,
     ) = await file_utils.save_upload_file(
         file=learner_file,
-        base_dir=settings.learner_audios_folder,
-        sub_dir=f"learner_{learner.id}",
+        relative_path=LEARNER_AUDIOS_DIR / f"learner_{learner.id}",
         filename_prefix=f"brick_{target_brick_id}",
     )
 

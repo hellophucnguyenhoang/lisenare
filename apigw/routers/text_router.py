@@ -4,7 +4,8 @@ from fastapi import APIRouter, BackgroundTasks, Depends, status
 from sqlmodel import Session
 
 import http_client as http_client
-from config import logger, settings
+from config import logger
+from constants import GENERATED_AUDIOS_DIR
 from database import Learner, get_session
 from exceptions import RequestException
 from schemas import (
@@ -144,8 +145,7 @@ def text_to_speech(
 
     relative_path = file_utils.save_file_bytes(
         content=response.content,
-        base_dir=settings.generated_audios_folder,
+        relative_path=GENERATED_AUDIOS_DIR,
         filename_prefix="tts",
-        extension=".wav",
     )
     return relative_path
