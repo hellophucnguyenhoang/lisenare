@@ -3,31 +3,28 @@ from pathlib import Path
 
 from fastapi import UploadFile
 
+from constants import ASSETS_DIR
+
 
 def save_file_bytes(
     content: bytes,
-    base_dir: str | None = None,
-    sub_dir: str | None = None,
+    relative_path: str | Path = "",
     filename_prefix: str = "file",
     extension: str = ".wav",
 ) -> str:
     """
-    Save bytes to disk using pathlib.
+    Save bytes to disk under ASSETS_DIR.
 
     Args:
         content: Audio or file bytes
-        base_dir: Base directory (e.g. "lisenare-assets/learner-audios")
-        sub_dir: Optional subfolder (e.g. f"learner-{learner_id}")
-        filename_prefix: Optional prefix (e.g. "tts")
+        relative_path: Directory relative to ASSETS_DIR (e.g. "generated-audios")
+        filename_prefix: Prefix for the generated filename (default: "file")
         extension: File extension (default: ".wav")
 
     Returns:
-        Relative path to the saved file after the lisenare-assets/ folder
+        Path to the saved file relative to ASSETS_DIR
     """
-    save_dir = Path(base_dir) if base_dir else Path(".")
-    if sub_dir:
-        save_dir = save_dir / sub_dir
-
+    save_dir = ASSETS_DIR / relative_path if relative_path else ASSETS_DIR
     save_dir.mkdir(parents=True, exist_ok=True)
 
     timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
@@ -43,37 +40,30 @@ def save_file_bytes(
         counter += 1
 
     file_path.write_bytes(content)
-
-    path_str = file_path.as_posix()
-    if "lisenare-assets/" in path_str:
-        return path_str.split("lisenare-assets/", 1)[1]
-    return path_str
+    return file_path.relative_to(ASSETS_DIR).as_posix()
 
 
 async def save_upload_file(
     file: UploadFile,
-    base_dir: str | None = None,
-    sub_dir: str | None = None,
+    relative_path: str | Path = "",
     filename_prefix: str = "file",
 ) -> tuple[str, bytes]:
     """
-    Save an UploadFile to disk using pathlib.
+    Save an UploadFile to disk under ASSETS_DIR.
 
     Args:
         file: FastAPI UploadFile
-        base_dir: Base directory (e.g. "lisenare-assets/learner-audio")
-        sub_dir: Optional subfolder (e.g. f"learner-{learner_id}")
-        filename_prefix: Optional prefix (e.g. f"brick-{brick_id}")
+        relative_path: Directory relative to ASSETS_DIR (e.g. "learner-audios/learner-1")
+        filename_prefix: Prefix for the generated filename (default: "file")
 
     Returns:
-        Relative path to the saved file after the lisenare-assets/ folder, file_bytes
+        Tuple of (path relative to ASSETS_DIR, file_bytes)
     """
     file_bytes = await file.read()
     extension = Path(file.filename).suffix or ".m4a"
     returned_path = save_file_bytes(
         content=file_bytes,
-        base_dir=base_dir,
-        sub_dir=sub_dir,
+        relative_path=relative_path,
         filename_prefix=filename_prefix,
         extension=extension,
     )

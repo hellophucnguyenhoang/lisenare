@@ -12,7 +12,8 @@ from fastapi import (
 )
 from sqlmodel import Session
 
-from config import logger, settings
+from config import logger
+from constants import LEARNER_AUDIOS_DIR
 from database import Learner, get_session
 from schemas import (
     BrickCreateRequest,
@@ -173,8 +174,7 @@ async def create_brick(
     creator_id = learner.id
     target_audio_path, _ = await file_utils.save_upload_file(
         file=target_audio_file,
-        base_dir=settings.learner_audios_folder,
-        sub_dir=f"learner-{creator_id}",
+        relative_path=LEARNER_AUDIOS_DIR / f"learner-{creator_id}",
         filename_prefix="brick",
     )
     return brick_service.create_brick(
@@ -199,8 +199,7 @@ async def update_brick(
     if target_audio_file:
         target_audio_path, _ = await file_utils.save_upload_file(
             file=target_audio_file,
-            base_dir=settings.learner_audios_folder,
-            sub_dir=f"learner-{learner.id}",
+            relative_path=LEARNER_AUDIOS_DIR / f"learner-{learner.id}",
             filename_prefix="brick",
         )
 
