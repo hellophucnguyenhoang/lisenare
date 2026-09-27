@@ -8,7 +8,6 @@ dependencies = [
     "alembic>=1.18.4",
     "apscheduler>=3.11.0",
     "boto3>=1.43.99",
-    "en-core-web-sm",
     "fakeredis>=2.35.1",
     "fastapi-mail>=1.6.8",
     "fastapi[standard]>=0.120.1",
@@ -34,11 +33,9 @@ dependencies = [
     "python-dotenv>=1.2.1",
     "python-multipart>=0.0.20",
     "redis>=7.1.0",
-    "spacy>=3.8.9",
     "sqlmodel>=0.0.27",
     "textstat>=0.7.12",
     "tzdata>=2025.2",
-    "wordfreq>=3.1.1",
 ]
 
 [tool.ruff]
@@ -47,7 +44,3 @@ line-length = 79
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["."]
-
-
-[tool.uv.sources]
-en-core-web-sm = { url = "https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.8.0/en_core_web_sm-3.8.0-py3-none-any.whl" }

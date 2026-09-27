@@ -42,27 +42,30 @@ class Settings(BaseSettings):
     - If not in .env, fallback to default values
     """
 
-    # Databases
+    # Security
+    secret_key: str
+    jwt_algorithm: str
+    access_token_expire_minutes: int
+    secured_connection: bool
+    google_app_email_address: str
+    google_app_password: str
+
+    # Databases and servers
     db_user: str
     db_password: str
     db_name: str
     db_url: str
     redis_url: str
-
-    # Servers and Cloud
     inference_url: str
+
+    # Audio cloud storage
     asset_base_url: str
+    aws_access_key_id: str
+    aws_secret_access_key: str
+    aws_endpoint_url: str
+    bucket_name: str
 
-    google_app_email_address: str
-    google_app_password: str
-
-    # Security
-    secret_key: str
-    jwt_algorithm: str
-    access_token_expire_minutes: int
-    secured_connection: bool = False
-
-    # Media
+    # Local audio storage
     system_brick_audios_folder: str = "lisenare-assets/system-brick-audios"
     learner_audios_folder: str = "lisenare-assets/learner-audios"
     generated_audios_folder: str = "lisenare-assets/generated-audios"

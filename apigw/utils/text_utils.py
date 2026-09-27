@@ -1,10 +1,11 @@
-import math
-
-import spacy
-from wordfreq import word_frequency
-
 import http_client
 from shared_schemas.text import (
+    BatchRarityRequest,
+    BatchRarityResponse,
+    LemmatizeRequest,
+    LemmatizeResponse,
+    RarityRequest,
+    RarityResponse,
     SpellFixRequest,
     SpellFixResponse,
     StemmingRequest,
@@ -15,38 +16,61 @@ from shared_schemas.text import (
     WordValidationResponse,
 )
 
-nlp = spacy.load("en_core_web_sm")
+
+def log_frequency(text: str, lang: str = "en") -> float:
+    """Get log frequency of text via inference server."""
+    response = http_client.get_client().post(
+        "/text/rarity",
+        json=RarityRequest(text=text, lang=lang).model_dump(mode="json"),
+    )
+    data = RarityResponse.model_validate(response.json())
+    return data.log_frequency
 
 
-def log_frequency(text: str, lang="en") -> float:
-    # Tokenize the sentence and get the frequency of every token,
-    # then aggregate them using the Harmonic Mean
-    # Formula: 1 / (1/f1 + 1/f2 + ...)
-    content_freq = word_frequency(text, lang)
-    return math.log10(content_freq + 1e-9)
-
-
-def calculate_rarity(text: str, lang="en") -> float:
+def calculate_rarity(text: str, lang: str = "en") -> float:
     """
-    Calculate lexical rarity score of a text.
+    Calculate lexical rarity score of a text via inference server.
 
     Returns:
         float in range [0, 1]
         Higher means less common / rarer.
     """
-    log_freq = log_frequency(text, lang)
-    return -log_freq / 9
+    response = http_client.get_client().post(
+        "/text/rarity",
+        json=RarityRequest(text=text, lang=lang).model_dump(mode="json"),
+    )
+    data = RarityResponse.model_validate(response.json())
+    return data.rarity
+
+
+def calculate_batch_rarity(texts: list[str], lang: str = "en") -> list[float]:
+    """
+    Calculate lexical rarity scores for a list of texts via inference server.
+    """
+    if not texts:
+        return []
+    response = http_client.get_client().post(
+        "/text/batch-rarity",
+        json=BatchRarityRequest(texts=texts, lang=lang).model_dump(
+            mode="json"
+        ),
+    )
+    data = BatchRarityResponse.model_validate(response.json())
+    return data.rarities
 
 
 def lemmatize_to_set(text: str) -> set[str]:
     """
-    Convert text into a set of normalized lemmas.
+    Convert text into a set of normalized lemmas via inference server.
     """
-    doc = nlp(text)
-
-    lemmas = {token.lemma_.lower() for token in doc if token.is_alpha}
-
-    return lemmas
+    if not text:
+        return set()
+    response = http_client.get_client().post(
+        "/text/lemmatize",
+        json=LemmatizeRequest(text=text).model_dump(mode="json"),
+    )
+    data = LemmatizeResponse.model_validate(response.json())
+    return set(data.lemmas)
 
 
 def get_lenient_stems(text: str | list[str]) -> set[str]:

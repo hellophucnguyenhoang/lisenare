@@ -25,6 +25,7 @@ from schemas import (
     BrickUpdate,
 )
 from services import (
+    audio_cache_service,
     auth_service,
     brick_service,
 )
@@ -140,6 +141,21 @@ def check_brick_exists(
         session=session,
         creator_id=creator.id,
         target_text=target_text,
+    )
+
+
+@router.get("/{brick_id}/audio")
+def get_brick_audio(
+    session: Annotated[Session, Depends(get_session)],
+    learner: Annotated[
+        Learner, Depends(auth_service.decode_token_get_learner)
+    ],
+    brick_id: int,
+) -> str:
+    return audio_cache_service.get_brick_audio_url(
+        session=session,
+        brick_id=brick_id,
+        learner_id=learner.id,
     )
 
 

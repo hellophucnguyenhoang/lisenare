@@ -32,7 +32,8 @@ logs/
 
 # Temporary files
 todo.md
+commands.md
 ttest*
 temp*
-commands.md
 *.wav
+*.mp3
