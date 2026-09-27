@@ -1,4 +1,5 @@
 import io
+import math
 import re
 import string
 
@@ -6,6 +7,7 @@ from difflib import get_close_matches
 
 import enchant
 import soundfile as sf
+import spacy
 import torch
 from kokoro import KPipeline
 from nltk.stem import LancasterStemmer
@@ -13,6 +15,7 @@ from phonemizer import phonemize
 from phonemizer.separator import Separator
 from sentence_transformers import SentenceTransformer, util
 from transformers import AutoModelForSeq2SeqLM, AutoTokenizer
+from wordfreq import word_frequency
 
 from config import logger
 from shared_schemas.sentence import Language
@@ -52,6 +55,9 @@ class TextService:
 
         # 5. Lancaster Stemmer for aggressive linguistic stemming
         self.stemmer = LancasterStemmer()
+
+        # 6. Spacy model for lemmatization
+        self.nlp = spacy.load("en_core_web_sm")
 
     def get_similarity(self, s1: str, s2: str) -> float:
         """Computes semantic similarity score between two sentences."""
@@ -212,6 +218,32 @@ class TextService:
             for item in text:
                 words.extend(re.findall(r"\b\w+\b", item.lower()))
         return list({self.stemmer.stem(word) for word in words})
+
+    def lemmatize_to_set(self, text: str) -> list[str]:
+        """Convert text into a list of normalized unique lemmas."""
+        doc = self.nlp(text)
+        lemmas = {token.lemma_.lower() for token in doc if token.is_alpha}
+        return sorted(lemmas)
+
+    def log_frequency(self, text: str, lang: str = "en") -> float:
+        content_freq = word_frequency(text, lang)
+        return math.log10(content_freq + 1e-9)
+
+    def calculate_rarity(self, text: str, lang: str = "en") -> float:
+        """
+        Calculate lexical rarity score of a text.
+
+        Returns:
+            float in range [0, 1]
+            Higher means less common / rarer.
+        """
+        log_freq = self.log_frequency(text, lang)
+        return -log_freq / 9
+
+    def calculate_batch_rarity(
+        self, texts: list[str], lang: str = "en"
+    ) -> list[float]:
+        return [self.calculate_rarity(t, lang) for t in texts]
 
 
 def normalize_currency(text: str) -> str:

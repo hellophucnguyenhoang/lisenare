@@ -1,4 +1,5 @@
 #!/bin/bash
+
 ffmpeg -f alsa -i default \
   -ac 1 \
   -ar 16000 \

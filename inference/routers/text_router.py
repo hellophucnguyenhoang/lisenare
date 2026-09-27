@@ -9,8 +9,14 @@ from shared_schemas.sentence import (
     SentenceTranslateResponse,
 )
 from shared_schemas.text import (
+    BatchRarityRequest,
+    BatchRarityResponse,
+    LemmatizeRequest,
+    LemmatizeResponse,
     PhonemeAnalysisRequest,
     PhonemeAnalysisResponse,
+    RarityRequest,
+    RarityResponse,
     SpellFixRequest,
     SpellFixResponse,
     StemmingRequest,
@@ -104,3 +110,24 @@ def validate_word(request: WordValidationRequest) -> WordValidationResponse:
 def get_stems(request: StemmingRequest) -> StemmingResponse:
     stems = text_service.get_lenient_stems(request.text)
     return StemmingResponse(stems=stems)
+
+
+@router.post("/lemmatize", response_model=LemmatizeResponse)
+def lemmatize(request: LemmatizeRequest) -> LemmatizeResponse:
+    lemmas = text_service.lemmatize_to_set(request.text)
+    return LemmatizeResponse(lemmas=lemmas)
+
+
+@router.post("/rarity", response_model=RarityResponse)
+def calculate_rarity(request: RarityRequest) -> RarityResponse:
+    rarity = text_service.calculate_rarity(request.text, request.lang)
+    log_freq = text_service.log_frequency(request.text, request.lang)
+    return RarityResponse(rarity=rarity, log_frequency=log_freq)
+
+
+@router.post("/batch-rarity", response_model=BatchRarityResponse)
+def calculate_batch_rarity(
+    request: BatchRarityRequest,
+) -> BatchRarityResponse:
+    rarities = text_service.calculate_batch_rarity(request.texts, request.lang)
+    return BatchRarityResponse(rarities=rarities)

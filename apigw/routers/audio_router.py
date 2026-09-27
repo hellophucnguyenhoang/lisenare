@@ -12,6 +12,7 @@ from schemas import (
     WordSegmentSecond,
 )
 from services import (
+    audio_cache_service,
     auth_service,
     brick_memory_service,
     brick_review_service,
@@ -52,6 +53,15 @@ def get_phonemes(file: UploadFile):
     }
     r = http_client.get_client().post("/audio/phonemes", files=files)
     return r.json()
+
+
+@router.post("/cleanup-cache")
+def trigger_cache_cleanup() -> dict:
+    """
+    Manually triggers cleanup of local audio files not in Redis cache anymore.
+    """
+    deleted = audio_cache_service.cleanup_expired_audio_files()
+    return {"deleted_files": deleted, "count": len(deleted)}
 
 
 @router.get("/forced-alignment/{audio_path:path}")

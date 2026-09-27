@@ -21,7 +21,10 @@ from database import (
 from exceptions import RequestException
 from schemas import TimeSeriesPoint
 from utils.db_utils import apply_time_filter
-from utils.text_utils import calculate_rarity, get_lenient_stems
+from utils.text_utils import (
+    calculate_batch_rarity,
+    get_lenient_stems,
+)
 
 from .brick_review_service import (
     get_daily_review_counts,
@@ -504,9 +507,9 @@ def calculate_sentence_familiarity(
     if not unknown_stems:
         return 1.0
 
-    avg_unknown_rarity = sum(
-        calculate_rarity(word) for word in unknown_stems
-    ) / len(unknown_stems)
+    unknown_stems_list = list(unknown_stems)
+    unknown_rarities = calculate_batch_rarity(unknown_stems_list)
+    avg_unknown_rarity = sum(unknown_rarities) / len(unknown_stems_list)
     logger.debug(f"{avg_unknown_rarity=}")
 
     familiarity = math.exp(-unknown_ratio - avg_unknown_rarity)

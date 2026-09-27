@@ -1,13 +1,14 @@
 import json
 
-import fakeredis
 from ollama import chat
 
-r = fakeredis.FakeRedis()
+from redis_client import get_redis_client
+
 SESSION_EXPIRY = 3600  # 60 minutes in seconds
 
 
 def generate_chat_stream(session_id: str, user_message: str):
+    r = get_redis_client()
     session_key = f"chat:{session_id}"
 
     # 1. Retrieve history from Redis

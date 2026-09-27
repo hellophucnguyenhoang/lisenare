@@ -1,4 +1,5 @@
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -7,9 +8,10 @@ from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
+import cloud_storage_client
 import database
 import http_client
-from config import settings
+import redis_client
 from exceptions import RequestException
 from routers import (
     account_router,
@@ -26,6 +28,7 @@ from routers import (
     text_router,
 )
 from schemas import BrickCreateRequest, BrickUpdate
+from services import audio_cache_service
 from utils.form_utils import get_model_example_string
 
 
@@ -35,8 +38,13 @@ async def lifespan(app: FastAPI):
     database.init_db()
     http_client.init_client()
     await http_client.init_async_client()
+    redis_client.init_redis_client()
+    cloud_storage_client.init_s3_client()
+    audio_scheduler = audio_cache_service.start_audio_cleanup_scheduler()
     yield
     # Shutdown code
+    audio_cache_service.stop_audio_cleanup_scheduler(audio_scheduler)
+    redis_client.close_redis_client()
     # database.delete_db()
     http_client.close_client()
     await http_client.close_async_client()
@@ -145,14 +153,12 @@ for router_module in [
     app.include_router(router_module.router, prefix=API_PREFIX)
 
 
-for folder in [
-    settings.system_brick_audios_folder,
-    settings.learner_audios_folder,
-    settings.generated_audios_folder,
-]:
-    app.mount(
-        f"{API_PREFIX}/{folder}", StaticFiles(directory=folder), name=folder
-    )
+Path("lisenare-assets").mkdir(parents=True, exist_ok=True)
+app.mount(
+    f"{API_PREFIX}/lisenare-assets",
+    StaticFiles(directory="lisenare-assets"),
+    name="lisenare-assets",
+)
 
 
 # Extending OpenAPI

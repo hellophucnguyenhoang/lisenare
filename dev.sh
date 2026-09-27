@@ -5,15 +5,13 @@ trap 'echo "🛑 Stopping local servers and infrastructure..."; kill $(jobs -p) 
 
 
 echo "🧹 Checking for active infrastructure services..."
-# 1. Start the Docker Infrastructure (Database & Redis Cache)
+# start the Docker infrastructure (database & cache)
 # --remove-orphans keeps the environment clean if the services change
 docker compose -f docker-compose.dev.yml up -d --remove-orphans
 
 export TARGET_ENV=".env.dev"
 
 echo "------------------------------------------------"
-
-# 3. Launch the API Gateway Server in the background
 echo "🚀 Starting API Gateway Server..."
 (
     cd apigw
@@ -21,7 +19,6 @@ echo "🚀 Starting API Gateway Server..."
     exec uv run fastapi dev main.py --host 0.0.0.0 --port 8000
 ) &
 
-# 4. Launch the AI Inference Server in the background
 echo "🧠 Starting AI Inference Server..."
 (
     cd inference
