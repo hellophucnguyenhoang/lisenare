@@ -233,7 +233,8 @@ def test_forced_align_with_brick_success(client: TestClient):
     with Session(engine) as session:
         brick = session.exec(select(Brick)).first()
         assert brick is not None
-        target_audio_path = brick.target_audio_path
+        brick_id = brick.id
+        creator_id = brick.creator_id
         target_text = brick.target_text
 
     mock_response = MagicMock()
@@ -247,26 +248,46 @@ def test_forced_align_with_brick_success(client: TestClient):
     mock_client = MagicMock()
     mock_client.post.return_value = mock_response
 
-    with patch("app.http_client.get_client", return_value=mock_client):
-        response = client.get(f"/audio/forced-alignment/{target_audio_path}")
+    learner = Learner(id=creator_id, name="Test Learner")
+    app.dependency_overrides[auth_service.decode_token_get_learner] = lambda: (
+        learner
+    )
 
-    assert response.status_code == 200
-    data = response.json()
-    assert len(data) == 2
-    assert data[0]["word"] == "hello"
-    assert data[0]["start_sec"] == 0.1
-    assert data[0]["end_sec"] == 0.5
+    try:
+        with (
+            patch("http_client.get_client", return_value=mock_client),
+            patch(
+                "services.audio_cache_service.get_brick_audio_url",
+                return_value="http://test/audio.wav",
+            ),
+        ):
+            response = client.get(f"/api/audio/forced-alignment/{brick_id}")
 
-    mock_client.post.assert_called_once()
-    posted_payload = mock_client.post.call_args[1]["json"]
-    assert posted_payload["transcript"] == target_text
+        assert response.status_code == 200
+        data = response.json()
+        assert len(data) == 2
+        assert data[0]["word"] == "hello"
+        assert data[0]["start_sec"] == 0.1
+        assert data[0]["end_sec"] == 0.5
+
+        mock_client.post.assert_called_once()
+        posted_payload = mock_client.post.call_args[1]["json"]
+        assert posted_payload["transcript"] == target_text
+        assert posted_payload["audio_url"] == "http://test/audio.wav"
+    finally:
+        app.dependency_overrides.clear()
 
 
 def test_forced_align_brick_not_found(client: TestClient):
-    response = client.get(
-        "/audio/forced-alignment/non_existent/audio/path.wav"
+    learner = Learner(id=1, name="Test Learner")
+    app.dependency_overrides[auth_service.decode_token_get_learner] = lambda: (
+        learner
     )
-    assert response.status_code == 404
+    try:
+        response = client.get("/api/audio/forced-alignment/999999")
+        assert response.status_code == 404
+    finally:
+        app.dependency_overrides.clear()
 
 
 def test_save_review_integrated_learning_card(client: TestClient):
