@@ -2,8 +2,14 @@ from fastapi.testclient import TestClient
 
 from main import app
 from shared_schemas.text import (
+    BatchRarityRequest,
+    BatchRarityResponse,
+    LemmatizeRequest,
+    LemmatizeResponse,
     PhonemeAnalysisRequest,
     PhonemeAnalysisResponse,
+    RarityRequest,
+    RarityResponse,
     SpellFixRequest,
     SpellFixResponse,
     StemmingRequest,
@@ -131,3 +137,50 @@ def test_stemming_endpoint():
     assert res_empty.status_code == 200
     data_empty = StemmingResponse.model_validate(res_empty.json())
     assert data_empty.stems == []
+
+
+def test_lemmatize_endpoint():
+    client = TestClient(app)
+    req = LemmatizeRequest(text="The striped bats are hanging on feet")
+    res = client.post("/text/lemmatize", json=req.model_dump(mode="json"))
+    assert res.status_code == 200
+    data = LemmatizeResponse.model_validate(res.json())
+    lemmas_set = set(data.lemmas)
+    assert "bat" in lemmas_set
+    assert "foot" in lemmas_set
+    assert "hang" in lemmas_set
+
+
+def test_rarity_endpoint():
+    client = TestClient(app)
+
+    # Common word should have lower rarity
+    req_common = RarityRequest(text="the", lang="en")
+    res_common = client.post(
+        "/text/rarity", json=req_common.model_dump(mode="json")
+    )
+    assert res_common.status_code == 200
+    data_common = RarityResponse.model_validate(res_common.json())
+    assert 0.0 <= data_common.rarity <= 1.0
+
+    # Rare word should have higher rarity
+    req_rare = RarityRequest(text="antediluvian", lang="en")
+    res_rare = client.post(
+        "/text/rarity", json=req_rare.model_dump(mode="json")
+    )
+    assert res_rare.status_code == 200
+    data_rare = RarityResponse.model_validate(res_rare.json())
+    assert 0.0 <= data_rare.rarity <= 1.0
+
+    assert data_rare.rarity > data_common.rarity
+
+
+def test_batch_rarity_endpoint():
+    client = TestClient(app)
+    req = BatchRarityRequest(texts=["the", "antediluvian", "hello"], lang="en")
+    res = client.post("/text/batch-rarity", json=req.model_dump(mode="json"))
+    assert res.status_code == 200
+    data = BatchRarityResponse.model_validate(res.json())
+    assert len(data.rarities) == 3
+    # Common word rarer than "antediluvian"
+    assert data.rarities[1] > data.rarities[0]

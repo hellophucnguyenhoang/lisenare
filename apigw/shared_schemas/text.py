@@ -64,3 +64,36 @@ class StemmingRequest(SQLModel):
 
 class StemmingResponse(SQLModel):
     stems: list[str] = Field(description="List of unique extracted stems")
+
+
+class LemmatizeRequest(SQLModel):
+    text: str = Field(description="Text to lemmatize")
+
+
+class LemmatizeResponse(SQLModel):
+    lemmas: list[str] = Field(
+        description="List of normalized unique lemmas from text"
+    )
+
+
+class RarityRequest(SQLModel):
+    text: str = Field(
+        description="Text or word to calculate lexical rarity for"
+    )
+    lang: str = Field(default="en", description="Language code")
+
+
+class RarityResponse(SQLModel):
+    rarity: float = Field(description="Lexical rarity score in range [0, 1]")
+    log_frequency: float = Field(description="Log frequency of the text")
+
+
+class BatchRarityRequest(SQLModel):
+    texts: list[str] = Field(
+        description="List of words or texts to calculate lexical rarity for"
+    )
+    lang: str = Field(default="en", description="Language code")
+
+
+class BatchRarityResponse(SQLModel):
+    rarities: list[float] = Field(description="List of lexical rarity scores")
