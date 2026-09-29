@@ -9,7 +9,7 @@ from sqlmodel import Session, or_, select, text
 
 from config import logger, settings
 from constants import SEMANTIC_EMB_DIM
-from database import Brick, Learner
+from database import Brick
 from schemas import BrickContextSearch
 
 
@@ -84,18 +84,23 @@ class ContextSearchService:
         if searcher_id is not None:
             filters.append(Brick.creator_id == searcher_id)
 
-        # Using or_(*) unpacks: (is_public) OR (creator_id == searcher_id)
-        visible_brick_ids = set(
-            session.exec(select(Brick.id).where(or_(*filters))).all()
-        )
+        candidate_ids = {
+            res.brick_id for res in literal_results + semantic_results
+        }
+        if not candidate_ids:
+            return []
 
-        # Fetch creator names for visible bricks
-        creator_rows = session.exec(
-            select(Brick.id, Brick.creator_id, Learner.name)
-            .join(Learner, Brick.creator_id == Learner.id)
-            .where(Brick.id.in_(visible_brick_ids))
+        visible_rows = session.exec(
+            select(Brick.id, Brick.creator_id).where(
+                Brick.id.in_(candidate_ids), or_(*filters)
+            )
         ).all()
-        brick_creator = {row[0]: (row[1], row[2]) for row in creator_rows}
+        visible_brick_ids = {row[0] for row in visible_rows}
+        own_brick_ids = (
+            {row[0] for row in visible_rows if row[1] == searcher_id}
+            if searcher_id
+            else set()
+        )
 
         seen = set()
         combined = []
@@ -105,13 +110,7 @@ class ContextSearchService:
                 res.target_text not in seen
                 and res.brick_id in visible_brick_ids
             ):
-                creator_id, creator_name = brick_creator.get(
-                    res.brick_id, (None, "")
-                )
-                res.creator_name = creator_name
-                res.is_own = (
-                    creator_id == searcher_id if searcher_id else False
-                )
+                res.is_own = res.brick_id in own_brick_ids
                 combined.append(res)
                 seen.add(res.target_text)
 

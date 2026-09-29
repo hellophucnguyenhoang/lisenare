@@ -22,7 +22,6 @@ class BrickContextSearch(SQLModel):
     brick_id: int
     native_text: str
     target_text: str
-    creator_name: str = ""
     is_own: bool = False
 
 
@@ -67,6 +66,10 @@ class BrickRead(BrickBase):
 
 class BrickLearnRead(BrickRead):
     learned: bool
+
+
+class BrickDetailRead(BrickRead):
+    collection_name: str = ""
 
 
 class BrickCreateRequest(BrickBase):
