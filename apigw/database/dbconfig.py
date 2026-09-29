@@ -196,6 +196,7 @@ def init_bricks(session: Session):
             unit_type=row["unit_type"],
             creator=me_account.learner,
             collection=collection,
+            is_private=False,
         )
 
         session.add(brick)

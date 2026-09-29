@@ -11,6 +11,9 @@ from .account import (
 )
 from .auth import PasswordRecoveryResponse, Token, TokenPayload
 from .brick import (
+    AddBrickRequest,
+    AddCollectionRequest,
+    AddCollectionResult,
     BrickContextSearch,
     BrickCreate,
     BrickCreateRequest,
@@ -50,6 +53,9 @@ from .review import ReviewBase, ReviewCreate
 from .text import PronunciationAnalysisResponse
 
 __all__ = [
+    "AddBrickRequest",
+    "AddCollectionRequest",
+    "AddCollectionResult",
     "BrickContextSearch",
     "BrickCreate",
     "BrickCreateRequest",

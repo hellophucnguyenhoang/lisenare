@@ -16,6 +16,9 @@ from config import logger
 from constants import LEARNER_AUDIOS_DIR
 from database import Learner, get_session
 from schemas import (
+    AddBrickRequest,
+    AddCollectionRequest,
+    AddCollectionResult,
     BrickCreateRequest,
     BrickListeningData,
     BrickListeningPage,
@@ -143,6 +146,44 @@ def check_brick_exists(
         creator_id=creator.id,
         target_text=target_text,
     )
+
+
+@router.post("/add-from/{brick_id}", response_model=BrickRead)
+def add_brick_from(
+    session: Annotated[Session, Depends(get_session)],
+    learner: Annotated[
+        Learner, Depends(auth_service.decode_token_get_learner)
+    ],
+    brick_id: int,
+    request: AddBrickRequest,
+) -> BrickRead:
+    return brick_service.add_brick_from(
+        session=session,
+        source_brick_id=brick_id,
+        collection_id=request.collection_id,
+        learner_id=learner.id,
+    )
+
+
+@router.post(
+    "/add-from-collection/{collection_id}",
+    response_model=AddCollectionResult,
+)
+def add_bricks_from_collection(
+    session: Annotated[Session, Depends(get_session)],
+    learner: Annotated[
+        Learner, Depends(auth_service.decode_token_get_learner)
+    ],
+    collection_id: int,
+    request: AddCollectionRequest,
+) -> AddCollectionResult:
+    result = brick_service.add_bricks_from_collection(
+        session=session,
+        source_collection_id=collection_id,
+        target_collection_id=request.target_collection_id,
+        learner_id=learner.id,
+    )
+    return AddCollectionResult(**result)
 
 
 @router.get("/{brick_id}/audio")
