@@ -20,6 +20,7 @@ from schemas import (
     AddCollectionRequest,
     AddCollectionResult,
     BrickCreateRequest,
+    BrickDetailRead,
     BrickListeningData,
     BrickListeningPage,
     BrickPage,
@@ -184,6 +185,21 @@ def add_bricks_from_collection(
         learner_id=learner.id,
     )
     return AddCollectionResult(**result)
+
+
+@router.get("/{brick_id}", response_model=BrickDetailRead)
+def get_brick_detail(
+    session: Annotated[Session, Depends(get_session)],
+    learner: Annotated[
+        Learner, Depends(auth_service.decode_token_get_learner)
+    ],
+    brick_id: int,
+) -> BrickDetailRead:
+    return brick_service.get_brick_detail(
+        session=session,
+        brick_id=brick_id,
+        learner_id=learner.id,
+    )
 
 
 @router.get("/{brick_id}/audio")

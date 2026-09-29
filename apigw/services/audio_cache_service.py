@@ -11,7 +11,10 @@ from constants import (
     AUDIO_CATCH_PREFIX,
     BRICK_CACHE_PREFIX,
 )
+from fastapi import status
 from redis_client import get_redis_client
+from database import Brick
+from exceptions import RequestException
 from services import brick_service
 
 _cleanup_scheduler: BackgroundScheduler | None = None
@@ -26,8 +29,13 @@ def get_brick_audio_url(
     Ensure the brick's audio file exists locally at lisenare-assets/<target_audio_path>,
     downloading from cloud storage if needed, and return the full public URL.
     """
-    # Verify brick belongs to the authenticated learner
-    brick = brick_service.get_brick(session, brick_id, learner_id)
+    # Verify brick exists and is either owned by the learner or public
+    brick = session.get(Brick, brick_id)
+    if not brick or (brick.is_private and brick.creator_id != learner_id):
+        raise RequestException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            debug_message=f"Brick {brick_id} not found",
+        )
 
     redis = get_redis_client()
     cache_key = f"{BRICK_CACHE_PREFIX}{brick_id}"

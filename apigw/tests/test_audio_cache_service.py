@@ -59,7 +59,7 @@ def test_brick_audio_unauthenticated_fails(client):
 
 
 def test_brick_audio_not_belonging_to_learner_fails(client):
-    """Accessing a brick that does not belong to the learner should return 404."""
+    """Accessing a private brick that does not belong to the learner should return 404."""
     brick = _setup_test_brick(learner_id=1)
 
     other_learner = Learner(id=999, name="Other Learner")
@@ -70,6 +70,42 @@ def test_brick_audio_not_belonging_to_learner_fails(client):
     try:
         response = client.get(f"/api/bricks/{brick.id}/audio")
         assert response.status_code == 404
+    finally:
+        app.dependency_overrides.clear()
+
+
+def test_public_brick_audio_accessible_by_other_learner(client, tmp_path):
+    """Accessing a public brick belonging to another learner should succeed (200)."""
+    brick = _setup_test_brick(learner_id=1)
+    with Session(engine) as session:
+        db_brick = session.get(Brick, brick.id)
+        db_brick.is_private = False
+        session.add(db_brick)
+        session.commit()
+
+    other_learner = Learner(id=999, name="Other Learner")
+    app.dependency_overrides[auth_service.decode_token_get_learner] = lambda: (
+        other_learner
+    )
+
+    mock_download = MagicMock()
+
+    def fake_download(s3_key, local_path):
+        local_path.parent.mkdir(parents=True, exist_ok=True)
+        local_path.write_bytes(b"PUBLIC_AUDIO_DATA")
+
+    mock_download.side_effect = fake_download
+
+    try:
+        with (
+            patch("services.audio_cache_service.download_file", mock_download),
+            patch("services.audio_cache_service.ASSETS_DIR", tmp_path),
+        ):
+            response = client.get(f"/api/bricks/{brick.id}/audio")
+            assert response.status_code == 200
+            full_url = response.json()
+            expected_url = f"{settings.asset_base_url.rstrip('/')}/{brick.target_audio_path.lstrip('/')}"
+            assert full_url == expected_url
     finally:
         app.dependency_overrides.clear()
 

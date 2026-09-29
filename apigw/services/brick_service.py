@@ -16,6 +16,7 @@ from exceptions import RequestException
 from schemas import (
     BrickCreate,
     BrickCreateRequest,
+    BrickDetailRead,
     BrickLearnRead,
     BrickRead,
     BrickSort,
@@ -24,6 +25,7 @@ from schemas import (
 )
 
 from . import context_search_service as search_service
+from .brick_reaction_service import get_reaction_map
 from .tag_service import (
     delete_tags_for_entity,
     fetch_tags_for_entities,
@@ -135,6 +137,39 @@ def get_brick(session: Session, brick_id: int, creator_id: int) -> Brick:
             debug_message=f"Brick {brick_id} not found for creator {creator_id}",
         )
     return brick
+
+
+def get_brick_detail(
+    session: Session,
+    brick_id: int,
+    learner_id: int,
+) -> BrickDetailRead:
+    brick = session.get(Brick, brick_id)
+    if not brick:
+        raise RequestException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            debug_message=f"Brick {brick_id} not found",
+        )
+
+    if brick.is_private and brick.creator_id != learner_id:
+        raise RequestException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            debug_message="Cannot view a private brick from another learner",
+        )
+
+    tags = fetch_tags_for_entity(session, brick.id, "Brick")
+    reaction_map = get_reaction_map(session, [brick.id], learner_id)
+    collection = session.get(Collection, brick.collection_id)
+    collection_name = collection.name if collection else ""
+
+    return BrickDetailRead.model_validate(
+        brick,
+        update={
+            "tags": tags,
+            "reaction": reaction_map.get(brick.id),
+            "collection_name": collection_name,
+        },
+    )
 
 
 def get_brick_by_audio_path(session: Session, audio_path: str) -> Brick:
