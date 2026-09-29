@@ -22,6 +22,21 @@ class BrickContextSearch(SQLModel):
     brick_id: int
     native_text: str
     target_text: str
+    creator_name: str = ""
+    is_own: bool = False
+
+
+class AddBrickRequest(SQLModel):
+    collection_id: int
+
+
+class AddCollectionRequest(SQLModel):
+    target_collection_id: int
+
+
+class AddCollectionResult(SQLModel):
+    added: int
+    skipped: int
 
 
 class BrickBase(SQLModel):

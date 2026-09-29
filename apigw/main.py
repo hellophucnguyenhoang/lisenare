@@ -45,7 +45,7 @@ async def lifespan(app: FastAPI):
     # Shutdown code
     audio_cache_service.stop_audio_cleanup_scheduler(audio_scheduler)
     redis_client.close_redis_client()
-    # database.delete_db()
+    database.delete_db()
     http_client.close_client()
     await http_client.close_async_client()
 
