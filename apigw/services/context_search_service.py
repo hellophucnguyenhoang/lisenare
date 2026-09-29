@@ -9,7 +9,7 @@ from sqlmodel import Session, or_, select, text
 
 from config import logger, settings
 from constants import SEMANTIC_EMB_DIM
-from database import Brick
+from database import Brick, Learner
 from schemas import BrickContextSearch
 
 
@@ -59,7 +59,6 @@ class ContextSearchService:
         self, text: str, mmr: bool = True
     ) -> list[BrickContextSearch]:
         docs = self._fetch_docs("bricks", text, mmr)
-        logger.info(f"brick semantic: {len(docs)}")
         return [
             BrickContextSearch(
                 brick_id=d.metadata["brick_id"],
@@ -74,19 +73,29 @@ class ContextSearchService:
     ) -> list[BrickContextSearch]:
         literal_results = search_bricks_literal(session, query)
         semantic_results = self.search_bricks_semantic(query, mmr=True)
+        logger.info(f"literal brick: {len(literal_results)}")
+        logger.info(f"semantic brick: {len(semantic_results)}")
 
         # Build the visibility filter
         # Everyone sees public bricks
-        filters = [Brick.is_private]
+        filters = [Brick.is_private == False]  # noqa: E712
 
         # Logged-in users also see their own private bricks
         if searcher_id is not None:
             filters.append(Brick.creator_id == searcher_id)
 
-        # Using or_ (*) unpacks the list into: (is_public) OR (creator_id == searcher_id)
+        # Using or_(*) unpacks: (is_public) OR (creator_id == searcher_id)
         visible_brick_ids = set(
             session.exec(select(Brick.id).where(or_(*filters))).all()
         )
+
+        # Fetch creator names for visible bricks
+        creator_rows = session.exec(
+            select(Brick.id, Brick.creator_id, Learner.name)
+            .join(Learner, Brick.creator_id == Learner.id)
+            .where(Brick.id.in_(visible_brick_ids))
+        ).all()
+        brick_creator = {row[0]: (row[1], row[2]) for row in creator_rows}
 
         seen = set()
         combined = []
@@ -96,6 +105,13 @@ class ContextSearchService:
                 res.target_text not in seen
                 and res.brick_id in visible_brick_ids
             ):
+                creator_id, creator_name = brick_creator.get(
+                    res.brick_id, (None, "")
+                )
+                res.creator_name = creator_name
+                res.is_own = (
+                    creator_id == searcher_id if searcher_id else False
+                )
                 combined.append(res)
                 seen.add(res.target_text)
 

@@ -375,3 +375,127 @@ def delete_brick(session: Session, creator_id: int, brick_id: int) -> str:
     session.commit()
 
     return "BRICK_DELETED"
+
+
+def add_brick_from(
+    session: Session,
+    source_brick_id: int,
+    collection_id: int,
+    learner_id: int,
+) -> BrickRead:
+    """Copy a public brick into the learner's collection."""
+    source = session.get(Brick, source_brick_id)
+    if not source:
+        raise RequestException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            debug_message=f"Brick {source_brick_id} not found",
+        )
+
+    # Must be public or owned by the learner
+    if source.is_private and source.creator_id != learner_id:
+        raise RequestException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            debug_message="Cannot add a private brick from another learner",
+        )
+
+    # Target collection must belong to the learner
+    collection = session.get(Collection, collection_id)
+    if not collection or collection.creator_id != learner_id:
+        raise RequestException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            debug_message=f"Collection {collection_id} not found",
+        )
+
+    # Check for duplicate
+    if check_brick_exists(session, learner_id, source.target_text):
+        raise RequestException(
+            status_code=status.HTTP_409_CONFLICT,
+            debug_message="You already have a brick with this target text",
+        )
+
+    brick = Brick(
+        native_text=source.native_text,
+        target_text=source.target_text,
+        target_audio_path=source.target_audio_path,
+        target_lang=source.target_lang,
+        target_pron=source.target_pron,
+        context=source.context,
+        unit_type=source.unit_type,
+        is_private=True,
+        creator_id=learner_id,
+        collection_id=collection_id,
+    )
+    session.add(brick)
+    session.commit()
+    session.refresh(brick)
+
+    search_service.add_item_to_vector_store(
+        search_service=search_service.context_search_service,
+        item=brick,
+        store_key="bricks",
+        text_getter=lambda b: f"{b.target_text} {b.native_text}",
+        metadata_getter=lambda b: {
+            "brick_id": b.id,
+            "target_text": b.target_text,
+            "native_text": b.native_text,
+            "target_lang": b.target_lang,
+        },
+        id_prefix="Brick",
+    )
+    return BrickRead.model_validate(brick, update={"tags": []})
+
+
+def add_bricks_from_collection(
+    session: Session,
+    source_collection_id: int,
+    target_collection_id: int,
+    learner_id: int,
+) -> dict:
+    """Copy all public bricks from another learner's collection."""
+    source_collection = session.get(Collection, source_collection_id)
+    if not source_collection:
+        raise RequestException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            debug_message=f"Source collection {source_collection_id} not found",
+        )
+
+    # Target collection must belong to the learner
+    target_collection = session.get(Collection, target_collection_id)
+    if not target_collection or target_collection.creator_id != learner_id:
+        raise RequestException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            debug_message=f"Target collection {target_collection_id} not found",
+        )
+
+    # Get all bricks from the source collection that are public
+    # (or owned by the learner, if they're adding from their own collection)
+    stmt = select(Brick).where(Brick.collection_id == source_collection_id)
+    if source_collection.creator_id != learner_id:
+        stmt = stmt.where(Brick.is_private == False)  # noqa: E712
+    source_bricks = session.exec(stmt).all()
+
+    added = 0
+    skipped = 0
+
+    for source in source_bricks:
+        if check_brick_exists(session, learner_id, source.target_text):
+            skipped += 1
+            continue
+
+        brick = Brick(
+            native_text=source.native_text,
+            target_text=source.target_text,
+            target_audio_path=source.target_audio_path,
+            target_lang=source.target_lang,
+            target_pron=source.target_pron,
+            context=source.context,
+            unit_type=source.unit_type,
+            is_private=True,
+            creator_id=learner_id,
+            collection_id=target_collection_id,
+        )
+        session.add(brick)
+        added += 1
+
+    session.commit()
+    return {"added": added, "skipped": skipped}
