@@ -2,9 +2,9 @@ from datetime import datetime, timedelta, timezone
 from typing import Optional
 
 from pydantic import EmailStr
-from sqlalchemy import DateTime, Index
+from sqlalchemy import DateTime
 from sqlalchemy.dialects.postgresql import JSONB
-from sqlmodel import Field, Relationship, SQLModel, UniqueConstraint, text
+from sqlmodel import Field, Relationship, SQLModel, UniqueConstraint
 
 from constants import CONTEXT_MAX_CHARS, MAX_PATH_LEN, OTP_EXPIRE_MINUTES
 from shared_constants import BRICK_AVG_WORD_LEN, BRICK_MAX_WORDS
@@ -308,19 +308,4 @@ class Taggable(SQLModel, table=True):
     created_at: datetime = Field(
         default_factory=lambda: datetime.now(timezone.utc),
         sa_type=DateTime(timezone=True),
-    )
-
-
-class YouTubeSubtitle(SQLModel, table=True):
-    id: int | None = Field(default=None, primary_key=True)
-    video_id: str = Field(index=True)  # The link to the video
-    start: float
-    duration: float
-    transcript: str
-    __table_args__ = (
-        Index(
-            "idx_ytb_search",
-            text("to_tsvector('simple', transcript)"),
-            postgresql_using="gin",
-        ),
     )
