@@ -5,13 +5,14 @@ from sqlmodel import Session
 
 from cloud_storage_client import download_file
 from config import logger, settings
-from constants import ASSETS_DIR
+from constants import (
+    ASSETS_DIR,
+    AUDIO_CACHE_TTL_SECONDS,
+    AUDIO_CATCH_PREFIX,
+    BRICK_CACHE_PREFIX,
+)
 from redis_client import get_redis_client
 from services import brick_service
-
-ONE_DAY_SECONDS = 86400  # 24 hours in seconds
-BRICK_CACHE_PREFIX = "brick_audio:"
-
 
 _cleanup_scheduler: BackgroundScheduler | None = None
 
@@ -36,6 +37,11 @@ def get_brick_audio_url(
         # ensuring the physical file exists
         # and is not just a string path or directory
         if local_file.is_file():
+            redis.expire(cache_key, AUDIO_CACHE_TTL_SECONDS)
+            redis.expire(
+                f"{AUDIO_CATCH_PREFIX}{cached_path}", AUDIO_CACHE_TTL_SECONDS
+            )
+
             base_url = settings.asset_base_url.rstrip("/")
             return f"{base_url}/{cached_path.lstrip('/')}"
         else:
@@ -47,14 +53,21 @@ def get_brick_audio_url(
     # Redis cache miss: read target_audio_path from DB
     target_audio_path = brick.target_audio_path
     local_file = ASSETS_DIR / target_audio_path
+
+    # Not always download the audio file when cache miss
+    # because many bricks can share the same audio file
     if not local_file.is_file():
         download_file(target_audio_path, local_file)
 
     # Store in Redis with 1-day TTL
-    redis.setex(cache_key, ONE_DAY_SECONDS, target_audio_path)
+    redis.setex(cache_key, AUDIO_CACHE_TTL_SECONDS, target_audio_path)
 
     # For the cleanup background job
-    redis.setex(f"cached_audio:{target_audio_path}", ONE_DAY_SECONDS, "1")
+    redis.setex(
+        f"{AUDIO_CATCH_PREFIX}{target_audio_path}",
+        AUDIO_CACHE_TTL_SECONDS,
+        "1",
+    )
 
     return f"{settings.asset_base_url}/{target_audio_path}"
 
@@ -83,7 +96,7 @@ def cleanup_expired_audio_files(
 
         # get the relative path after ASSETS_DIR and force / slashes
         relative_path = file_path.relative_to(ASSETS_DIR).as_posix()
-        if not redis.exists(f"cached_audio:{relative_path}"):
+        if not redis.exists(f"{AUDIO_CATCH_PREFIX}{relative_path}"):
             file_path.unlink(missing_ok=True)
             deleted.append(str(file_path))
             logger.info(f"Deleted audio file not in Redis: {file_path}")

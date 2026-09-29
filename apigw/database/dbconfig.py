@@ -53,7 +53,6 @@ def init_db():
             init_bricks(session)
             session.commit()
 
-        # transfer_subtitles()
         logger.info("Data initialization complete except embeddings.")
     else:
         logger.info("Database already initialized, skipping.")

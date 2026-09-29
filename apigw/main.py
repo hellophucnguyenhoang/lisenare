@@ -1,5 +1,4 @@
 from contextlib import asynccontextmanager
-from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -12,6 +11,7 @@ import cloud_storage_client
 import database
 import http_client
 import redis_client
+from constants import ASSETS_DIR
 from exceptions import RequestException
 from routers import (
     account_router,
@@ -153,11 +153,11 @@ for router_module in [
     app.include_router(router_module.router, prefix=API_PREFIX)
 
 
-Path("lisenare-assets").mkdir(parents=True, exist_ok=True)
+ASSETS_DIR.mkdir(parents=True, exist_ok=True)
 app.mount(
-    f"{API_PREFIX}/lisenare-assets",
-    StaticFiles(directory="lisenare-assets"),
-    name="lisenare-assets",
+    f"{API_PREFIX}/{ASSETS_DIR.name}",
+    StaticFiles(directory=ASSETS_DIR.name),
+    name=ASSETS_DIR.name,
 )
 
 

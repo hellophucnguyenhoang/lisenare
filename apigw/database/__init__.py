@@ -14,7 +14,6 @@ from .models import (
     SessionProfile,
     Tag,
     Taggable,
-    YouTubeSubtitle,
 )
 
 __all__ = [
@@ -36,5 +35,4 @@ __all__ = [
     "SessionProfile",
     "Tag",
     "Taggable",
-    "YouTubeSubtitle",
 ]

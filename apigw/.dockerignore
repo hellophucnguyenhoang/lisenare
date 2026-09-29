@@ -23,3 +23,7 @@
 # Docker logs
 Dockerfile
 .dockerignore
+
+# audio files
+*.wav
+*.mp3
