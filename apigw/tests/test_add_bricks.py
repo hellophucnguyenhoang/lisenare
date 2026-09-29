@@ -1,3 +1,4 @@
+import uuid
 from unittest.mock import patch
 
 from fastapi.testclient import TestClient
@@ -80,24 +81,34 @@ def test_add_brick_not_found(client: TestClient):
 def test_add_private_brick_from_another_learner_forbidden(client: TestClient):
     """Cannot add a private brick from another learner."""
     with Session(engine) as session:
-        # Learner 2 has private bricks from seed data
-        brick = session.exec(
-            select(Brick).where(
-                Brick.creator_id == 2,
-                Brick.is_private == True,  # noqa: E712
-            )
-        ).first()
-        assert brick is not None
+        owner = _ensure_learner(session, 9, "PrivateOwnerSeed")
+        owner_col = _ensure_collection(session, owner.id, "Private Owner Col")
+        brick = Brick(
+            native_text="VN: Private",
+            target_text="Private text from owner seed",
+            target_audio_path="system-brick-audios/seed.wav",
+            unit_type="sentence",
+            is_private=True,
+            creator_id=owner.id,
+            collection_id=owner_col.id,
+        )
+        session.add(brick)
+        session.commit()
+        session.refresh(brick)
         brick_id = brick.id
 
-    # Learner 3 tries to add it
+        other_learner = _ensure_learner(session, 3, "Other")
+        other_col = _ensure_collection(session, other_learner.id, "Other Col")
+        other_col_id = other_col.id
+
     other_learner = Learner(id=3, name="Other", setting=LearnerSetting())
     app.dependency_overrides[auth_service.decode_token_get_learner] = lambda: (
         other_learner
     )
     try:
         response = client.post(
-            f"/api/bricks/add-from/{brick_id}", json={"collection_id": 1}
+            f"/api/bricks/add-from/{brick_id}",
+            json={"collection_id": other_col_id},
         )
         assert response.status_code == 403
     finally:
@@ -106,6 +117,8 @@ def test_add_private_brick_from_another_learner_forbidden(client: TestClient):
 
 def test_add_public_brick_success(client: TestClient):
     """Add a public brick from another learner successfully."""
+    uid = uuid.uuid4().hex[:6]
+    target_text = f"unique test sentence for add {uid}"
     with Session(engine) as session:
         owner = _ensure_learner(session, 10, "Owner")
         owner_col = _ensure_collection(session, owner.id, "Owner Collection")
@@ -113,7 +126,7 @@ def test_add_public_brick_success(client: TestClient):
             session,
             owner.id,
             owner_col.id,
-            "unique test sentence for add",
+            target_text,
         )
         public_brick_id = public_brick.id
 
@@ -133,7 +146,7 @@ def test_add_public_brick_success(client: TestClient):
             )
         assert response.status_code == 200
         data = response.json()
-        assert data["target_text"] == "unique test sentence for add"
+        assert data["target_text"] == target_text
         assert data["creator_id"] == 11
         assert data["collection_id"] == adder_col_id
         assert data["is_private"] is True  # copied bricks default to private
@@ -143,6 +156,8 @@ def test_add_public_brick_success(client: TestClient):
 
 def test_add_brick_duplicate_conflict(client: TestClient):
     """Adding a brick that already exists in the learner's library returns 409."""
+    uid = uuid.uuid4().hex[:6]
+    dup_text = f"duplicate brick text for test {uid}"
     with Session(engine) as session:
         owner = _ensure_learner(session, 10, "Owner")
         owner_col = _ensure_collection(session, owner.id, "Owner Collection")
@@ -150,7 +165,7 @@ def test_add_brick_duplicate_conflict(client: TestClient):
             session,
             owner.id,
             owner_col.id,
-            "duplicate brick text for test",
+            dup_text,
         )
         public_brick_id = public_brick.id
 
@@ -163,7 +178,7 @@ def test_add_brick_duplicate_conflict(client: TestClient):
             session,
             adder.id,
             adder_col.id,
-            "duplicate brick text for test",
+            dup_text,
         )
 
     adder_learner = Learner(id=12, name="Adder2", setting=LearnerSetting())
@@ -208,20 +223,23 @@ def test_add_collection_source_not_found(client: TestClient):
 
 def test_add_bricks_from_collection_success(client: TestClient):
     """Add all public bricks from another learner's collection."""
+    uid = uuid.uuid4().hex[:6]
     with Session(engine) as session:
         owner = _ensure_learner(session, 20, "CollOwner")
-        owner_col = _ensure_collection(session, owner.id, "Shared Collection")
+        owner_col = _ensure_collection(
+            session, owner.id, f"Shared Collection {uid}"
+        )
 
         _create_public_brick(
-            session, owner.id, owner_col.id, "collection brick alpha"
+            session, owner.id, owner_col.id, f"collection brick alpha {uid}"
         )
         _create_public_brick(
-            session, owner.id, owner_col.id, "collection brick beta"
+            session, owner.id, owner_col.id, f"collection brick beta {uid}"
         )
         # This one is private — should NOT be copied
         private_brick = Brick(
             native_text="VN: private",
-            target_text="collection brick gamma private",
+            target_text=f"collection brick gamma private {uid}",
             target_audio_path="system-brick-audios/gamma.wav",
             unit_type="sentence",
             is_private=True,
@@ -233,7 +251,9 @@ def test_add_bricks_from_collection_success(client: TestClient):
         owner_col_id = owner_col.id
 
         adder = _ensure_learner(session, 21, "CollAdder")
-        adder_col = _ensure_collection(session, adder.id, "My Target Col")
+        adder_col = _ensure_collection(
+            session, adder.id, f"My Target Col {uid}"
+        )
         adder_col_id = adder_col.id
 
     adder_learner = Learner(id=21, name="CollAdder", setting=LearnerSetting())
@@ -255,24 +275,25 @@ def test_add_bricks_from_collection_success(client: TestClient):
 
 def test_add_bricks_from_collection_skips_duplicates(client: TestClient):
     """Duplicates are skipped, not causing errors."""
+    uid = uuid.uuid4().hex[:6]
     with Session(engine) as session:
         owner = _ensure_learner(session, 22, "SkipOwner")
-        owner_col = _ensure_collection(session, owner.id, "Skip Source")
+        owner_col = _ensure_collection(session, owner.id, f"Skip Source {uid}")
         _create_public_brick(
-            session, owner.id, owner_col.id, "skip test brick one"
+            session, owner.id, owner_col.id, f"skip test brick one {uid}"
         )
         _create_public_brick(
-            session, owner.id, owner_col.id, "skip test brick two"
+            session, owner.id, owner_col.id, f"skip test brick two {uid}"
         )
         owner_col_id = owner_col.id
 
         adder = _ensure_learner(session, 23, "SkipAdder")
-        adder_col = _ensure_collection(session, adder.id, "Skip Target")
+        adder_col = _ensure_collection(session, adder.id, f"Skip Target {uid}")
         adder_col_id = adder_col.id
 
         # Pre-create one of the bricks for the adder
         _create_public_brick(
-            session, adder.id, adder_col.id, "skip test brick one"
+            session, adder.id, adder_col.id, f"skip test brick one {uid}"
         )
 
     adder_learner = Learner(id=23, name="SkipAdder", setting=LearnerSetting())
@@ -288,5 +309,200 @@ def test_add_bricks_from_collection_skips_duplicates(client: TestClient):
         data = response.json()
         assert data["added"] == 1
         assert data["skipped"] == 1
+    finally:
+        app.dependency_overrides.clear()
+
+
+# --- Get brick detail tests ---
+
+
+def test_get_brick_detail_unauthenticated(client: TestClient):
+    """Accessing brick detail without authentication should fail (401)."""
+    response = client.get("/api/bricks/1")
+    assert response.status_code == 401
+
+
+def test_get_brick_detail_not_found(client: TestClient):
+    """Accessing non-existent brick should return 404."""
+    learner = Learner(id=2, name="Test", setting=LearnerSetting())
+    app.dependency_overrides[auth_service.decode_token_get_learner] = lambda: (
+        learner
+    )
+    try:
+        response = client.get("/api/bricks/999999")
+        assert response.status_code == 404
+    finally:
+        app.dependency_overrides.clear()
+
+
+def test_get_brick_detail_private_from_another_learner_forbidden(
+    client: TestClient,
+):
+    """Cannot fetch detail of another learner's private brick (403)."""
+    with Session(engine) as session:
+        owner = _ensure_learner(session, 30, "PrivateOwner")
+        owner_col = _ensure_collection(session, owner.id, "Private Col")
+        private_brick = Brick(
+            native_text="VN: Secret",
+            target_text="Secret private sentence",
+            target_audio_path="system-brick-audios/secret.wav",
+            unit_type="sentence",
+            is_private=True,
+            creator_id=owner.id,
+            collection_id=owner_col.id,
+        )
+        session.add(private_brick)
+        session.commit()
+        session.refresh(private_brick)
+        brick_id = private_brick.id
+
+    other_learner = Learner(id=31, name="Snooper", setting=LearnerSetting())
+    app.dependency_overrides[auth_service.decode_token_get_learner] = lambda: (
+        other_learner
+    )
+    try:
+        response = client.get(f"/api/bricks/{brick_id}")
+        assert response.status_code == 403
+    finally:
+        app.dependency_overrides.clear()
+
+
+def test_get_brick_detail_own_private_brick_success(client: TestClient):
+    """Learner can fetch detail of their own private brick with collection name and can_add=False."""
+    with Session(engine) as session:
+        owner = _ensure_learner(session, 32, "MyOwner")
+        owner_col = _ensure_collection(session, owner.id, "My Special Col")
+        private_brick = Brick(
+            native_text="VN: My secret",
+            target_text="My private sentence detail",
+            target_audio_path="system-brick-audios/my_secret.wav",
+            unit_type="sentence",
+            is_private=True,
+            creator_id=owner.id,
+            collection_id=owner_col.id,
+        )
+        session.add(private_brick)
+        session.commit()
+        session.refresh(private_brick)
+        brick_id = private_brick.id
+
+    owner_learner = Learner(id=32, name="MyOwner", setting=LearnerSetting())
+    app.dependency_overrides[auth_service.decode_token_get_learner] = lambda: (
+        owner_learner
+    )
+    try:
+        response = client.get(f"/api/bricks/{brick_id}")
+        assert response.status_code == 200
+        data = response.json()
+        assert data["id"] == brick_id
+        assert data["target_text"] == "My private sentence detail"
+        assert data["creator_id"] == 32
+        assert data["creator"]["name"] == "MyOwner"
+        assert data["collection_name"] == "My Special Col"
+    finally:
+        app.dependency_overrides.clear()
+
+
+def test_get_brick_detail_public_from_another_learner_success(
+    client: TestClient,
+):
+    """Learner can fetch detail of a public brick with collection name."""
+    with Session(engine) as session:
+        owner = _ensure_learner(session, 33, "PublicCreator")
+        owner_col = _ensure_collection(session, owner.id, "Public Col Name")
+        public_brick = _create_public_brick(
+            session, owner.id, owner_col.id, "Public detail sentence test"
+        )
+        brick_id = public_brick.id
+
+    viewer = Learner(id=34, name="Viewer", setting=LearnerSetting())
+    app.dependency_overrides[auth_service.decode_token_get_learner] = lambda: (
+        viewer
+    )
+    try:
+        response = client.get(f"/api/bricks/{brick_id}")
+        assert response.status_code == 200
+        data = response.json()
+        assert data["id"] == brick_id
+        assert data["target_text"] == "Public detail sentence test"
+        assert data["creator_id"] == 33
+        assert data["creator"]["name"] == "PublicCreator"
+        assert data["collection_name"] == "Public Col Name"
+        assert data["is_private"] is False
+    finally:
+        app.dependency_overrides.clear()
+
+
+def test_search_bricks_lightweight_without_creator_name(client: TestClient):
+    """Search results should not have creator_name and remain lightweight."""
+    from schemas import BrickContextSearch
+    from services.context_search_service import context_search_service
+
+    # Verify model fields: creator_name must not be in BrickContextSearch
+    assert "creator_name" not in BrickContextSearch.model_fields
+
+    with Session(engine) as session:
+        owner = _ensure_learner(session, 35, "SearchOwner")
+        owner_col = _ensure_collection(session, owner.id, "Search Col")
+        _create_public_brick(
+            session, owner.id, owner_col.id, "Zebra unique search target"
+        )
+
+        with patch.object(
+            context_search_service,
+            "search_bricks_semantic",
+            return_value=[],
+        ):
+            results = context_search_service.search_bricks(
+                session=session,
+                query="Zebra",
+                searcher_id=35,
+            )
+        assert len(results) > 0
+        match = next(
+            (
+                r
+                for r in results
+                if r.target_text == "Zebra unique search target"
+            ),
+            None,
+        )
+        assert match is not None
+        assert match.is_own is True
+        assert (
+            not hasattr(match, "creator_name")
+            or getattr(match, "creator_name", None) is None
+        )
+
+
+def test_search_bricks_endpoint_unauthenticated_fails(client: TestClient):
+    """Calling search endpoint without auth returns 401."""
+    response = client.post(
+        "/api/context-search/bricks-search",
+        json={"query": "test query"},
+    )
+    assert response.status_code == 401
+
+
+def test_search_bricks_endpoint_authenticated_success(client: TestClient):
+    """Calling search endpoint with authenticated learner returns 200."""
+    from services.context_search_service import context_search_service
+
+    learner = Learner(id=2, name="Searcher", setting=LearnerSetting())
+    app.dependency_overrides[auth_service.decode_token_get_learner] = lambda: (
+        learner
+    )
+    try:
+        with patch.object(
+            context_search_service,
+            "search_bricks_semantic",
+            return_value=[],
+        ):
+            response = client.post(
+                "/api/context-search/bricks-search",
+                json={"query": "hello"},
+            )
+            assert response.status_code == 200
+            assert isinstance(response.json(), list)
     finally:
         app.dependency_overrides.clear()
