@@ -3,12 +3,15 @@ from unittest.mock import MagicMock, patch
 from sqlmodel import Session, select
 
 from config import settings
+from constants import (
+    AUDIO_CATCH_PREFIX,
+    BRICK_CACHE_PREFIX,
+)
 from database import Brick, Collection, Learner, engine
 from main import app
 from redis_client import get_redis_client
 from services import auth_service
 from services.audio_cache_service import (
-    BRICK_CACHE_PREFIX,
     cleanup_expired_audio_files,
 )
 
@@ -209,12 +212,14 @@ def test_cleanup_expired_audio_files(tmp_path):
     # Active file: has Redis entry -> keep
     active_file = target_dir / "active.wav"
     active_file.write_bytes(b"ACTIVE")
-    redis.setex("cached_audio:system-brick-audios/active.wav", 86400, "1")
+    redis.setex(
+        f"{AUDIO_CATCH_PREFIX}system-brick-audios/active.wav", 86400, "1"
+    )
 
     # Expired file: no Redis entry -> delete
     expired_file = target_dir / "expired.wav"
     expired_file.write_bytes(b"EXPIRED")
-    redis.delete("cached_audio:system-brick-audios/expired.wav")
+    redis.delete(f"{AUDIO_CATCH_PREFIX}system-brick-audios/expired.wav")
 
     with patch("services.audio_cache_service.ASSETS_DIR", assets_dir):
         deleted = cleanup_expired_audio_files(directory=target_dir)
@@ -223,7 +228,7 @@ def test_cleanup_expired_audio_files(tmp_path):
         assert not expired_file.exists()
         assert active_file.exists()
 
-    redis.delete("cached_audio:system-brick-audios/active.wav")
+    redis.delete(f"{AUDIO_CATCH_PREFIX}system-brick-audios/active.wav")
 
 
 def test_forced_align_unauthenticated_fails(client):

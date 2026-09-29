@@ -15,14 +15,10 @@ wheels/
 # VSCode
 .vscode/
 
-# Databases
-chroma_bricks/
-chroma_ytb_subtitles/
-chroma_context/
-lisenare.db
-
 # Audio files
 lisenare-assets/
+*.wav
+*.mp3
 
 # Cache
 .cache/
@@ -35,5 +31,4 @@ todo.md
 commands.md
 ttest*
 temp*
-*.wav
-*.mp3
+

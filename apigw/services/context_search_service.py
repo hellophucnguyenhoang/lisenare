@@ -9,7 +9,7 @@ from sqlmodel import Session, or_, select, text
 
 from config import logger, settings
 from constants import SEMANTIC_EMB_DIM
-from database import Brick, YouTubeSubtitle
+from database import Brick
 from schemas import BrickContextSearch
 
 
@@ -37,13 +37,6 @@ class ContextSearchService:
     def __init__(self):
         self.embeddings = OllamaEmbeddings(model="mahonzhan/all-MiniLM-L6-v2")
         self.stores = {
-            "subtitles": PGVector(
-                embeddings=self.embeddings,
-                embedding_length=SEMANTIC_EMB_DIM,
-                collection_name="youtubesubtitle",
-                connection=settings.db_url,
-                use_jsonb=True,
-            ),
             "bricks": PGVector(
                 embeddings=self.embeddings,
                 embedding_length=SEMANTIC_EMB_DIM,
@@ -211,7 +204,7 @@ def initialize_embeddings(
 ):
     create_vector_indexes(session)
 
-    # 1. Bricks: (brick_id, native_text)
+    # Bricks: (brick_id, native_text)
     sync_model_to_langchain(
         session,
         search_service,
@@ -224,21 +217,6 @@ def initialize_embeddings(
             "native_text": b.native_text,
         },
         lambda b: b.id,
-    )
-
-    # 2. Subtitles: (video_id, start, duration)
-    sync_model_to_langchain(
-        session,
-        search_service,
-        YouTubeSubtitle,
-        "subtitles",
-        lambda s: s.transcript,
-        lambda s: {
-            "video_id": s.video_id,
-            "start": s.start,
-            "duration": s.duration,
-        },
-        lambda s: f"{s.video_id}_{s.start}_{s.duration}",
     )
 
     logger.info("All data synced with custom metadata!")
