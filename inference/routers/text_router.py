@@ -5,8 +5,6 @@ from shared_constants import BRICK_AVG_WORD_LEN, BRICK_MAX_WORDS
 from shared_schemas.sentence import (
     SentenceCompareRequest,
     SentenceCompareResponse,
-    SentenceTranslateRequest,
-    SentenceTranslateResponse,
 )
 from shared_schemas.text import (
     BatchRarityRequest,
@@ -41,19 +39,6 @@ def compare(
     sentence_compare_res = SentenceCompareResponse(score=score)
     sentence_compare_res.correct = score >= sentence_compare_res.threshold
     return sentence_compare_res
-
-
-@router.post("/translations")
-def translate(
-    sentence_translate_req: SentenceTranslateRequest,
-) -> SentenceTranslateResponse:
-    target_text, target_lang = text_service.translate(
-        sentence_translate_req.text, sentence_translate_req.target_lang
-    )
-    sentence_translate_res = SentenceTranslateResponse(
-        text=target_text, lang=target_lang
-    )
-    return sentence_translate_res
 
 
 @router.post("/to-speech")

@@ -11,4 +11,4 @@ done
 echo "✅ Ollama is ready!"
 
 echo "🚀 Launching AI Inference Server in production mode..."
-exec uv run fastapi run main.py --host 0.0.0.0 --port 8001
+exec /app/.venv/bin/fastapi run main.py --host 0.0.0.0 --port 8001

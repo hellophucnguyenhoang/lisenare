@@ -14,11 +14,9 @@ from nltk.stem import LancasterStemmer
 from phonemizer import phonemize
 from phonemizer.separator import Separator
 from sentence_transformers import SentenceTransformer, util
-from transformers import AutoModelForSeq2SeqLM, AutoTokenizer
 from wordfreq import word_frequency
 
 from config import logger
-from shared_schemas.sentence import Language
 from shared_schemas.text import PhonemeAnalysisResponse
 
 
@@ -32,16 +30,7 @@ class TextService:
             "all-mpnet-base-v2", device=self.device
         )
 
-        # 2. Load Translation Model (VietAI/envit5-translation)
-        self.trans_model_name = "VietAI/envit5-translation"
-        self.trans_tokenizer = AutoTokenizer.from_pretrained(
-            self.trans_model_name
-        )
-        self.trans_model = AutoModelForSeq2SeqLM.from_pretrained(
-            self.trans_model_name
-        ).to(self.device)
-
-        # 3. Load text to speech model
+        # 2. Load text to speech model
         self.tts_pipeline_en = KPipeline(
             lang_code="a", repo_id="hexgrad/Kokoro-82M", device=self.device
         )
@@ -50,13 +39,13 @@ class TextService:
         )
         logger.info(f"Running Kokoro on: {self.device}")
 
-        # 4. Dictionary checker for spell checking and word validation
+        # 3. Dictionary checker for spell checking and word validation
         self.dict_checker = enchant.Dict("en_US")
 
-        # 5. Lancaster Stemmer for aggressive linguistic stemming
+        # 4. Lancaster Stemmer for aggressive linguistic stemming
         self.stemmer = LancasterStemmer()
 
-        # 6. Spacy model for lemmatization
+        # 5. Spacy model for lemmatization
         self.nlp = spacy.load("en_core_web_sm")
 
     def get_similarity(self, s1: str, s2: str) -> float:
@@ -74,28 +63,6 @@ class TextService:
         )
         score = util.cos_sim(embeddings[0], embeddings[1])
         return float(score.item())
-
-    def translate(self, text: str, target_lang: Language) -> str:
-        """
-        Translates a single sentence.
-        target_lang: "vi" for En->Vi, "en" for Vi->En
-        """
-        # Prefix is required by EnViT5: "en: " or "vi: "
-        prefix = "en" if target_lang is Language.vi else "vi"
-        input_text = f"{prefix}: {text}"
-        inputs = self.trans_tokenizer(
-            input_text, return_tensors="pt", padding=True
-        ).to(self.device)
-        with torch.no_grad():
-            outputs = self.trans_model.generate(
-                inputs.input_ids, max_length=512
-            )
-        decoded = self.trans_tokenizer.decode(
-            outputs[0], skip_special_tokens=True
-        )
-        return decoded[4:], (
-            Language.en if decoded[:2] == Language.en.value else Language.vi
-        )
 
     def generate_tts_wav(
         self, text: str | list[str], voice: str = "af_heart"
