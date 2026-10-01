@@ -5,4 +5,4 @@ set -e
 echo "🚀 Launching API Gateway in production mode..."
 
 # 'exec' replaces the shell process with FastAPI, making it PID 1
-exec uv run fastapi run main.py --host 0.0.0.0 --port 8000
+exec /app/.venv/bin/fastapi run main.py --host 0.0.0.0 --port 8000

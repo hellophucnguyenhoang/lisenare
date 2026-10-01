@@ -1,4 +1,3 @@
-from enum import Enum
 from typing import Annotated
 
 from sqlmodel import Field, SQLModel
@@ -20,18 +19,3 @@ class SentenceCompareResponse(SQLModel):
     score: float
     correct: bool | None = None
     threshold: float = 0.7
-
-
-class Language(str, Enum):
-    vi = "vi"
-    en = "en"
-
-
-class SentenceTranslateRequest(SQLModel):
-    text: str = "what's up?"
-    target_lang: Language = Language.vi
-
-
-class SentenceTranslateResponse(SQLModel):
-    text: str
-    lang: Language = Language.en

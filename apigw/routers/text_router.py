@@ -8,9 +8,7 @@ from config import logger
 from constants import GENERATED_AUDIOS_DIR
 from database import Learner, get_session
 from exceptions import RequestException
-from schemas import (
-    ReviewCreate,
-)
+from schemas import ReviewCreate
 from services import (
     auth_service,
     brick_memory_service,
@@ -21,8 +19,6 @@ from shared_constants import BRICK_AVG_WORD_LEN, BRICK_MAX_WORDS
 from shared_schemas.sentence import (
     SentenceCompareRequest,
     SentenceCompareResponse,
-    SentenceTranslateRequest,
-    SentenceTranslateResponse,
 )
 from shared_schemas.text import (
     PhonemeAnalysisRequest,
@@ -103,20 +99,6 @@ def compare_sentences(
                 )
 
     return evaluation_result
-
-
-@router.post("/translations")
-def translate(
-    sentence_translate_request: SentenceTranslateRequest,
-) -> SentenceTranslateResponse:
-    r = http_client.get_client().post(
-        "/text/translations",
-        json=sentence_translate_request.model_dump(mode="json"),
-    )
-    sentence_translate_respond = SentenceTranslateResponse.model_validate(
-        r.json()
-    )
-    return sentence_translate_respond
 
 
 @router.post(

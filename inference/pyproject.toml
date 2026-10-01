@@ -36,11 +36,53 @@ dependencies = [
     "spacy>=3.8.9",
     "sqlmodel>=0.0.27",
     "textstat>=0.7.12",
-    "torchaudio==2.9",
-    "torchcodec==0.9",
     "tzdata>=2025.2",
     "wordfreq>=3.1.1",
 ]
+
+[project.optional-dependencies]
+cpu = [
+    "torch==2.9.0",
+    "torchaudio==2.9.0",
+    "torchcodec==0.9.0",
+]
+
+cu128 = [
+    "torch==2.9.0",
+    "torchaudio==2.9.0",
+    "torchcodec==0.9.0",
+]
+
+[tool.uv]
+conflicts = [
+    [
+        { extra = "cpu" },
+        { extra = "cu128" },
+    ],
+]
+
+[tool.uv.sources]
+en-core-web-sm = { url = "https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.8.0/en_core_web_sm-3.8.0-py3-none-any.whl" }
+
+torch = [
+    { index = "pytorch-cpu", extra = "cpu" },
+    { index = "pytorch-cu128", extra = "cu128" },
+]
+
+torchaudio = [
+    { index = "pytorch-cpu", extra = "cpu" },
+    { index = "pytorch-cu128", extra = "cu128" },
+]
+
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true
+
+[[tool.uv.index]]
+name = "pytorch-cu128"
+url = "https://download.pytorch.org/whl/cu128"
+explicit = true
 
 [tool.ruff]
 line-length = 79
@@ -48,7 +90,3 @@ line-length = 79
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["."]
-
-
-[tool.uv.sources]
-en-core-web-sm = { url = "https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.8.0/en_core_web_sm-3.8.0-py3-none-any.whl" }

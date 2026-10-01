@@ -26,7 +26,12 @@ WORKDIR /app
 COPY pyproject.toml uv.lock ./
 
 # Install ML weights and requirements 
-RUN uv sync --frozen --no-dev && rm -rf /root/.cache/uv
+RUN uv sync \
+    --frozen \
+    --no-dev \
+    --extra cpu \
+    # --extra cu128 \
+    && rm -rf /root/.cache/uv
 
 # Copy the inference source code
 COPY . .
