@@ -191,4 +191,4 @@ def custom_openapi():
 
 app.openapi = custom_openapi
 
-# app.frontend("/", directory="dist")
+app.frontend("/", directory="dist")
