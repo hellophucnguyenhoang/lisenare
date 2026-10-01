@@ -32,10 +32,10 @@ def create_interaction(
     ):
         raise RequestException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            debug_message=f"Interaction type {InteractionType.LIKE} \
-                    or {InteractionType.DISLIKE} \
-                    or {InteractionType.REMOVE_REACTION} \
-                    or {InteractionType.ADD} requires an authenticated learner",
+            debug_message=f"Interaction type {InteractionType.LIKE} "
+            f"or {InteractionType.DISLIKE} "
+            or f"{InteractionType.REMOVE_REACTION} "
+            or f"{InteractionType.ADD} requires an authenticated learner.",
         )
 
     interaction = BrickInteraction(
