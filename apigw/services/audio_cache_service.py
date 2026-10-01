@@ -1,6 +1,7 @@
 from pathlib import Path
 
 from apscheduler.schedulers.background import BackgroundScheduler
+from fastapi import status
 from sqlmodel import Session
 
 from cloud_storage_client import download_file
@@ -11,11 +12,9 @@ from constants import (
     AUDIO_CATCH_PREFIX,
     BRICK_CACHE_PREFIX,
 )
-from fastapi import status
-from redis_client import get_redis_client
 from database import Brick
 from exceptions import RequestException
-from services import brick_service
+from redis_client import get_redis_client
 
 _cleanup_scheduler: BackgroundScheduler | None = None
 

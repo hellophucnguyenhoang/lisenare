@@ -15,7 +15,8 @@ router = APIRouter(prefix="/brick-memories", tags=["Brick Memories"])
     "/stats",
     response_model=LearningCardStats,
     summary="Get learner statistics",
-    description="Retrieve stats for a specific period. Use 'days=0' for today's data based on your timezone.",
+    description="Retrieve stats for a specific period. "
+    "Use 'days=0' for today's data based on your timezone.",
 )
 def get_learning_stats(
     session: Annotated[Session, Depends(get_session)],
@@ -31,7 +32,8 @@ def get_learning_stats(
     days: Annotated[
         int | None,
         Query(
-            description="Number of days to look back calendar-based. 0 = Today (since local midnight), None = All time.",
+            description="Number of days to look back calendar-based. "
+            "0 = Today (since local midnight), None = All time.",
             ge=0,
         ),
     ] = None,

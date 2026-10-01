@@ -147,7 +147,7 @@ class Step:
 
     Attributes:
         t (float): The current time
-        s (float): The stability [0, +inf). Time in days for retrievability \
+        s (float): The stability [0, +inf). Time in days for retrievability
             decreases to the desired retention (often 0.9).
         d (float): How hard it is to increase the stability [1, 10].
         i (float): Next interval.

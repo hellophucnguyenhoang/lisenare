@@ -33,11 +33,11 @@ print(f"Redundant audio files:    {len(redundant_files)}")
 
 # Print missing files
 if missing_files:
-    print("\nMissing audio files:")
+    print("Missing audio files:")
     for filename in sorted(missing_files):
         print(f"  {filename}")
 else:
-    print("\nNo missing audio files.")
+    print("No missing audio files.")
 
 # Move redundant files
 if redundant_files:
@@ -49,7 +49,7 @@ if redundant_files:
 
         shutil.move(str(source), str(destination))
 
-    print(f"\nMoved {len(redundant_files)} redundant files to:")
+    print(f"Moved {len(redundant_files)} redundant files to:")
     print(f"  {REDUNDANT_DIR}")
 else:
-    print("\nNo redundant audio files.")
+    print("No redundant audio files.")
