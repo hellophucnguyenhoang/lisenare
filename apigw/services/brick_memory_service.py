@@ -1,6 +1,5 @@
 import math
 import random
-from config import logger
 from collections import defaultdict
 from datetime import datetime, timedelta, timezone
 from typing import Literal
@@ -11,6 +10,7 @@ from fsrs import Card, Optimizer, ReviewLog, Scheduler
 from sqlalchemy import Float, cast
 from sqlmodel import Session, case, func, select
 
+from config import logger
 from database import (
     Brick,
     BrickMemory,
@@ -80,7 +80,8 @@ def optimize_learner_scheduler(learner_id: int):
                     )
             else:
                 logger.info(
-                    f"Skipping retention optimization for learner {learner_id} (Need 512, have {log_count})"
+                    f"Skipping retention optimization for learner {learner_id} "
+                    f"(Need 512, have {log_count})"
                 )
 
             # 3. Save Settings

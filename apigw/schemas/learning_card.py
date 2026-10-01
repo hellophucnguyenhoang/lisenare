@@ -5,10 +5,10 @@ from sqlmodel import Field, SQLModel
 
 class LearningCardStats(SQLModel):
     total_learning: int = Field(ge=0)
+    total_memorized: float = Field(ge=0.0)
     due_count: int = Field(ge=0)
     true_retention: float = Field(ge=0.0, le=1.0)
     average_stability: float = Field(ge=0.0)  # in days
-    total_memorized: float = Field(ge=0.0)
     timestamp: datetime
 
 
