@@ -86,11 +86,7 @@ def cleanup_expired_audio_files(
     Simple background job to delete local audio files that are no longer
     in the Redis cache.
     """
-    target_dir = (
-        Path(directory)
-        if directory is not None
-        else (ASSETS_DIR / "system-brick-audios")
-    )
+    target_dir = Path(directory) if directory is not None else ASSETS_DIR
     if not target_dir.is_dir():
         return []
 

@@ -4,7 +4,7 @@ from fastapi import APIRouter, BackgroundTasks, Depends, status
 from sqlmodel import Session
 
 import http_client as http_client
-from config import logger
+from config import logger, settings
 from constants import GENERATED_AUDIOS_DIR
 from database import Learner, get_session
 from exceptions import RequestException
@@ -125,9 +125,9 @@ def text_to_speech(
             debug_message=f"Inference server error: {response.text}",
         )
 
-    relative_path = file_utils.save_file_bytes_to_cloud(
+    relative_path = file_utils.save_file_bytes(
         content=response.content,
         relative_path=GENERATED_AUDIOS_DIR,
         filename_prefix="tts",
     )
-    return relative_path
+    return f"{settings.asset_base_url}/{relative_path}"
