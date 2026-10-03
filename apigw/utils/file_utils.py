@@ -3,6 +3,7 @@ from pathlib import Path
 
 from fastapi import UploadFile
 
+import cloud_storage_client
 from constants import ASSETS_DIR
 
 
@@ -104,7 +105,6 @@ def save_file_bytes_to_cloud(
     Returns:
         Relative cloud key / path of the saved file
     """
-    import cloud_storage_client
 
     dest_dir = kwargs.get("relative_dir", kwargs.get("folder", relative_path))
     dest_str = (
@@ -159,10 +159,3 @@ async def save_upload_file_to_cloud(
         content_type=content_type,
     )
     return s3_key, file_bytes
-
-
-# Aliases for convenience
-save_cloud_file_bytes = save_file_bytes_to_cloud
-save_cloud_upload_file = save_upload_file_to_cloud
-save_file_bytes_cloud = save_file_bytes_to_cloud
-save_upload_file_cloud = save_upload_file_to_cloud
