@@ -38,6 +38,18 @@ class AddCollectionResult(SQLModel):
     skipped: int
 
 
+class BrickExport(SQLModel):
+    native_text: str
+    target_text: str
+    target_audio_path: str
+    target_lang: str = "en"
+    target_pron: str | None = None
+    context: str | None = None
+    unit_type: str = "sentence"
+    tags: list[str] = []
+    is_private: bool = True
+
+
 class BrickBase(SQLModel):
     native_text: str
     target_text: str
