@@ -3,8 +3,8 @@ services:
     build:
       context: ./inference
       dockerfile: Dockerfile
-    ports:
-      - "8001:8001"
+    # ports:
+    #   - "8001:8001"
     volumes:
       - ./logs:/app/logs
     restart: always
@@ -32,16 +32,17 @@ services:
       POSTGRES_USER: ${DB_USER}
       POSTGRES_PASSWORD: ${DB_PASSWORD}
       POSTGRES_DB: ${DB_NAME}
-    ports:
-      - "5433:5432"
+    # Uncomment for examination only
+    # ports:
+    #   - "5433:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     
   catch_db:
     image: redis:7-alpine
     restart: always
-    ports:
-      - "6380:6379"
+    # ports:
+    #   - "6380:6379"
     volumes:
       - redis_data:/data
 

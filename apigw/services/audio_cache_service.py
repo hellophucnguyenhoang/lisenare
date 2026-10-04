@@ -79,6 +79,12 @@ def get_brick_audio_url(
     return f"{settings.asset_base_url}/{target_audio_path}"
 
 
+def clear_brick_audio_cache(brick_id: int) -> None:
+    """Clear the cached audio entry for a brick from Redis."""
+    redis = get_redis_client()
+    redis.delete(f"{BRICK_CACHE_PREFIX}{brick_id}")
+
+
 def cleanup_expired_audio_files(
     directory: Path | str | None = None,
 ) -> list[str]:
