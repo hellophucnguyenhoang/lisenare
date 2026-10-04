@@ -211,13 +211,13 @@ def get_learning_stats(
     return {
         "total_learning": result.total_learning,
         "due_count": result.due_count,
+        "total_memorized": get_total_memorized(
+            session, learner_id, tz_name, days
+        ),
         "true_retention": get_true_retention(
             session, learner_id, tz_name, days
         ),
         "average_stability": get_average_stability(
-            session, learner_id, tz_name, days
-        ),
-        "total_memorized": get_total_memorized(
             session, learner_id, tz_name, days
         ),
         "timestamp": now,

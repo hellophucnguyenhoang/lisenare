@@ -3,8 +3,14 @@ from sqlmodel import Session, func, select
 
 from database import Brick, BrickReview, Collection
 from exceptions import ErrorCode, RequestException
-from schemas import CollectionCreate, CollectionUpdate
+from schemas import (
+    AddCollectionResult,
+    BrickExport,
+    CollectionCreate,
+    CollectionUpdate,
+)
 
+from .brick_service import check_brick_exists
 from .tag_service import (
     delete_tags_for_entity,
     fetch_tags_for_entities,
@@ -252,3 +258,104 @@ def rename_collection(
         collection_update=CollectionUpdate(name=new_name),
     )
     return col
+
+
+def export_collection(
+    session: Session,
+    collection_id: int,
+    learner_id: int,
+) -> list[BrickExport]:
+    collection = session.get(Collection, collection_id)
+    if not collection:
+        raise RequestException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            debug_message=f"Collection {collection_id} not found",
+        )
+
+    stmt = select(Brick).where(Brick.collection_id == collection_id)
+    if collection.creator_id != learner_id:
+        stmt = stmt.where(Brick.is_private == False)  # noqa: E712
+
+    bricks = session.exec(stmt).all()
+    if not bricks:
+        return []
+
+    brick_ids = [b.id for b in bricks if b.id is not None]
+    tags_map = fetch_tags_for_entities(session, brick_ids, "Brick")
+
+    return [
+        BrickExport(
+            native_text=b.native_text,
+            target_text=b.target_text,
+            target_audio_path=b.target_audio_path,
+            target_lang=b.target_lang,
+            target_pron=b.target_pron,
+            context=b.context,
+            unit_type=b.unit_type,
+            tags=tags_map.get(b.id, []),
+            is_private=b.is_private,
+        )
+        for b in bricks
+    ]
+
+
+def import_collection(
+    session: Session,
+    collection_id: int,
+    learner_id: int,
+    bricks: list[BrickExport],
+) -> AddCollectionResult:
+    collection = session.get(Collection, collection_id)
+    if not collection:
+        raise RequestException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            debug_message=f"Collection {collection_id} not found",
+        )
+
+    if collection.creator_id != learner_id:
+        raise RequestException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            debug_message=f"{learner_id=} is not the creator of collection {collection_id}",
+        )
+
+    added = 0
+    skipped = 0
+    seen_in_batch: set[str] = set()
+
+    for item in bricks:
+        norm_text = item.target_text.strip().lower()
+        if norm_text in seen_in_batch or check_brick_exists(
+            session, learner_id, item.target_text
+        ):
+            skipped += 1
+            continue
+
+        seen_in_batch.add(norm_text)
+        brick = Brick(
+            native_text=item.native_text,
+            target_text=item.target_text,
+            target_audio_path=item.target_audio_path,
+            target_lang=item.target_lang,
+            target_pron=item.target_pron,
+            context=item.context,
+            unit_type=item.unit_type,
+            is_private=item.is_private,
+            creator_id=learner_id,
+            collection_id=collection_id,
+        )
+        session.add(brick)
+        session.flush()
+
+        if item.tags:
+            set_tags_for_entity(
+                session=session,
+                entity_id=brick.id,
+                entity_type="Brick",
+                tag_names=item.tags,
+                creator_id=learner_id,
+            )
+
+        added += 1
+
+    session.commit()
+    return AddCollectionResult(added=added, skipped=skipped)
