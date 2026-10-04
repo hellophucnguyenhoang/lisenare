@@ -1,10 +1,14 @@
+import json
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Response, status
+from fastapi import APIRouter, Depends, File, Response, UploadFile, status
 from sqlmodel import Session
 
 from database import Learner, get_session
+from exceptions import RequestException
 from schemas import (
+    AddCollectionResult,
+    BrickExport,
     CollectionCreate,
     CollectionRead,
     CollectionUpdate,
@@ -102,3 +106,63 @@ def delete_collection(
 ) -> Response:
     collection_service.delete_collection(session, creator.id, collection_id)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.get("/{collection_id}/export", response_model=list[BrickExport])
+def export_collection(
+    collection_id: int,
+    session: Annotated[Session, Depends(get_session)],
+    creator: Annotated[
+        Learner, Depends(auth_service.decode_token_get_learner)
+    ],
+) -> list[BrickExport]:
+    return collection_service.export_collection(
+        session=session,
+        collection_id=collection_id,
+        learner_id=creator.id,
+    )
+
+
+@router.post(
+    "/{collection_id}/import",
+    response_model=AddCollectionResult,
+)
+async def import_collection(
+    collection_id: int,
+    file: Annotated[UploadFile, File()],
+    session: Annotated[Session, Depends(get_session)],
+    creator: Annotated[
+        Learner, Depends(auth_service.decode_token_get_learner)
+    ],
+) -> AddCollectionResult:
+    try:
+        content = json.loads(await file.read())
+    except Exception:
+        raise RequestException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            debug_message="Invalid JSON file",
+        )
+
+    if isinstance(content, dict) and "bricks" in content:
+        content = content["bricks"]
+
+    if not isinstance(content, list):
+        raise RequestException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            debug_message="JSON file must contain a list of bricks",
+        )
+
+    try:
+        bricks = [BrickExport.model_validate(item) for item in content]
+    except Exception as e:
+        raise RequestException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            debug_message=f"Invalid brick data: {e}",
+        )
+
+    return collection_service.import_collection(
+        session=session,
+        collection_id=collection_id,
+        learner_id=creator.id,
+        bricks=bricks,
+    )
