@@ -10,9 +10,11 @@ from constants import (
 from database import Brick, Collection, Learner, engine
 from main import app
 from redis_client import get_redis_client
-from services import auth_service
+from schemas import BrickUpdate
+from services import auth_service, brick_service
 from services.audio_cache_service import (
     cleanup_expired_audio_files,
+    clear_brick_audio_cache,
 )
 
 
@@ -43,9 +45,15 @@ def _setup_test_brick(learner_id: int = 1) -> Brick:
                 target_text="Hello",
                 target_audio_path="system-brick-audios/hello.wav",
                 unit_type="word",
+                is_private=True,
                 creator_id=learner_id,
                 collection_id=collection.id,
             )
+            session.add(brick)
+            session.commit()
+            session.refresh(brick)
+        elif not brick.is_private:
+            brick.is_private = True
             session.add(brick)
             session.commit()
             session.refresh(brick)
@@ -351,3 +359,125 @@ def test_forced_align_caches_and_aligns(client, tmp_path):
     finally:
         app.dependency_overrides.clear()
         redis.delete(cache_key)
+
+
+def test_update_brick_audio_clears_redis_cache(client, tmp_path):
+    """When a new audio is uploaded/updated for a brick, the old Redis cache must be cleared so the learner reads the new audio."""
+    brick = _setup_test_brick(learner_id=1)
+    learner = Learner(id=1, name="Test Learner")
+    cache_key = f"{BRICK_CACHE_PREFIX}{brick.id}"
+    redis = get_redis_client()
+
+    # Pre-populate cache with an old path
+    old_audio_path = "system-brick-audios/old_audio.wav"
+    redis.setex(cache_key, 86400, old_audio_path)
+    assert redis.get(cache_key) == old_audio_path
+
+    new_audio_path = "learner-audios/learner-1/brick_new.wav"
+    with Session(engine) as session:
+        brick_service.update_brick(
+            session=session,
+            brick_id=brick.id,
+            brick_update=BrickUpdate(),
+            creator_id=1,
+            target_audio_path=new_audio_path,
+        )
+
+    # Redis cache must be cleared
+    assert not redis.exists(cache_key)
+
+    # Next audio fetch should return the new audio URL and cache it
+    mock_download = MagicMock()
+
+    def fake_download(s3_key, local_path):
+        local_path.parent.mkdir(parents=True, exist_ok=True)
+        local_path.write_bytes(b"NEW_AUDIO_DATA")
+
+    mock_download.side_effect = fake_download
+
+    app.dependency_overrides[auth_service.decode_token_get_learner] = lambda: (
+        learner
+    )
+    try:
+        with (
+            patch("services.audio_cache_service.download_file", mock_download),
+            patch("services.audio_cache_service.ASSETS_DIR", tmp_path),
+        ):
+            response = client.get(f"/api/bricks/{brick.id}/audio")
+            assert response.status_code == 200
+            expected_url = f"{settings.asset_base_url.rstrip('/')}/{new_audio_path.lstrip('/')}"
+            assert response.json() == expected_url
+            assert redis.get(cache_key) == new_audio_path
+    finally:
+        app.dependency_overrides.clear()
+        redis.delete(cache_key)
+
+
+def test_update_brick_without_audio_keeps_redis_cache():
+    """Updating non-audio brick fields should not evict the audio cache."""
+    brick = _setup_test_brick(learner_id=1)
+    cache_key = f"{BRICK_CACHE_PREFIX}{brick.id}"
+    redis = get_redis_client()
+
+    cached_audio = "system-brick-audios/still_valid.wav"
+    redis.setex(cache_key, 86400, cached_audio)
+
+    with Session(engine) as session:
+        brick_service.update_brick(
+            session=session,
+            brick_id=brick.id,
+            brick_update=BrickUpdate(native_text="Updated meaning"),
+            creator_id=1,
+            target_audio_path=None,
+        )
+
+    try:
+        assert redis.get(cache_key) == cached_audio
+    finally:
+        redis.delete(cache_key)
+
+
+def test_delete_brick_clears_redis_cache():
+    """Deleting a brick must clear its audio cache from Redis."""
+    with Session(engine) as session:
+        col = session.exec(
+            select(Collection).where(Collection.creator_id == 1)
+        ).first()
+        brick = Brick(
+            native_text="To be deleted",
+            target_text="Delete me",
+            target_audio_path="system-brick-audios/delete.wav",
+            unit_type="word",
+            creator_id=1,
+            collection_id=col.id,
+        )
+        session.add(brick)
+        session.commit()
+        session.refresh(brick)
+        brick_id = brick.id
+
+    cache_key = f"{BRICK_CACHE_PREFIX}{brick_id}"
+    redis = get_redis_client()
+    redis.setex(cache_key, 86400, "system-brick-audios/delete.wav")
+    assert redis.exists(cache_key)
+
+    with patch(
+        "services.brick_service.search_service.delete_item_from_vector_store"
+    ):
+        with Session(engine) as session:
+            brick_service.delete_brick(
+                session, creator_id=1, brick_id=brick_id
+            )
+
+    assert not redis.exists(cache_key)
+
+
+def test_clear_brick_audio_cache_direct():
+    """Directly calling clear_brick_audio_cache should delete the brick's cache key."""
+    cache_key = f"{BRICK_CACHE_PREFIX}99999"
+    redis = get_redis_client()
+    redis.setex(cache_key, 86400, "some_path.wav")
+    assert redis.exists(cache_key)
+
+    clear_brick_audio_cache(99999)
+    assert not redis.exists(cache_key)

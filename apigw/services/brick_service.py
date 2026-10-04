@@ -24,6 +24,7 @@ from schemas import (
     BrickUpdate,
 )
 
+from . import audio_cache_service
 from . import context_search_service as search_service
 from .brick_reaction_service import get_reaction_map
 from .tag_service import (
@@ -381,6 +382,10 @@ def update_brick(
 
     session.commit()
     session.refresh(brick)
+
+    if target_audio_path:
+        audio_cache_service.clear_brick_audio_cache(brick_id)
+
     return BrickRead.model_validate(brick, update={"tags": tags})
 
 
@@ -408,6 +413,8 @@ def delete_brick(session: Session, creator_id: int, brick_id: int) -> str:
     delete_tags_for_entity(session, brick_id, "Brick")
     session.delete(brick)
     session.commit()
+
+    audio_cache_service.clear_brick_audio_cache(brick_id)
 
     return "BRICK_DELETED"
 

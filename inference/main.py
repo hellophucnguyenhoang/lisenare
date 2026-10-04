@@ -5,7 +5,7 @@ from routers import audio_router, text_router
 
 app = FastAPI(title="Lisenare API")
 
-origins = ["http://127.0.0.1:8000"]  # API Gateway default port
+origins = ["http://127.0.0.1:8000"]
 
 app.add_middleware(
     CORSMiddleware,
