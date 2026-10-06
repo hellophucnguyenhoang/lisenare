@@ -65,6 +65,7 @@ def analyze_phoneme(
     return text_service.analyze_phoneme(
         target_text=request.target_text,
         learner_text=request.learner_text,
+        lang=request.lang,
     )
 
 

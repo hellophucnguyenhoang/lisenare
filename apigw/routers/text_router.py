@@ -48,21 +48,26 @@ def compare_sentences(
         http_response.json()
     )
 
+    lang = comparison_payload.lang or current_learner.practice_lang
+
     # 2. Extract and analyze linguistic phonemes
     phoneme_response = http_client.get_client().post(
         "/text/phoneme-analysis",
         json=PhonemeAnalysisRequest(
             target_text=comparison_payload.sentence2,
             learner_text=comparison_payload.sentence1,
+            lang=lang,
         ).model_dump(mode="json"),
     )
     phoneme_data = PhonemeAnalysisResponse.model_validate(
         phoneme_response.json()
     )
-    reference_ipa = phoneme_data.teacher_ipa
-    learner_ipa = phoneme_data.learner_ipa
-    phoneme_analysis = text_service.evaluate_ipa_pronunciation(
-        teacher_ipa=reference_ipa, learner_ipa=learner_ipa
+    teacher_phonemes = phoneme_data.teacher_phonemes
+    learner_phonemes = phoneme_data.learner_phonemes
+    phoneme_analysis = text_service.evaluate_phoneme_pronunciation(
+        teacher_phonemes=teacher_phonemes,
+        learner_phonemes=learner_phonemes,
+        lang=lang,
     )
 
     # 3. Update evaluation if phoneme tracking yields a higher accuracy score
@@ -70,7 +75,7 @@ def compare_sentences(
     if phoneme_accuracy > evaluation_result.score:
         evaluation_result.score = phoneme_accuracy
         evaluation_result.correct = (
-            phoneme_accuracy > evaluation_result.threshold
+            phoneme_accuracy >= evaluation_result.threshold
         )
 
     # 4. Handle persistence and scheduling optimization if tracking data is provided

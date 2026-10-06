@@ -13,6 +13,9 @@ class SentenceCompareRequest(SQLModel):
         "What's up?"
     )
     review_base: ReviewBase | None = None
+    lang: str | None = Field(
+        default=None, description="Language code ('en', 'ja', etc.)"
+    )
 
 
 class SentenceCompareResponse(SQLModel):

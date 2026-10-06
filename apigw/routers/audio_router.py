@@ -109,102 +109,6 @@ def forced_align(
 
 
 @router.post(
-    "/ipa-evaluation",
-    response_model=PronunciationAnalysisResponse,
-    deprecated=True,
-)
-async def evaluate_audio(
-    session: Annotated[Session, Depends(get_session)],
-    learner: Annotated[
-        Learner, Depends(auth_service.decode_token_get_learner)
-    ],
-    background_tasks: BackgroundTasks,
-    target_brick_id: int,
-    learner_file: UploadFile,
-):
-    """
-    About this approach:\n
-    Good: short words, very precise when we know the transcript
-        because we don't have noise.\n
-    Bad: sentences, the sound still might be understandable
-        to got a right transcript but the pronunciation is not right.
-    """
-    target_brick = brick_service.get_brick(
-        session, target_brick_id, learner.id
-    )
-
-    (
-        learner_audio_path,
-        learner_audio_bytes,
-    ) = await file_utils.save_upload_file_to_cloud(
-        file=learner_file,
-        relative_path=LEARNER_AUDIOS_DIR / f"learner_{learner.id}",
-        filename_prefix=f"brick_{target_brick_id}",
-    )
-
-    learner_files = {
-        "file": (
-            learner_file.filename,
-            learner_audio_bytes,
-            learner_file.content_type,
-        )
-    }
-    learner_result = http_client.get_client().post(
-        "/audio/transcripts", files=learner_files
-    )
-
-    phoneme_response = http_client.get_client().post(
-        "/text/phoneme-analysis",
-        json=PhonemeAnalysisRequest(
-            target_text=target_brick.target_text,
-            learner_text=learner_result.json()["transcript"],
-        ).model_dump(mode="json"),
-    )
-    phoneme_data = PhonemeAnalysisResponse.model_validate(
-        phoneme_response.json()
-    )
-    teacher_ipa = phoneme_data.teacher_ipa
-    learner_ipa = phoneme_data.learner_ipa
-    normalized_learner_text = phoneme_data.normalized_learner_text
-
-    result = text_service.evaluate_ipa_pronunciation(
-        teacher_ipa=teacher_ipa, learner_ipa=learner_ipa
-    )
-    if (
-        not brick_review_service.review_exists(
-            session, learner_id=learner.id, brick_id=target_brick_id
-        )
-        and result["accuracy_score"] >= 0.7
-    ):
-        is_answer_revealed_assumed = True
-        review_create = ReviewCreate(
-            brick_id=target_brick_id,
-            is_answer_revealed=is_answer_revealed_assumed,
-            first_score=result["accuracy_score"],
-            learner_target_text=normalized_learner_text,
-            learner_target_audio_path=learner_audio_path,
-        )
-        total_learner_reviews = brick_review_service.save_review(
-            session=session,
-            learner_id=learner.id,
-            review_create=review_create,
-        )
-        logger.info(f"Review saved, {total_learner_reviews=}")
-        if total_learner_reviews > 100:
-            interval = max(200, int(total_learner_reviews**0.5 * 20))
-            if total_learner_reviews % interval == 0:
-                background_tasks.add_task(
-                    brick_memory_service.optimize_learner_scheduler,
-                    learner.id,
-                )
-                logger.info(
-                    f"Triggering background optimization for learner {learner.id}"
-                )
-
-    return result
-
-
-@router.post(
     "/pronunciation-evaluation", response_model=PronunciationAnalysisResponse
 )
 async def evaluate_pronunciation_audio(
@@ -252,17 +156,20 @@ async def evaluate_pronunciation_audio(
         json=PhonemeAnalysisRequest(
             target_text=teacher_phonemes,
             learner_text=learner_phonemes,
+            lang=target_brick.target_lang,
         ).model_dump(mode="json"),
     )
     phoneme_data = PhonemeAnalysisResponse.model_validate(
         phoneme_response.json()
     )
-    teacher_ipa = phoneme_data.teacher_ipa
-    learner_ipa = phoneme_data.learner_ipa
+    teacher_phonemes = phoneme_data.teacher_phonemes
+    learner_phonemes = phoneme_data.learner_phonemes
     normalized_learner_text = phoneme_data.normalized_learner_text
 
-    result = text_service.evaluate_ipa_pronunciation(
-        teacher_ipa=teacher_ipa, learner_ipa=learner_ipa
+    result = text_service.evaluate_phoneme_pronunciation(
+        teacher_phonemes=teacher_phonemes,
+        learner_phonemes=learner_phonemes,
+        lang=target_brick.target_lang,
     )
     if (
         not brick_review_service.review_exists(

@@ -18,11 +18,16 @@ class TTSRequest(SQLModel):
 class PhonemeAnalysisRequest(SQLModel):
     target_text: str = Field(description="Reference / target text")
     learner_text: str = Field(description="Learner transcribed / spoken text")
+    lang: str = Field(
+        default="en", description="Language code ('en', 'ja', etc.)"
+    )
 
 
 class PhonemeAnalysisResponse(SQLModel):
-    teacher_ipa: str
-    learner_ipa: str
+    teacher_phonemes: str = Field(
+        description="Teacher/reference phonetic transcription"
+    )
+    learner_phonemes: str = Field(description="Learner phonetic transcription")
     normalized_teacher_text: str
     normalized_learner_text: str
 

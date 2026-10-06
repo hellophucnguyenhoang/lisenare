@@ -6,6 +6,7 @@ import string
 from difflib import get_close_matches
 
 import enchant
+import pykakasi
 import soundfile as sf
 import spacy
 import torch
@@ -48,6 +49,9 @@ class TextService:
         # 5. Spacy model for lemmatization
         self.nlp = spacy.load("en_core_web_sm")
 
+        # 6. pykakasi for Japanese phonetic/romaji conversion
+        self.kks = pykakasi.kakasi()
+
     def get_similarity(self, s1: str, s2: str) -> float:
         """Computes semantic similarity score between two sentences."""
         # Create a translation table that maps all punctuation to None
@@ -88,21 +92,42 @@ class TextService:
         return audio_files[0] if audio_files else b""
 
     def analyze_phoneme(
-        self, target_text: str, learner_text: str
+        self, target_text: str, learner_text: str, lang: str = "en"
     ) -> PhonemeAnalysisResponse:
+        if lang == "ja":
+            teacher_phonemes = "".join(
+                [item["hepburn"] for item in self.kks.convert(target_text)]
+            ).lower()
+            learner_phonemes = "".join(
+                [item["hepburn"] for item in self.kks.convert(learner_text)]
+            ).lower()
+            # Clean punctuation and whitespace so punctuation does not unfairly penalize pronunciation accuracy
+            teacher_phonemes = re.sub(r"[\s\W_]+", "", teacher_phonemes)
+            learner_phonemes = re.sub(r"[\s\W_]+", "", learner_phonemes)
+
+            logger.info(
+                f"Japanese phonemes: teacher='{teacher_phonemes}', learner='{learner_phonemes}'"
+            )
+            return PhonemeAnalysisResponse(
+                teacher_phonemes=teacher_phonemes,
+                learner_phonemes=learner_phonemes,
+                normalized_teacher_text=target_text,
+                normalized_learner_text=learner_text,
+            )
+
         sep = Separator(phone=" ", word="  ")
         normalized_teacher_text, normalized_learner_text = (
             normalize_for_pronunciation(target_text, learner_text)
         )
-        teacher_ipa = phonemize(normalized_teacher_text, separator=sep)
-        learner_ipa = phonemize(normalized_learner_text, separator=sep)
+        teacher_phonemes = phonemize(normalized_teacher_text, separator=sep)
+        learner_phonemes = phonemize(normalized_learner_text, separator=sep)
         logger.info(f"{normalized_teacher_text = }")
         logger.info(f"{normalized_learner_text = }")
-        logger.info(f"teacher_ipa: {teacher_ipa}")
-        logger.info(f"learner_ipa: {learner_ipa}")
+        logger.info(f"{teacher_phonemes = }")
+        logger.info(f"{learner_phonemes = }")
         return PhonemeAnalysisResponse(
-            teacher_ipa=teacher_ipa,
-            learner_ipa=learner_ipa,
+            teacher_phonemes=teacher_phonemes,
+            learner_phonemes=learner_phonemes,
             normalized_teacher_text=normalized_teacher_text,
             normalized_learner_text=normalized_learner_text,
         )
