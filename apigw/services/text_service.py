@@ -4,29 +4,36 @@ from jiwer import cer
 
 
 class TextService:
-    def evaluate_ipa_pronunciation(self, teacher_ipa: str, learner_ipa: str):
-        # Split IPA strings into sequences of phonemes
-        # Example: "k æ t" -> ["k", "æ", "t"]
-        t_seq = teacher_ipa.strip().split()
-        l_seq = learner_ipa.strip().split()
+    def evaluate_phoneme_pronunciation(
+        self,
+        teacher_phonemes: str,
+        learner_phonemes: str,
+        lang: str = "en",
+    ):
+        if lang == "ja":
+            # For Japanese, phonemes are romaji characters
+            t_seq = list(teacher_phonemes.strip())
+            l_seq = list(learner_phonemes.strip())
+            matcher = difflib.SequenceMatcher(None, t_seq, l_seq)
+            accuracy_score = matcher.ratio()
+        else:
+            # Split IPA strings into sequences of phonemes
+            # Example: "k æ t" -> ["k", "æ", "t"]
+            t_seq = teacher_phonemes.strip().split()
+            l_seq = learner_phonemes.strip().split()
 
-        # --- ACCURACY CALCULATION ---
-        # We compute Character Error Rate (CER),
-        # but we treat each phoneme as a "character"
-        # So we join phonemes back into a string like: "k æ t"
-        # CER measures how many edits (insert/delete/replace) are needed
-        error_rate = cer(" ".join(t_seq), " ".join(l_seq))
+            # --- ACCURACY CALCULATION ---
+            # We compute Character Error Rate (CER),
+            # but we treat each phoneme as a "character"
+            # So we join phonemes back into a string like: "k æ t"
+            # CER measures how many edits (insert/delete/replace) are needed
+            error_rate = cer(" ".join(t_seq), " ".join(l_seq))
 
-        # Convert error rate into accuracy score
-        # Example: error_rate = 0.3 -> accuracy = 0.7
-        # max(0, ...) ensures score never goes negative
-        accuracy_score = max(0, 1 - error_rate)
-
-        # --- ALIGNMENT (CORE LOGIC) ---
-        # SequenceMatcher finds the best alignment between
-        # teacher and learner phoneme sequences
-        # It tells us where they match and where they differ
-        matcher = difflib.SequenceMatcher(None, t_seq, l_seq)
+            # Convert error rate into accuracy score
+            # Example: error_rate = 0.3 -> accuracy = 0.7
+            # max(0, ...) ensures score never goes negative
+            accuracy_score = max(0.0, 1 - error_rate)
+            matcher = difflib.SequenceMatcher(None, t_seq, l_seq)
 
         # This will store detailed phoneme-by-phoneme analysis
         analysis = []
