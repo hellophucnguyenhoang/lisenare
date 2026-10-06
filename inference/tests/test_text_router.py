@@ -34,9 +34,26 @@ def test_phoneme_analysis_endpoint():
     data = PhonemeAnalysisResponse.model_validate(response.json())
     assert data.normalized_teacher_text == "It costs 5 dollars"
     assert data.normalized_learner_text == "It costs 5 dollars"
-    assert data.teacher_ipa.strip() != ""
-    assert data.learner_ipa.strip() != ""
-    assert data.teacher_ipa == data.learner_ipa
+    assert data.teacher_phonemes.strip() != ""
+    assert data.learner_phonemes.strip() != ""
+    assert data.teacher_phonemes == data.learner_phonemes
+
+
+def test_japanese_phoneme_analysis_endpoint():
+    client = TestClient(app)
+    req = PhonemeAnalysisRequest(
+        target_text="美味しい鳥",
+        learner_text="おいしいとり",
+        lang="ja",
+    )
+    response = client.post(
+        "/text/phoneme-analysis", json=req.model_dump(mode="json")
+    )
+    assert response.status_code == 200
+    data = PhonemeAnalysisResponse.model_validate(response.json())
+    assert data.teacher_phonemes == "oishiitori"
+    assert data.learner_phonemes == "oishiitori"
+    assert data.teacher_phonemes == data.learner_phonemes
 
 
 def test_spell_fix_endpoints():

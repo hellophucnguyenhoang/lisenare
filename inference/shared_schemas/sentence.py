@@ -10,6 +10,9 @@ class SentenceCompareRequest(SQLModel):
     sentence2: Annotated[str, Field(description="The model's sentence")] = (
         "What's up?"
     )
+    lang: str | None = Field(
+        default=None, description="Language code ('en', 'ja', etc.)"
+    )
 
 
 class SentenceCompareResponse(SQLModel):
