@@ -43,10 +43,10 @@ def test_create_brick_with_tags_success(client: TestClient):
             "utils.file_utils.save_upload_file",
             return_value=("mock/path.wav", None),
         ),
-        patch("app.services.context_search_service.add_item_to_vector_store"),
+        patch("services.context_search_service.add_item_to_vector_store"),
     ):
         response = client.post(
-            "/bricks",
+            "/api/bricks",
             data={"json_data": json.dumps(brick_payload)},
             files={
                 "target_audio_file": ("audio.wav", audio_file, "audio/wav")
@@ -84,7 +84,7 @@ def test_create_brick_with_tags_success(client: TestClient):
         return_value=("mock/path.wav", None),
     ):
         patch_response = client.patch(
-            f"/bricks/{brick_id}",
+            f"/api/bricks/{brick_id}",
             data={"json_data": json.dumps(update_payload)},
         )
     assert patch_response.status_code == 200
@@ -94,9 +94,9 @@ def test_create_brick_with_tags_success(client: TestClient):
 
     # Delete brick and verify taggables are removed
     with patch(
-        "app.services.context_search_service.delete_item_from_vector_store"
+        "services.context_search_service.delete_item_from_vector_store"
     ):
-        del_response = client.delete(f"/bricks/{brick_id}")
+        del_response = client.delete(f"/api/bricks/{brick_id}")
     assert del_response.status_code == 204
 
     with Session(engine) as session:
@@ -140,10 +140,10 @@ def test_create_brick_with_custom_target_lang(client: TestClient):
             "utils.file_utils.save_upload_file",
             return_value=("mock/path_ja.wav", None),
         ),
-        patch("app.services.context_search_service.add_item_to_vector_store"),
+        patch("services.context_search_service.add_item_to_vector_store"),
     ):
         response = client.post(
-            "/bricks",
+            "/api/bricks",
             data={"json_data": json.dumps(brick_payload)},
             files={
                 "target_audio_file": ("audio.wav", audio_file, "audio/wav")
@@ -156,9 +156,9 @@ def test_create_brick_with_custom_target_lang(client: TestClient):
     brick_id = data["id"]
 
     with patch(
-        "app.services.context_search_service.delete_item_from_vector_store"
+        "services.context_search_service.delete_item_from_vector_store"
     ):
-        del_response = client.delete(f"/bricks/{brick_id}")
+        del_response = client.delete(f"/api/bricks/{brick_id}")
     assert del_response.status_code == 204
 
     app.dependency_overrides.clear()
@@ -182,7 +182,7 @@ def test_create_brick_collection_not_found(client: TestClient):
         return_value=("mock/path.wav", None),
     ):
         response = client.post(
-            "/bricks",
+            "/api/bricks",
             data={"json_data": json.dumps(brick_payload)},
             files={
                 "target_audio_file": ("audio.wav", audio_file, "audio/wav")
@@ -218,7 +218,7 @@ def test_create_brick_collection_forbidden(client: TestClient):
         return_value=("mock/path.wav", None),
     ):
         response = client.post(
-            "/bricks",
+            "/api/bricks",
             data={"json_data": json.dumps(brick_payload)},
             files={
                 "target_audio_file": ("audio.wav", audio_file, "audio/wav")
@@ -359,7 +359,7 @@ def test_get_next_brick_with_brick_id_success(client: TestClient):
         brick_id = brick.id
         brick_target_text = brick.target_text
 
-    response = client.get(f"/bricks/next?brick_id={brick_id}")
+    response = client.get(f"/api/bricks/next?brick_id={brick_id}")
     app.dependency_overrides.clear()
 
     assert response.status_code == 200
@@ -375,7 +375,7 @@ def test_get_next_brick_with_brick_id_not_found(client: TestClient):
         existing_learner
     )
 
-    response = client.get("/bricks/next?brick_id=999999")
+    response = client.get("/api/bricks/next?brick_id=999999")
     app.dependency_overrides.clear()
 
     assert response.status_code == 404
@@ -394,7 +394,7 @@ def test_get_next_brick_with_brick_id_forbidden(client: TestClient):
         assert brick is not None
         brick_id = brick.id
 
-    response = client.get(f"/bricks/next?brick_id={brick_id}")
+    response = client.get(f"/api/bricks/next?brick_id={brick_id}")
     app.dependency_overrides.clear()
 
     assert response.status_code == 404
@@ -408,7 +408,7 @@ def test_get_next_brick_without_brick_id(client: TestClient):
         existing_learner
     )
 
-    response = client.get("/bricks/next")
+    response = client.get("/api/bricks/next")
     app.dependency_overrides.clear()
 
     assert response.status_code == 200
@@ -423,7 +423,7 @@ def test_get_next_brick_filters_by_practice_lang(client: TestClient):
         learner_ja
     )
 
-    response = client.get("/bricks/next")
+    response = client.get("/api/bricks/next")
     app.dependency_overrides.clear()
 
     assert response.status_code == 200
@@ -447,10 +447,128 @@ def test_get_next_brick_with_specific_id_ignores_practice_lang(
         learner_ja
     )
 
-    response = client.get(f"/bricks/next?brick_id={brick_en_id}")
+    response = client.get(f"/api/bricks/next?brick_id={brick_en_id}")
     app.dependency_overrides.clear()
 
     assert response.status_code == 200
     data = response.json()
     assert data["id"] == brick_en_id
     assert data["target_lang"] == "en"
+
+
+def test_get_bricks_unit_type_and_tags_filter(client: TestClient):
+    from services.tag_service import set_tags_for_entity
+
+    existing_learner = Learner(id=2, setting=LearnerSetting())
+    app.dependency_overrides[auth_service.decode_token_get_learner] = lambda: (
+        existing_learner
+    )
+
+    with Session(engine) as session:
+        col = session.exec(
+            select(Collection).where(Collection.creator_id == 2)
+        ).first()
+        assert col is not None
+
+        # Create 1 word brick with tag "test_tag_word"
+        brick_word = Brick(
+            native_text="Từ đơn",
+            target_text="SingleWordTest",
+            target_audio_path="fake/path.wav",
+            target_lang="en",
+            unit_type="word",
+            is_private=True,
+            collection_id=col.id,
+            creator_id=2,
+        )
+        session.add(brick_word)
+        session.commit()
+        session.refresh(brick_word)
+        brick_word_id = brick_word.id
+        set_tags_for_entity(
+            session, brick_word_id, "Brick", ["test_tag_word"], 2
+        )
+        session.commit()
+
+        # Create 1 sentence brick with tag "test_tag_sentence"
+        brick_sent = Brick(
+            native_text="Câu đầy đủ",
+            target_text="FullSentenceTest",
+            target_audio_path="fake/path.wav",
+            target_lang="en",
+            unit_type="sentence",
+            is_private=True,
+            collection_id=col.id,
+            creator_id=2,
+        )
+        session.add(brick_sent)
+        session.commit()
+        session.refresh(brick_sent)
+        brick_sent_id = brick_sent.id
+        set_tags_for_entity(
+            session, brick_sent_id, "Brick", ["test_tag_sentence"], 2
+        )
+        session.commit()
+
+    try:
+        # Test unit_type filter = word
+        resp_word = client.get("/api/bricks?unit_type=word")
+        assert resp_word.status_code == 200
+        data_word = resp_word.json()
+        word_ids = [item["id"] for item in data_word["items"]]
+        assert brick_word_id in word_ids
+        assert brick_sent_id not in word_ids
+        assert all(item["unit_type"] == "word" for item in data_word["items"])
+
+        # Test unit_type filter = sentence
+        resp_sent = client.get("/api/bricks?unit_type=sentence")
+        assert resp_sent.status_code == 200
+        data_sent = resp_sent.json()
+        sent_ids = [item["id"] for item in data_sent["items"]]
+        assert brick_sent_id in sent_ids
+        assert brick_word_id not in sent_ids
+        assert all(
+            item["unit_type"] == "sentence" for item in data_sent["items"]
+        )
+
+        # Test tags filter single tag
+        resp_tag = client.get("/api/bricks?tags=test_tag_word")
+        assert resp_tag.status_code == 200
+        data_tag = resp_tag.json()
+        tag_ids = [item["id"] for item in data_tag["items"]]
+        assert brick_word_id in tag_ids
+        assert brick_sent_id not in tag_ids
+
+        # Test tags filter multiple tags (comma separated)
+        resp_tags = client.get(
+            "/api/bricks?tags=test_tag_word,test_tag_sentence"
+        )
+        assert resp_tags.status_code == 200
+        data_tags = resp_tags.json()
+        both_ids = [item["id"] for item in data_tags["items"]]
+        assert brick_word_id in both_ids
+        assert brick_sent_id in both_ids
+
+        # Test combined unit_type and tags filter
+        resp_combined = client.get(
+            "/api/bricks?unit_type=word&tags=test_tag_sentence"
+        )
+        assert resp_combined.status_code == 200
+        assert resp_combined.json()["total"] == 0
+
+        # Test nonexistent tag
+        resp_none = client.get("/api/bricks?tags=nonexistent_xyz")
+        assert resp_none.status_code == 200
+        assert resp_none.json()["total"] == 0
+        assert resp_none.json()["items"] == []
+
+    finally:
+        app.dependency_overrides.clear()
+        with Session(engine) as session:
+            bw = session.get(Brick, brick_word_id)
+            if bw:
+                session.delete(bw)
+            bs = session.get(Brick, brick_sent_id)
+            if bs:
+                session.delete(bs)
+            session.commit()

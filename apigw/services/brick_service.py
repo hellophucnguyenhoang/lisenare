@@ -11,6 +11,8 @@ from database import (
     BrickReview,
     Collection,
     LearnerSetting,
+    Tag,
+    Taggable,
 )
 from exceptions import RequestException
 from schemas import (
@@ -40,6 +42,8 @@ def get_bricks(
     creator_id: int,
     collection_ids: list[int] | None = None,
     status: BrickStatus | None = None,
+    unit_type: str | None = None,
+    tags: list[str] | None = None,
     sort_by: BrickSort = BrickSort.NEWEST,
     offset: int = 0,
     limit: int = 20,
@@ -63,6 +67,21 @@ def get_bricks(
             conditions.append(exists_stmt)
         elif status == BrickStatus.NOT_LEARNED:
             conditions.append(not_(exists_stmt))
+
+    if unit_type is not None:
+        conditions.append(Brick.unit_type == unit_type)
+
+    if tags:
+        tag_subquery = (
+            select(Taggable.taggable_id)
+            .distinct()
+            .join(Tag, Taggable.tag_id == Tag.id)
+            .where(
+                Taggable.taggable_type == "Brick",
+                Tag.name.in_(tags),
+            )
+        )
+        conditions.append(Brick.id.in_(tag_subquery))
 
     if conditions:
         stmt = stmt.where(*conditions)
@@ -99,6 +118,8 @@ def count_bricks(
     creator_id: int,
     collection_ids: list[int] | None = None,
     status: BrickStatus | None = None,
+    unit_type: str | None = None,
+    tags: list[str] | None = None,
 ) -> int:
     exists_stmt = exists().where(
         and_(
@@ -119,6 +140,21 @@ def count_bricks(
 
         elif status == BrickStatus.NOT_LEARNED:
             conditions.append(not_(exists_stmt))
+
+    if unit_type is not None:
+        conditions.append(Brick.unit_type == unit_type)
+
+    if tags:
+        tag_subquery = (
+            select(Taggable.taggable_id)
+            .distinct()
+            .join(Tag, Taggable.tag_id == Tag.id)
+            .where(
+                Taggable.taggable_type == "Brick",
+                Tag.name.in_(tags),
+            )
+        )
+        conditions.append(Brick.id.in_(tag_subquery))
 
     if conditions:
         stmt = stmt.where(*conditions)

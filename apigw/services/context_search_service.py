@@ -69,7 +69,13 @@ class ContextSearchService:
         ]
 
     def search_bricks(
-        self, session: Session, query: str, searcher_id: int | None = None
+        self,
+        session: Session,
+        query: str,
+        searcher_id: int | None = None,
+        unit_type: str | None = None,
+        limit: int = 30,
+        offset: int = 0,
     ) -> list[BrickContextSearch]:
         literal_results = search_bricks_literal(session, query)
         semantic_results = self.search_bricks_semantic(query, mmr=True)
@@ -90,11 +96,12 @@ class ContextSearchService:
         if not candidate_ids:
             return []
 
-        visible_rows = session.exec(
-            select(Brick.id, Brick.creator_id).where(
-                Brick.id.in_(candidate_ids), or_(*filters)
-            )
-        ).all()
+        stmt = select(Brick.id, Brick.creator_id).where(
+            Brick.id.in_(candidate_ids), or_(*filters)
+        )
+        if unit_type:
+            stmt = stmt.where(Brick.unit_type == unit_type)
+        visible_rows = session.exec(stmt).all()
         visible_brick_ids = {row[0] for row in visible_rows}
         own_brick_ids = (
             {row[0] for row in visible_rows if row[1] == searcher_id}
@@ -114,7 +121,7 @@ class ContextSearchService:
                 combined.append(res)
                 seen.add(res.target_text)
 
-        return combined
+        return combined[offset : offset + limit]
 
     def get_embedding(self, session: Session, brick_id: int) -> NDArray | None:
 

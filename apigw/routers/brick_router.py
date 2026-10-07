@@ -1,5 +1,5 @@
 import random
-from typing import Annotated
+from typing import Annotated, Literal
 
 from fastapi import (
     APIRouter,
@@ -48,17 +48,30 @@ def get_bricks(
     ],
     collection_ids: Annotated[list[int] | None, Query()] = None,
     status: BrickStatus | None = None,
+    unit_type: Literal["word", "sentence"] | None = None,
+    tags: Annotated[list[str] | None, Query()] = None,
     sort_by: BrickSort = BrickSort.NEWEST,
     limit: int = 20,
     page: int = 1,
 ) -> BrickPage:
     offset = (page - 1) * limit
 
+    cleaned_tags: list[str] | None = None
+    if tags:
+        cleaned_tags = []
+        for t in tags:
+            for item in t.split(","):
+                item_clean = item.strip()
+                if item_clean and item_clean not in cleaned_tags:
+                    cleaned_tags.append(item_clean)
+
     bricks_list = brick_service.get_bricks(
         session=session,
         creator_id=creator.id,
         collection_ids=collection_ids,
         status=status,
+        unit_type=unit_type,
+        tags=cleaned_tags or None,
         sort_by=sort_by,
         offset=offset,
         limit=limit,
@@ -69,6 +82,8 @@ def get_bricks(
         creator_id=creator.id,
         collection_ids=collection_ids,
         status=status,
+        unit_type=unit_type,
+        tags=cleaned_tags or None,
     )
 
     return BrickPage(items=bricks_list, total=total_count)
