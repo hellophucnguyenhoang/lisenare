@@ -45,7 +45,7 @@ def _create_public_brick(
         native_text=f"VN: {target_text}",
         target_text=target_text,
         target_audio_path=f"system-brick-audios/{target_text.replace(' ', '_')}.wav",
-        unit_type="sentence",
+        kind="sentence",
         is_private=False,
         creator_id=creator_id,
         collection_id=collection_id,
@@ -87,7 +87,7 @@ def test_add_private_brick_from_another_learner_forbidden(client: TestClient):
             native_text="VN: Private",
             target_text="Private text from owner seed",
             target_audio_path="system-brick-audios/seed.wav",
-            unit_type="sentence",
+            kind="sentence",
             is_private=True,
             creator_id=owner.id,
             collection_id=owner_col.id,
@@ -241,7 +241,7 @@ def test_add_bricks_from_collection_success(client: TestClient):
             native_text="VN: private",
             target_text=f"collection brick gamma private {uid}",
             target_audio_path="system-brick-audios/gamma.wav",
-            unit_type="sentence",
+            kind="sentence",
             is_private=True,
             creator_id=owner.id,
             collection_id=owner_col.id,
@@ -346,7 +346,7 @@ def test_get_brick_detail_private_from_another_learner_forbidden(
             native_text="VN: Secret",
             target_text="Secret private sentence",
             target_audio_path="system-brick-audios/secret.wav",
-            unit_type="sentence",
+            kind="sentence",
             is_private=True,
             creator_id=owner.id,
             collection_id=owner_col.id,
@@ -376,7 +376,7 @@ def test_get_brick_detail_own_private_brick_success(client: TestClient):
             native_text="VN: My secret",
             target_text="My private sentence detail",
             target_audio_path="system-brick-audios/my_secret.wav",
-            unit_type="sentence",
+            kind="sentence",
             is_private=True,
             creator_id=owner.id,
             collection_id=owner_col.id,
@@ -508,8 +508,8 @@ def test_search_bricks_endpoint_authenticated_success(client: TestClient):
         app.dependency_overrides.clear()
 
 
-def test_search_bricks_unit_type_filter_and_pagination():
-    """unit_type filters results; limit/offset paginate them."""
+def test_search_bricks_kind_filter_and_pagination():
+    """kind filters results; limit/offset paginate them."""
     from services.context_search_service import context_search_service
 
     token = f"tok{uuid.uuid4().hex[:10]}"
@@ -517,7 +517,7 @@ def test_search_bricks_unit_type_filter_and_pagination():
         owner = _ensure_learner(session, 36, "FilterOwner")
         col = _ensure_collection(session, owner.id, "Filter Col")
         word = _create_public_brick(session, owner.id, col.id, token)
-        word.unit_type = "word"
+        word.kind = "word"
         session.add(word)
         session.commit()
         for i in range(3):
@@ -529,8 +529,8 @@ def test_search_bricks_unit_type_filter_and_pagination():
             context_search_service, "search_bricks_semantic", return_value=[]
         ):
             search = context_search_service.search_bricks
-            words = search(session, token, 36, unit_type="word")
-            sentences = search(session, token, 36, unit_type="sentence")
+            words = search(session, token, 36, kind="word")
+            sentences = search(session, token, 36, kind="sentence")
             page1 = search(session, token, 36, limit=2)
             page2 = search(session, token, 36, limit=2, offset=2)
 

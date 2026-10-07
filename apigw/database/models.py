@@ -45,7 +45,7 @@ class Brick(SQLModel, table=True):
         max_length=BRICK_MAX_WORDS * BRICK_AVG_WORD_LEN,
     )
     context: str | None = Field(default=None, max_length=CONTEXT_MAX_CHARS)
-    unit_type: str  # 'word' or 'sentence'
+    kind: str  # 'word' or 'sentence'
     is_private: bool = True
     last_edit_at: datetime = Field(
         default_factory=lambda: datetime.now(timezone.utc),

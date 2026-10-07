@@ -28,7 +28,7 @@ def export_bricks_to_csv(
             "is_public": b.is_public,
             "collection_id": b.collection_id,
             # Metadata fields (flattened)
-            "unit_type": br_mt.unit_type,
+            "kind": br_mt.kind,
             "structure": br_mt.structure,
             "function": br_mt.function,
             "grammar_points": grammar_points_flatten,
