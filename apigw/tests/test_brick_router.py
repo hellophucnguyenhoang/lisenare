@@ -456,7 +456,7 @@ def test_get_next_brick_with_specific_id_ignores_practice_lang(
     assert data["target_lang"] == "en"
 
 
-def test_get_bricks_unit_type_and_tags_filter(client: TestClient):
+def test_get_bricks_kind_and_tags_filter(client: TestClient):
     from services.tag_service import set_tags_for_entity
 
     existing_learner = Learner(id=2, setting=LearnerSetting())
@@ -476,7 +476,7 @@ def test_get_bricks_unit_type_and_tags_filter(client: TestClient):
             target_text="SingleWordTest",
             target_audio_path="fake/path.wav",
             target_lang="en",
-            unit_type="word",
+            kind="word",
             is_private=True,
             collection_id=col.id,
             creator_id=2,
@@ -496,7 +496,7 @@ def test_get_bricks_unit_type_and_tags_filter(client: TestClient):
             target_text="FullSentenceTest",
             target_audio_path="fake/path.wav",
             target_lang="en",
-            unit_type="sentence",
+            kind="sentence",
             is_private=True,
             collection_id=col.id,
             creator_id=2,
@@ -511,25 +511,23 @@ def test_get_bricks_unit_type_and_tags_filter(client: TestClient):
         session.commit()
 
     try:
-        # Test unit_type filter = word
-        resp_word = client.get("/api/bricks?unit_type=word")
+        # Test kind filter = word
+        resp_word = client.get("/api/bricks?kind=word")
         assert resp_word.status_code == 200
         data_word = resp_word.json()
         word_ids = [item["id"] for item in data_word["items"]]
         assert brick_word_id in word_ids
         assert brick_sent_id not in word_ids
-        assert all(item["unit_type"] == "word" for item in data_word["items"])
+        assert all(item["kind"] == "word" for item in data_word["items"])
 
-        # Test unit_type filter = sentence
-        resp_sent = client.get("/api/bricks?unit_type=sentence")
+        # Test kind filter = sentence
+        resp_sent = client.get("/api/bricks?kind=sentence")
         assert resp_sent.status_code == 200
         data_sent = resp_sent.json()
         sent_ids = [item["id"] for item in data_sent["items"]]
         assert brick_sent_id in sent_ids
         assert brick_word_id not in sent_ids
-        assert all(
-            item["unit_type"] == "sentence" for item in data_sent["items"]
-        )
+        assert all(item["kind"] == "sentence" for item in data_sent["items"])
 
         # Test tags filter single tag
         resp_tag = client.get("/api/bricks?tags=test_tag_word")
@@ -549,9 +547,9 @@ def test_get_bricks_unit_type_and_tags_filter(client: TestClient):
         assert brick_word_id in both_ids
         assert brick_sent_id in both_ids
 
-        # Test combined unit_type and tags filter
+        # Test combined kind and tags filter
         resp_combined = client.get(
-            "/api/bricks?unit_type=word&tags=test_tag_sentence"
+            "/api/bricks?kind=word&tags=test_tag_sentence"
         )
         assert resp_combined.status_code == 200
         assert resp_combined.json()["total"] == 0
