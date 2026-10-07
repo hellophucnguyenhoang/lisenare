@@ -506,3 +506,36 @@ def test_search_bricks_endpoint_authenticated_success(client: TestClient):
             assert isinstance(response.json(), list)
     finally:
         app.dependency_overrides.clear()
+
+
+def test_search_bricks_unit_type_filter_and_pagination():
+    """unit_type filters results; limit/offset paginate them."""
+    from services.context_search_service import context_search_service
+
+    token = f"tok{uuid.uuid4().hex[:10]}"
+    with Session(engine) as session:
+        owner = _ensure_learner(session, 36, "FilterOwner")
+        col = _ensure_collection(session, owner.id, "Filter Col")
+        word = _create_public_brick(session, owner.id, col.id, token)
+        word.unit_type = "word"
+        session.add(word)
+        session.commit()
+        for i in range(3):
+            _create_public_brick(
+                session, owner.id, col.id, f"{token} sentence {i}"
+            )
+
+        with patch.object(
+            context_search_service, "search_bricks_semantic", return_value=[]
+        ):
+            search = context_search_service.search_bricks
+            words = search(session, token, 36, unit_type="word")
+            sentences = search(session, token, 36, unit_type="sentence")
+            page1 = search(session, token, 36, limit=2)
+            page2 = search(session, token, 36, limit=2, offset=2)
+
+        assert [r.brick_id for r in words] == [word.id]
+        assert len(sentences) == 3
+        assert word.id not in {r.brick_id for r in sentences}
+        assert len(page1) == 2 and len(page2) == 2
+        assert not {r.brick_id for r in page1} & {r.brick_id for r in page2}
