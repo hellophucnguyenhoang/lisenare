@@ -73,7 +73,7 @@ class ContextSearchService:
         session: Session,
         query: str,
         searcher_id: int | None = None,
-        unit_type: str | None = None,
+        kind: str | None = None,
         limit: int = 30,
         offset: int = 0,
     ) -> list[BrickContextSearch]:
@@ -99,8 +99,8 @@ class ContextSearchService:
         stmt = select(Brick.id, Brick.creator_id).where(
             Brick.id.in_(candidate_ids), or_(*filters)
         )
-        if unit_type:
-            stmt = stmt.where(Brick.unit_type == unit_type)
+        if kind:
+            stmt = stmt.where(Brick.kind == kind)
         visible_rows = session.exec(stmt).all()
         visible_brick_ids = {row[0] for row in visible_rows}
         own_brick_ids = (

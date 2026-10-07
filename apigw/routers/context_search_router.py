@@ -48,7 +48,7 @@ def search_context_bricks(
         session,
         text_utils.refined_spell_fix(context_search_request.query),
         learner.id,
-        unit_type=context_search_request.unit_type,
+        kind=context_search_request.kind,
         limit=context_search_request.limit,
         offset=context_search_request.offset,
     )

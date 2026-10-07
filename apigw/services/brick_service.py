@@ -42,7 +42,7 @@ def get_bricks(
     creator_id: int,
     collection_ids: list[int] | None = None,
     status: BrickStatus | None = None,
-    unit_type: str | None = None,
+    kind: str | None = None,
     tags: list[str] | None = None,
     sort_by: BrickSort = BrickSort.NEWEST,
     offset: int = 0,
@@ -68,8 +68,8 @@ def get_bricks(
         elif status == BrickStatus.NOT_LEARNED:
             conditions.append(not_(exists_stmt))
 
-    if unit_type is not None:
-        conditions.append(Brick.unit_type == unit_type)
+    if kind is not None:
+        conditions.append(Brick.kind == kind)
 
     if tags:
         tag_subquery = (
@@ -118,7 +118,7 @@ def count_bricks(
     creator_id: int,
     collection_ids: list[int] | None = None,
     status: BrickStatus | None = None,
-    unit_type: str | None = None,
+    kind: str | None = None,
     tags: list[str] | None = None,
 ) -> int:
     exists_stmt = exists().where(
@@ -141,8 +141,8 @@ def count_bricks(
         elif status == BrickStatus.NOT_LEARNED:
             conditions.append(not_(exists_stmt))
 
-    if unit_type is not None:
-        conditions.append(Brick.unit_type == unit_type)
+    if kind is not None:
+        conditions.append(Brick.kind == kind)
 
     if tags:
         tag_subquery = (
@@ -328,7 +328,7 @@ def create_brick(
         target_lang=request_data.target_lang,
         target_pron=request_data.target_pron,
         context=request_data.context,
-        unit_type=request_data.unit_type,
+        kind=request_data.kind,
         target_audio_path=target_audio_path,
         is_private=request_data.is_private,
         creator_id=creator_id,
@@ -498,7 +498,7 @@ def add_brick_from(
         target_lang=source.target_lang,
         target_pron=source.target_pron,
         context=source.context,
-        unit_type=source.unit_type,
+        kind=source.kind,
         is_private=True,
         creator_id=learner_id,
         collection_id=collection_id,
@@ -567,7 +567,7 @@ def add_bricks_from_collection(
             target_lang=source.target_lang,
             target_pron=source.target_pron,
             context=source.context,
-            unit_type=source.unit_type,
+            kind=source.kind,
             is_private=True,
             creator_id=learner_id,
             collection_id=target_collection_id,

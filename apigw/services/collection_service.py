@@ -291,7 +291,7 @@ def export_collection(
             target_lang=b.target_lang,
             target_pron=b.target_pron,
             context=b.context,
-            unit_type=b.unit_type,
+            kind=b.kind,
             tags=tags_map.get(b.id, []),
             is_private=b.is_private,
         )
@@ -338,7 +338,7 @@ def import_collection(
             target_lang=item.target_lang,
             target_pron=item.target_pron,
             context=item.context,
-            unit_type=item.unit_type,
+            kind=item.kind,
             is_private=item.is_private,
             creator_id=learner_id,
             collection_id=collection_id,

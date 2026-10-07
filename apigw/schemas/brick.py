@@ -12,7 +12,7 @@ class BrickUpdate(SQLModel):
     target_lang: str | None = None
     target_pron: str | None = None
     context: str | None = None
-    unit_type: str | None = None
+    kind: str | None = None
     is_private: bool | None = None
     collection_id: int | None = None
     tags: list[str] | None = None
@@ -45,7 +45,7 @@ class BrickExport(SQLModel):
     target_lang: str = "en"
     target_pron: str | None = None
     context: str | None = None
-    unit_type: str = "sentence"
+    kind: str = "sentence"
     tags: list[str] = []
     is_private: bool = True
 
@@ -56,7 +56,7 @@ class BrickBase(SQLModel):
     target_lang: str = "en"
     target_pron: str | None = None
     context: str | None = None
-    unit_type: str = "sentence"
+    kind: str = "sentence"
     is_private: bool = True
     tags: list[str] = []
     collection_id: int

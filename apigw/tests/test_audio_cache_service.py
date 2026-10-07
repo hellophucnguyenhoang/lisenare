@@ -44,7 +44,7 @@ def _setup_test_brick(learner_id: int = 1) -> Brick:
                 native_text="Xin chao",
                 target_text="Hello",
                 target_audio_path="system-brick-audios/hello.wav",
-                unit_type="word",
+                kind="word",
                 is_private=True,
                 creator_id=learner_id,
                 collection_id=collection.id,
@@ -447,7 +447,7 @@ def test_delete_brick_clears_redis_cache():
             native_text="To be deleted",
             target_text="Delete me",
             target_audio_path="system-brick-audios/delete.wav",
-            unit_type="word",
+            kind="word",
             creator_id=1,
             collection_id=col.id,
         )

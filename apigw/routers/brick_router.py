@@ -48,7 +48,7 @@ def get_bricks(
     ],
     collection_ids: Annotated[list[int] | None, Query()] = None,
     status: BrickStatus | None = None,
-    unit_type: Literal["word", "sentence"] | None = None,
+    kind: Literal["word", "sentence"] | None = None,
     tags: Annotated[list[str] | None, Query()] = None,
     sort_by: BrickSort = BrickSort.NEWEST,
     limit: int = 20,
@@ -70,7 +70,7 @@ def get_bricks(
         creator_id=creator.id,
         collection_ids=collection_ids,
         status=status,
-        unit_type=unit_type,
+        kind=kind,
         tags=cleaned_tags or None,
         sort_by=sort_by,
         offset=offset,
@@ -82,7 +82,7 @@ def get_bricks(
         creator_id=creator.id,
         collection_ids=collection_ids,
         status=status,
-        unit_type=unit_type,
+        kind=kind,
         tags=cleaned_tags or None,
     )
 

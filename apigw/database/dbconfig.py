@@ -193,7 +193,7 @@ def init_bricks(session: Session):
                 Path("system-brick-audios") / row["source_audio_file"]
             ),
             target_lang="en",
-            unit_type=row["unit_type"],
+            kind=row["kind"],
             creator=me_account.learner,
             collection=collection,
             is_private=False,
