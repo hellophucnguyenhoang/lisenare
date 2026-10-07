@@ -48,7 +48,10 @@ def search_context_bricks(
         session,
         text_utils.refined_spell_fix(context_search_request.query),
         learner.id,
+        unit_type=context_search_request.unit_type,
+        limit=context_search_request.limit,
+        offset=context_search_request.offset,
     )
     end = time.time()
     logger.info(f"brick search time: {(end - start) * 1000} ms")
-    return search_result[:30]
+    return search_result
