@@ -19,13 +19,13 @@ router = APIRouter(prefix="/brick-interactions", tags=["Brick Interactions"])
 def create_interaction(
     session: Annotated[Session, Depends(get_session)],
     learner: Annotated[
-        Learner | None, Depends(auth_service.decode_token_get_optional_learner)
+        Learner, Depends(auth_service.decode_token_get_learner)
     ],
     data: BrickInteractionCreate,
 ) -> Response:
     brick_interaction_service.handle_interaction_and_update_profile(
         session=session,
         data=data,
-        learner_id=learner.id if learner else None,
+        learner_id=learner.id,
     )
     return Response(status_code=status.HTTP_201_CREATED)

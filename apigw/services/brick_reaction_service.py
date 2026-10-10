@@ -7,9 +7,9 @@ from schemas import BrickRead
 def get_reaction_map(
     session: Session,
     brick_ids: list[int],
-    learner_id: int | None,
+    learner_id: int,
 ) -> dict[int, str]:
-    if not learner_id or not brick_ids:
+    if not brick_ids:
         return {}
 
     rows = session.exec(
@@ -25,7 +25,7 @@ def get_reaction_map(
 def attach_reactions(
     session: Session,
     bricks: list[Brick],
-    learner_id: int | None,
+    learner_id: int,
 ) -> list[BrickRead]:
     brick_ids = [b.id for b in bricks if b.id is not None]
     reaction_map = get_reaction_map(session, brick_ids, learner_id)

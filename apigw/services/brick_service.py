@@ -1,16 +1,21 @@
 import re
 from datetime import datetime, timezone
 
+import numpy as np
 from fastapi import status
+from sqlalchemy import case
+from sqlalchemy.orm import selectinload
 from sqlmodel import Session, and_, exists, func, not_, select
 
 from config import logger
 from database import (
     Brick,
+    BrickInteraction,
     BrickMemory,
     BrickReview,
     Collection,
     LearnerSetting,
+    SessionProfile,
     Tag,
     Taggable,
 )
@@ -27,7 +32,7 @@ from schemas import (
 )
 
 from . import audio_cache_service
-from . import context_search_service as search_service
+from . import context_search_service as cs_service
 from .brick_reaction_service import get_reaction_map
 from .tag_service import (
     delete_tags_for_entity,
@@ -111,6 +116,77 @@ def get_bricks(
         brick.tags = brick_tags.get(brick.id, [])
 
     return bricks
+
+
+def get_random_bricks(
+    session: Session,
+    limit: int = 5,
+    exclude_ids: list[int] | None = None,
+) -> list[Brick]:
+    query = (
+        select(Brick)
+        .options(selectinload(Brick.creator))
+        .where(Brick.is_private.is_(False))
+    )
+    if exclude_ids:
+        query = query.where(Brick.id.not_in(exclude_ids))
+
+    query = query.order_by(func.random()).limit(limit)
+    return list(session.exec(query).all())
+
+
+def get_recommended_bricks(
+    session: Session,
+    session_id: str,
+    limit: int = 5,
+) -> list[Brick]:
+    """
+    Get most relevant bricks to the profile_vector of a session_id.
+    Recommend randomly for the first time.
+    """
+    interacted_query = select(BrickInteraction.brick_id).where(
+        BrickInteraction.session_id == session_id
+    )
+    interacted_ids = list(session.exec(interacted_query).all())
+
+    profile = session.get(SessionProfile, session_id)
+    if profile:
+        vector = np.frombuffer(
+            profile.profile_vector, dtype=np.float64
+        ).tolist()
+    else:
+        return get_random_bricks(
+            session,
+            limit=limit,
+            exclude_ids=interacted_ids,
+        )
+
+    brick_ids = cs_service.search_service.get_relevant_bricks(
+        vector,
+        limit=limit,
+        exclude_ids=interacted_ids,
+    )
+    if not brick_ids:
+        return get_random_bricks(
+            session,
+            limit=limit,
+            exclude_ids=interacted_ids,
+        )
+
+    # Preserving the order of brick_ids in the provided relevance order
+    order_preserved = case(
+        {id_: index for index, id_ in enumerate(brick_ids)},
+        value=Brick.id,
+    )
+
+    query = (
+        select(Brick)
+        .where(Brick.id.in_(brick_ids), Brick.is_private.is_(False))
+        .options(selectinload(Brick.creator))
+        .order_by(order_preserved)
+    )
+
+    return list(session.exec(query).all())
 
 
 def count_bricks(
@@ -351,8 +427,8 @@ def create_brick(
     session.commit()
     session.refresh(brick)
 
-    search_service.add_item_to_vector_store(
-        search_service=search_service.context_search_service,
+    cs_service.add_item_to_vector_store(
+        search_service=cs_service.search_service,
         item=brick,
         store_key="bricks",
         text_getter=lambda b: f"{b.target_text} {b.native_text}",
@@ -439,8 +515,8 @@ def delete_brick(session: Session, creator_id: int, brick_id: int) -> str:
             debug_message=f"{creator_id=} is not the creator to delete {brick_id=}",
         )
 
-    search_service.delete_item_from_vector_store(
-        search_service=search_service.context_search_service,
+    cs_service.delete_item_from_vector_store(
+        search_service=cs_service.search_service,
         item_id=brick_id,
         store_key="bricks",
         id_prefix="Brick",
@@ -507,8 +583,8 @@ def add_brick_from(
     session.commit()
     session.refresh(brick)
 
-    search_service.add_item_to_vector_store(
-        search_service=search_service.context_search_service,
+    cs_service.add_item_to_vector_store(
+        search_service=cs_service.search_service,
         item=brick,
         store_key="bricks",
         text_getter=lambda b: f"{b.target_text} {b.native_text}",
