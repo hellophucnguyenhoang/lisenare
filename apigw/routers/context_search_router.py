@@ -12,10 +12,10 @@ from schemas import (
 )
 from services import auth_service
 from services.context_search_service import (
-    context_search_service,
     initialize_embeddings,
+    search_service,
 )
-from utils import text_utils
+from utils import metrics, text_utils
 
 router = APIRouter(prefix="/context-search", tags=["Context Search"])
 
@@ -25,13 +25,11 @@ router = APIRouter(prefix="/context-search", tags=["Context Search"])
     status_code=status.HTTP_201_CREATED,
     description="WARNING: This takes about 10 minutes to run.",
 )
+@metrics.measure_time
 def init_embeddings(
     session: Annotated[Session, Depends(get_session)],
 ) -> Response:
-    start = time.time()
-    initialize_embeddings(session, context_search_service)
-    end = time.time()
-    logger.info(f"Initialization time: {(end - start)}s")
+    initialize_embeddings(session, search_service)
     return Response(status_code=status.HTTP_201_CREATED)
 
 
@@ -44,7 +42,7 @@ def search_context_bricks(
     context_search_request: ContextSearchRequest,
 ) -> list[BrickContextSearch]:
     start = time.time()
-    search_result = context_search_service.search_bricks(
+    search_result = search_service.search_bricks(
         session,
         text_utils.refined_spell_fix(context_search_request.query),
         learner.id,

@@ -79,7 +79,7 @@ class Brick(SQLModel, table=True):
 class BrickInteraction(SQLModel, table=True):
     id: int | None = Field(default=None, primary_key=True)
 
-    # LISTEN, LIKE, DISLIKE, REMOVE_REACTION, ADD
+    # LISTEN, ADD, LIKE, REMOVE_REACTION
     type: str = Field(max_length=20)
 
     created_at: datetime = Field(
@@ -128,7 +128,7 @@ class BrickMemory(SQLModel, table=True):
 class BrickReaction(SQLModel, table=True):
     learner_id: int = Field(foreign_key="learner.id", primary_key=True)
     brick_id: int = Field(foreign_key="brick.id", primary_key=True)
-    reaction: str = Field(max_length=20)  # LIKE / DISLIKE
+    reaction: str = Field(max_length=20)  # LIKE (str for future upgrade)
     updated_at: datetime = Field(
         default_factory=lambda: datetime.now(timezone.utc),
         sa_type=DateTime(timezone=True),

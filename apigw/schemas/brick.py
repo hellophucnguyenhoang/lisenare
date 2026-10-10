@@ -89,7 +89,7 @@ class BrickCreateRequest(BrickBase):
 
 
 class BrickPage(SQLModel):
-    items: list[BrickLearnRead]
+    items: list[BrickLearnRead | BrickRead]
     total: int
 
 

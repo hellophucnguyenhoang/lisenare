@@ -570,3 +570,25 @@ def test_get_bricks_kind_and_tags_filter(client: TestClient):
             if bs:
                 session.delete(bs)
             session.commit()
+
+
+def test_get_recommended_bricks_unauthenticated_fails(client: TestClient):
+    response = client.get("/api/bricks/recommended/new_test_session_id")
+    assert response.status_code == 401
+
+
+def test_get_recommended_bricks_endpoint(client: TestClient):
+    fake_learner = Learner(id=2, name="test_learner", setting=LearnerSetting())
+    app.dependency_overrides[auth_service.decode_token_get_learner] = lambda: (
+        fake_learner
+    )
+    try:
+        response = client.get("/api/bricks/recommended/new_test_session_id")
+        assert response.status_code == 200
+        data = response.json()
+        assert "items" in data
+        assert "total" in data
+        assert len(data["items"]) == data["total"]
+        assert len(data["items"]) > 0
+    finally:
+        app.dependency_overrides.clear()

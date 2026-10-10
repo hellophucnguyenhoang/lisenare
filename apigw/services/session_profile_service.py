@@ -32,9 +32,7 @@ def calculate_interaction_rating(interaction_type: InteractionType) -> float:
     - LIKE: strong positive
     - ADD: positive
     - LISTEN: weak-to-medium positive
-    - VIEW_TRANSLATION: medium positive
-    - DISLIKE: strong negative
-    - REMOVE_REACTION: neutral here, because this function is stateless
+    - REMOVE_REACTION: unlike
 
     So:
     - very short time -> negative
@@ -47,17 +45,11 @@ def calculate_interaction_rating(interaction_type: InteractionType) -> float:
     if interaction_type == InteractionType.ADD:
         return 0.8
 
-    if interaction_type == InteractionType.VIEW_TRANSLATION:
-        return 0.6
-
     if interaction_type == InteractionType.LISTEN:
         return 0.5
 
-    if interaction_type == InteractionType.DISLIKE:
-        return -1.0
-
     if interaction_type == InteractionType.REMOVE_REACTION:
-        return 0.0
+        return -1.0
 
     return 0.0
 
@@ -203,7 +195,7 @@ def update_session_profile(
         new_item_vec=new_brick_embedding,
         interaction_type=interaction_type,
     )
-
+    print(f"{np.mean(updated_profile)=}")
     profile.profile_vector = updated_profile.astype(np.float64).tobytes()
     profile.updated_at = datetime.now(timezone.utc)
     db_session.add(profile)

@@ -436,7 +436,7 @@ def test_get_brick_detail_public_from_another_learner_success(
 def test_search_bricks_lightweight_without_creator_name(client: TestClient):
     """Search results should not have creator_name and remain lightweight."""
     from schemas import BrickContextSearch
-    from services.context_search_service import context_search_service
+    from services.context_search_service import search_service
 
     # Verify model fields: creator_name must not be in BrickContextSearch
     assert "creator_name" not in BrickContextSearch.model_fields
@@ -449,11 +449,11 @@ def test_search_bricks_lightweight_without_creator_name(client: TestClient):
         )
 
         with patch.object(
-            context_search_service,
+            search_service,
             "search_bricks_semantic",
             return_value=[],
         ):
-            results = context_search_service.search_bricks(
+            results = search_service.search_bricks(
                 session=session,
                 query="Zebra",
                 searcher_id=35,
@@ -486,7 +486,7 @@ def test_search_bricks_endpoint_unauthenticated_fails(client: TestClient):
 
 def test_search_bricks_endpoint_authenticated_success(client: TestClient):
     """Calling search endpoint with authenticated learner returns 200."""
-    from services.context_search_service import context_search_service
+    from services.context_search_service import search_service
 
     learner = Learner(id=2, name="Searcher", setting=LearnerSetting())
     app.dependency_overrides[auth_service.decode_token_get_learner] = lambda: (
@@ -494,7 +494,7 @@ def test_search_bricks_endpoint_authenticated_success(client: TestClient):
     )
     try:
         with patch.object(
-            context_search_service,
+            search_service,
             "search_bricks_semantic",
             return_value=[],
         ):
@@ -510,7 +510,7 @@ def test_search_bricks_endpoint_authenticated_success(client: TestClient):
 
 def test_search_bricks_kind_filter_and_pagination():
     """kind filters results; limit/offset paginate them."""
-    from services.context_search_service import context_search_service
+    from services.context_search_service import search_service
 
     token = f"tok{uuid.uuid4().hex[:10]}"
     with Session(engine) as session:
@@ -526,9 +526,9 @@ def test_search_bricks_kind_filter_and_pagination():
             )
 
         with patch.object(
-            context_search_service, "search_bricks_semantic", return_value=[]
+            search_service, "search_bricks_semantic", return_value=[]
         ):
-            search = context_search_service.search_bricks
+            search = search_service.search_bricks
             words = search(session, token, 36, kind="word")
             sentences = search(session, token, 36, kind="sentence")
             page1 = search(session, token, 36, limit=2)
