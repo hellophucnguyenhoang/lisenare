@@ -592,3 +592,41 @@ def test_get_recommended_bricks_endpoint(client: TestClient):
         assert len(data["items"]) > 0
     finally:
         app.dependency_overrides.clear()
+
+
+def test_get_recommended_bricks_excludes_cached_recommended_items(
+    client: TestClient,
+):
+    from redis_client import get_redis_client
+
+    session_id = "test_redis_dedup_session"
+    redis = get_redis_client()
+    cache_key = f"recommended_bricks:{session_id}"
+    redis.delete(cache_key)
+
+    fake_learner = Learner(id=2, name="test_learner", setting=LearnerSetting())
+    app.dependency_overrides[auth_service.decode_token_get_learner] = lambda: (
+        fake_learner
+    )
+    try:
+        # First call: receives 5 bricks and caches their IDs in redis
+        resp1 = client.get(f"/api/bricks/recommended/{session_id}")
+        assert resp1.status_code == 200
+        items1 = resp1.json()["items"]
+        ids1 = {item["id"] for item in items1}
+
+        # Verify redis cache contains the recommended brick IDs
+        cached = {int(bid) for bid in redis.smembers(cache_key)}
+        assert ids1.issubset(cached)
+
+        # Second call without user interaction: must not re-recommend the same 5 bricks
+        resp2 = client.get(f"/api/bricks/recommended/{session_id}")
+        assert resp2.status_code == 200
+        items2 = resp2.json()["items"]
+        ids2 = {item["id"] for item in items2}
+
+        # The two sets of recommended brick IDs should be completely disjoint
+        assert ids1.isdisjoint(ids2)
+    finally:
+        redis.delete(cache_key)
+        app.dependency_overrides.clear()
