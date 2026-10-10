@@ -142,8 +142,45 @@ class ContextSearchService:
 
         return None
 
+    def get_relevant_bricks(
+        self,
+        profile_vector: list[float],
+        limit: int = 5,
+        exclude_ids: list[int] | None = None,
+        mmr: bool = True,
+        fetch_k: int = 20,
+        lambda_mult: float = 0.5,
+    ) -> list[int]:
+        """Returns a list of brick IDs closest to the profile vector."""
+        filter_ = None
+        if exclude_ids:
+            filter_ = {"brick_id": {"$nin": [str(i) for i in exclude_ids]}}
 
-context_search_service = ContextSearchService()
+        store = self.stores["bricks"]
+        if mmr:
+            results = store.max_marginal_relevance_search_by_vector(
+                embedding=profile_vector,
+                k=limit,
+                fetch_k=fetch_k,
+                lambda_mult=lambda_mult,
+                filter=filter_,
+            )
+        else:
+            results = store.similarity_search_by_vector(
+                embedding=profile_vector,
+                k=limit,
+                filter=filter_,
+            )
+
+        return [
+            int(doc.metadata["brick_id"])
+            for doc in results
+            if doc.id is not None and "brick_id" in doc.metadata
+        ]
+
+
+search_service = ContextSearchService()
+context_search_service = search_service
 
 
 def sync_model_to_langchain(

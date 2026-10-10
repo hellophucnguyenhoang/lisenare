@@ -5,11 +5,9 @@ from sqlmodel import SQLModel
 
 class InteractionType(str, Enum):
     LISTEN = "LISTEN"
-    VIEW_TRANSLATION = "VIEW_TRANSLATION"
-    LIKE = "LIKE"
-    DISLIKE = "DISLIKE"
-    REMOVE_REACTION = "REMOVE_REACTION"
     ADD = "ADD"
+    LIKE = "LIKE"
+    REMOVE_REACTION = "REMOVE_REACTION"
 
 
 class BrickInteractionCreate(SQLModel):

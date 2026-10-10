@@ -32,6 +32,7 @@ from schemas import (
 from services import (
     audio_cache_service,
     auth_service,
+    brick_reaction_service,
     brick_service,
 )
 from utils import file_utils
@@ -162,6 +163,39 @@ def check_brick_exists(
         creator_id=creator.id,
         target_text=target_text,
     )
+
+
+@router.get("/recommended/{session_id}")
+def get_recommended_bricks(
+    session: Annotated[Session, Depends(get_session)],
+    learner: Annotated[
+        Learner, Depends(auth_service.decode_token_get_learner)
+    ],
+    session_id: str,
+    page_size: int = 5,
+) -> BrickPage:
+    bricks = brick_service.get_recommended_bricks(
+        session,
+        session_id,
+        page_size,
+    )
+    print(f"{len(bricks)=}")
+    if len(bricks) < page_size:
+        exclude_ids = [b.id for b in bricks if b.id is not None]
+        additional_bricks = brick_service.get_random_bricks(
+            session,
+            limit=page_size - len(bricks),
+            exclude_ids=exclude_ids,
+        )
+        print(f"{len(additional_bricks)=}")
+        bricks.extend(additional_bricks)
+
+    bricks = brick_reaction_service.attach_reactions(
+        session,
+        bricks,
+        learner.id,
+    )
+    return BrickPage(items=bricks, total=len(bricks))
 
 
 @router.post("/add-from/{brick_id}", response_model=BrickRead)
