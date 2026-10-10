@@ -179,16 +179,25 @@ def get_recommended_bricks(
         session_id,
         page_size,
     )
-    print(f"{len(bricks)=}")
     if len(bricks) < page_size:
         exclude_ids = [b.id for b in bricks if b.id is not None]
+        redis = brick_service.get_redis_client()
+        cache_key = f"recommended_bricks:{session_id}"
+        exclude_ids = list(
+            set(exclude_ids) | {int(bid) for bid in redis.smembers(cache_key)}
+        )
         additional_bricks = brick_service.get_random_bricks(
             session,
             limit=page_size - len(bricks),
             exclude_ids=exclude_ids,
         )
-        print(f"{len(additional_bricks)=}")
-        bricks.extend(additional_bricks)
+        if additional_bricks:
+            redis.sadd(
+                cache_key,
+                *[b.id for b in additional_bricks if b.id is not None],
+            )
+            redis.expire(cache_key, 3600)
+            bricks.extend(additional_bricks)
 
     bricks = brick_reaction_service.attach_reactions(
         session,

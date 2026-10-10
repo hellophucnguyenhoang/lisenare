@@ -31,6 +31,7 @@ from schemas import (
     BrickUpdate,
 )
 
+from redis_client import get_redis_client
 from . import audio_cache_service
 from . import context_search_service as cs_service
 from .brick_reaction_service import get_reaction_map
@@ -147,7 +148,12 @@ def get_recommended_bricks(
     interacted_query = select(BrickInteraction.brick_id).where(
         BrickInteraction.session_id == session_id
     )
-    interacted_ids = list(session.exec(interacted_query).all())
+    interacted_ids = set(session.exec(interacted_query).all())
+
+    redis = get_redis_client()
+    cache_key = f"recommended_bricks:{session_id}"
+    cached_ids = {int(bid) for bid in redis.smembers(cache_key)}
+    exclude_ids = list(interacted_ids | cached_ids)
 
     profile = session.get(SessionProfile, session_id)
     if profile:
@@ -155,23 +161,31 @@ def get_recommended_bricks(
             profile.profile_vector, dtype=np.float64
         ).tolist()
     else:
-        return get_random_bricks(
+        bricks = get_random_bricks(
             session,
             limit=limit,
-            exclude_ids=interacted_ids,
+            exclude_ids=exclude_ids,
         )
+        if bricks:
+            redis.sadd(cache_key, *[b.id for b in bricks if b.id is not None])
+            redis.expire(cache_key, 3600)
+        return bricks
 
     brick_ids = cs_service.search_service.get_relevant_bricks(
         vector,
         limit=limit,
-        exclude_ids=interacted_ids,
+        exclude_ids=exclude_ids,
     )
     if not brick_ids:
-        return get_random_bricks(
+        bricks = get_random_bricks(
             session,
             limit=limit,
-            exclude_ids=interacted_ids,
+            exclude_ids=exclude_ids,
         )
+        if bricks:
+            redis.sadd(cache_key, *[b.id for b in bricks if b.id is not None])
+            redis.expire(cache_key, 3600)
+        return bricks
 
     # Preserving the order of brick_ids in the provided relevance order
     order_preserved = case(
@@ -186,7 +200,11 @@ def get_recommended_bricks(
         .order_by(order_preserved)
     )
 
-    return list(session.exec(query).all())
+    bricks = list(session.exec(query).all())
+    if bricks:
+        redis.sadd(cache_key, *[b.id for b in bricks if b.id is not None])
+        redis.expire(cache_key, 3600)
+    return bricks
 
 
 def count_bricks(
