@@ -167,7 +167,7 @@ def get_average_stability(
     return round(result, 2) if result is not None else 0.0
 
 
-def get_total_memorized(
+def get_estimated_recalled(
     session: Session, learner_id: int, tz_name: str, days: int | None = None
 ) -> float:
     statement = select(BrickMemory.fsrs_card_dict).where(
@@ -211,13 +211,13 @@ def get_learning_stats(
     return {
         "total_learning": result.total_learning,
         "due_count": result.due_count,
-        "total_memorized": get_total_memorized(
-            session, learner_id, tz_name, days
-        ),
         "true_retention": get_true_retention(
             session, learner_id, tz_name, days
         ),
         "average_stability": get_average_stability(
+            session, learner_id, tz_name, days
+        ),
+        "estimated_recalled": get_estimated_recalled(
             session, learner_id, tz_name, days
         ),
         "timestamp": now,
