@@ -680,3 +680,44 @@ def test_report_brick_not_found(client: TestClient):
         assert response.status_code == 404
     finally:
         app.dependency_overrides.clear()
+
+
+def test_get_next_brick_excludes_reported_brick(client: TestClient):
+    fake_learner = Learner(id=2, name="test_learner", setting=LearnerSetting())
+    app.dependency_overrides[auth_service.decode_token_get_learner] = lambda: (
+        fake_learner
+    )
+
+    with Session(engine) as session:
+        # Create a report for a brick owned by learner 2
+        brick = session.exec(
+            select(Brick).where(Brick.creator_id == 2)
+        ).first()
+        assert brick is not None
+        brick_id = brick.id
+
+        report = BrickReport(
+            brick_id=brick_id,
+            learner_id=2,
+            reason="Corrupted audio",
+            status="open",
+        )
+        session.add(report)
+        session.commit()
+        report_id = report.id
+
+    try:
+        # Fetching next brick should never return the reported brick
+        for _ in range(5):
+            response = client.get("/api/bricks/next")
+            assert response.status_code == 200
+            data = response.json()
+            if data is not None:
+                assert data["id"] != brick_id
+    finally:
+        with Session(engine) as session:
+            r = session.get(BrickReport, report_id)
+            if r:
+                session.delete(r)
+                session.commit()
+        app.dependency_overrides.clear()
