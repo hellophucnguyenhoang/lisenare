@@ -8,7 +8,7 @@ class LearningCardStats(SQLModel):
     estimated_recalled: float = Field(ge=0.0)
     due_count: int = Field(ge=0)
     true_retention: float = Field(ge=0.0, le=1.0)
-    average_stability: float = Field(ge=0.0)  # in days
+    next_due_in_seconds: int | None = Field(default=None, ge=0)
     timestamp: datetime
 
 

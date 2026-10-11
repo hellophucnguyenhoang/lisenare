@@ -7,7 +7,6 @@ from zoneinfo import ZoneInfo
 
 from fastapi import status
 from fsrs import Card, Optimizer, ReviewLog, Scheduler
-from sqlalchemy import Float, cast
 from sqlmodel import Session, case, func, select
 
 from config import logger
@@ -136,35 +135,27 @@ def optimize_learner_scheduler(learner_id: int):
             )
 
 
-def get_average_stability(
-    session: Session, learner_id: int, tz_name: str, days: int | None = None
-) -> float:
-    stability_as_text = BrickMemory.fsrs_card_dict["stability"].astext
+def get_next_due_in_seconds(
+    session: Session,
+    learner_id: int,
+    now: datetime,
+) -> int | None:
+    """
+    Returns seconds remaining until the earliest upcoming card is due.
+    Returns 0 if any card is already due.
+    Returns None if the learner has no cards scheduled.
+    """
+    earliest_due = session.exec(
+        select(func.min(BrickMemory.due)).where(
+            BrickMemory.learner_id == learner_id
+        )
+    ).one()
 
-    # Reviews within the requested time range
-    review_subquery = (
-        select(BrickReview.brick_id)
-        .where(BrickReview.learner_id == learner_id)
-        .distinct()
-    )
+    if earliest_due is None:
+        return None
 
-    review_subquery = apply_time_filter(
-        review_subquery,
-        BrickReview.reviewed_at,
-        tz_name,
-        days,
-    ).subquery()
-
-    # Average stability of cards that were reviewed
-    statement = (
-        select(func.avg(cast(stability_as_text, Float)))
-        .where(BrickMemory.learner_id == learner_id)
-        .where(BrickMemory.brick_id.in_(select(review_subquery.c.brick_id)))
-    )
-
-    result = session.exec(statement).one()
-
-    return round(result, 2) if result is not None else 0.0
+    remaining_seconds = int((earliest_due - now).total_seconds())
+    return max(0, remaining_seconds)
 
 
 def get_estimated_recalled(
@@ -214,8 +205,8 @@ def get_learning_stats(
         "true_retention": get_true_retention(
             session, learner_id, tz_name, days
         ),
-        "average_stability": get_average_stability(
-            session, learner_id, tz_name, days
+        "next_due_in_seconds": get_next_due_in_seconds(
+            session, learner_id, now
         ),
         "estimated_recalled": get_estimated_recalled(
             session, learner_id, tz_name, days
