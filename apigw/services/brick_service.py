@@ -332,7 +332,12 @@ def get_next_brick(
         practice_lang = setting.practice_lang if setting else "en"
 
     now = datetime.now(timezone.utc)
-    broken_brick_ids = []  # TODO: Get reported brick id
+    broken_brick_ids = session.exec(
+        select(BrickReport.brick_id).where(
+            BrickReport.learner_id == creator_id,
+            BrickReport.status == "open",
+        )
+    ).all()
 
     def apply_filters(stmt):
         if collection_ids:
