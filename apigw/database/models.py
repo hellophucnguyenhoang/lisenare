@@ -137,7 +137,7 @@ class BrickReaction(SQLModel, table=True):
 
 class BrickReport(SQLModel, table=True):
     id: int | None = Field(default=None, primary_key=True)
-    reason: str = Field(default="No provided", max_length=1000)
+    reason: str = Field(default="Not provided", max_length=1000)
     status: str = Field(default="open")  # open, resolved, dismissed
     created_at: datetime = Field(
         default_factory=lambda: datetime.now(timezone.utc),

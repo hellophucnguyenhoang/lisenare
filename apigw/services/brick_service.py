@@ -12,6 +12,7 @@ from database import (
     Brick,
     BrickInteraction,
     BrickMemory,
+    BrickReport,
     BrickReview,
     Collection,
     LearnerSetting,
@@ -671,3 +672,25 @@ def add_bricks_from_collection(
 
     session.commit()
     return {"added": added, "skipped": skipped}
+
+
+def report_brick(
+    session: Session,
+    brick_id: int,
+    learner_id: int,
+    reason: str = "Not provided",
+) -> None:
+    brick = session.get(Brick, brick_id)
+    if not brick:
+        raise RequestException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            debug_message=f"Brick with id {brick_id} not found",
+        )
+
+    report = BrickReport(
+        brick_id=brick_id,
+        learner_id=learner_id,
+        reason=reason,
+    )
+    session.add(report)
+    session.commit()
