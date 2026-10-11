@@ -29,6 +29,10 @@ class AddBrickRequest(SQLModel):
     collection_id: int
 
 
+class BrickReportCreate(SQLModel):
+    reason: str = "Not provided"
+
+
 class AddCollectionRequest(SQLModel):
     target_collection_id: int
 
