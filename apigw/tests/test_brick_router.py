@@ -7,6 +7,7 @@ from sqlmodel import Session, select
 
 from database import (
     Brick,
+    BrickReport,
     Collection,
     Learner,
     LearnerSetting,
@@ -629,4 +630,53 @@ def test_get_recommended_bricks_excludes_cached_recommended_items(
         assert ids1.isdisjoint(ids2)
     finally:
         redis.delete(cache_key)
+        app.dependency_overrides.clear()
+
+
+def test_report_brick_success(client: TestClient):
+    fake_learner = Learner(id=2, name="test_learner", setting=LearnerSetting())
+    app.dependency_overrides[auth_service.decode_token_get_learner] = lambda: (
+        fake_learner
+    )
+
+    with Session(engine) as session:
+        brick = session.exec(select(Brick)).first()
+        assert brick is not None
+        brick_id = brick.id
+
+    try:
+        response = client.post(
+            f"/api/bricks/{brick_id}/report",
+            json={"reason": "Inaccurate translation or audio glitch"},
+        )
+        assert response.status_code == 201
+
+        with Session(engine) as session:
+            report = session.exec(
+                select(BrickReport).where(
+                    BrickReport.brick_id == brick_id,
+                    BrickReport.learner_id == 2,
+                    BrickReport.reason
+                    == "Inaccurate translation or audio glitch",
+                )
+            ).first()
+            assert report is not None
+            assert report.status == "open"
+    finally:
+        app.dependency_overrides.clear()
+
+
+def test_report_brick_not_found(client: TestClient):
+    fake_learner = Learner(id=2, name="test_learner", setting=LearnerSetting())
+    app.dependency_overrides[auth_service.decode_token_get_learner] = lambda: (
+        fake_learner
+    )
+
+    try:
+        response = client.post(
+            "/api/bricks/99999999/report",
+            json={"reason": "Does not exist"},
+        )
+        assert response.status_code == 404
+    finally:
         app.dependency_overrides.clear()

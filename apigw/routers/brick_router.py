@@ -25,6 +25,7 @@ from schemas import (
     BrickListeningPage,
     BrickPage,
     BrickRead,
+    BrickReportCreate,
     BrickSort,
     BrickStatus,
     BrickUpdate,
@@ -222,6 +223,24 @@ def add_brick_from(
         collection_id=request.collection_id,
         learner_id=learner.id,
     )
+
+
+@router.post("/{brick_id}/report", status_code=status.HTTP_201_CREATED)
+def report_brick(
+    session: Annotated[Session, Depends(get_session)],
+    learner: Annotated[
+        Learner, Depends(auth_service.decode_token_get_learner)
+    ],
+    brick_id: int,
+    request: BrickReportCreate = BrickReportCreate(),
+) -> Response:
+    brick_service.report_brick(
+        session=session,
+        brick_id=brick_id,
+        learner_id=learner.id,
+        reason=request.reason,
+    )
+    return Response(status_code=status.HTTP_201_CREATED)
 
 
 @router.post(
