@@ -3,6 +3,7 @@ from typing import Annotated
 from sqlmodel import Field, SQLModel
 
 from schemas import ReviewBase
+from shared_constants import PASS_SCORE
 
 
 class SentenceCompareRequest(SQLModel):
@@ -21,4 +22,4 @@ class SentenceCompareRequest(SQLModel):
 class SentenceCompareResponse(SQLModel):
     score: float
     correct: bool | None = None
-    threshold: float = 0.7
+    threshold: float = PASS_SCORE

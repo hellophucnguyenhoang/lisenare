@@ -6,6 +6,7 @@ from database.models import Learner, LearnerSetting
 from main import app
 from services import auth_service
 from services.text_service import text_service
+from shared_constants import PASS_SCORE
 from shared_schemas.sentence import SentenceCompareResponse
 from shared_schemas.text import PhonemeAnalysisResponse
 
@@ -60,7 +61,9 @@ def test_sentence_comparison_japanese_endpoint(client: TestClient):
         # Mock semantic comparison (which might return low score for Japanese)
         mock_semantic_resp = MagicMock()
         mock_semantic_resp.json.return_value = SentenceCompareResponse(
-            score=0.4, correct=False, threshold=0.7
+            score=0.4,
+            correct=False,
+            threshold=PASS_SCORE,
         ).model_dump(mode="json")
 
         # Mock phoneme analysis response from inference service

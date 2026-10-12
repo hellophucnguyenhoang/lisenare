@@ -20,6 +20,7 @@ from services import (
     brick_service,
 )
 from services.text_service import text_service
+from shared_constants import PASS_SCORE
 from shared_schemas.audio import STTResponse
 from shared_schemas.text import (
     PhonemeAnalysisRequest,
@@ -175,7 +176,7 @@ async def evaluate_pronunciation_audio(
         not brick_review_service.review_exists(
             session, learner_id=learner.id, brick_id=target_brick_id
         )
-        and result["accuracy_score"] >= 0.7
+        and result["accuracy_score"] >= PASS_SCORE
     ):
         is_answer_revealed_assumed = True
         review_create = ReviewCreate(

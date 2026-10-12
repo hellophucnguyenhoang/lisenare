@@ -21,6 +21,7 @@ from database import (
     Taggable,
 )
 from exceptions import RequestException
+from redis_client import get_redis_client
 from schemas import (
     BrickCreate,
     BrickCreateRequest,
@@ -32,7 +33,6 @@ from schemas import (
     BrickUpdate,
 )
 
-from redis_client import get_redis_client
 from . import audio_cache_service
 from . import context_search_service as cs_service
 from .brick_reaction_service import get_reaction_map

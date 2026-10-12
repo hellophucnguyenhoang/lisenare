@@ -2,6 +2,8 @@ from typing import Annotated
 
 from sqlmodel import Field, SQLModel
 
+from shared_constants import PASS_SCORE
+
 
 class SentenceCompareRequest(SQLModel):
     sentence1: Annotated[str, Field(description="The learner's sentence")] = (
@@ -18,4 +20,4 @@ class SentenceCompareRequest(SQLModel):
 class SentenceCompareResponse(SQLModel):
     score: float
     correct: bool | None = None
-    threshold: float = 0.7
+    threshold: float = PASS_SCORE
