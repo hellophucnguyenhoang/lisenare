@@ -243,6 +243,22 @@ def report_brick(
     return Response(status_code=status.HTTP_201_CREATED)
 
 
+@router.post("/{brick_id}/forget", status_code=status.HTTP_204_NO_CONTENT)
+def forget_brick(
+    session: Annotated[Session, Depends(get_session)],
+    learner: Annotated[
+        Learner, Depends(auth_service.decode_token_get_learner)
+    ],
+    brick_id: int,
+) -> Response:
+    brick_service.forget_brick(
+        session=session,
+        brick_id=brick_id,
+        learner_id=learner.id,
+    )
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
 @router.post(
     "/add-from-collection/{collection_id}",
     response_model=AddCollectionResult,
