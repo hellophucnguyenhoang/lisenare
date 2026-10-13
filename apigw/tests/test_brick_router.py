@@ -7,7 +7,11 @@ from sqlmodel import Session, select
 
 from database import (
     Brick,
+    BrickInteraction,
+    BrickMemory,
+    BrickReaction,
     BrickReport,
+    BrickReview,
     Collection,
     Learner,
     LearnerSetting,
@@ -720,4 +724,114 @@ def test_get_next_brick_excludes_reported_brick(client: TestClient):
             if r:
                 session.delete(r)
                 session.commit()
+        app.dependency_overrides.clear()
+
+
+def test_forget_brick_success(client: TestClient):
+    fake_learner = Learner(id=2, name="test_learner", setting=LearnerSetting())
+    app.dependency_overrides[auth_service.decode_token_get_learner] = lambda: (
+        fake_learner
+    )
+
+    with Session(engine) as session:
+        brick = session.exec(
+            select(Brick).where(Brick.creator_id == 2)
+        ).first()
+        assert brick is not None
+        brick_id = brick.id
+
+        # Seed memory, review, reaction, and interaction for this brick
+        memory = session.exec(
+            select(BrickMemory).where(
+                BrickMemory.brick_id == brick_id,
+                BrickMemory.learner_id == 2,
+            )
+        ).first()
+        if not memory:
+            memory = BrickMemory(
+                brick_id=brick_id,
+                learner_id=2,
+                due=brick.last_edit_at,
+            )
+            session.add(memory)
+
+        review = BrickReview(
+            brick_id=brick_id,
+            learner_id=2,
+            first_score=1.0,
+            fsrs_rating=3,
+        )
+        session.add(review)
+
+        reaction = session.get(BrickReaction, (2, brick_id))
+        if not reaction:
+            reaction = BrickReaction(
+                learner_id=2,
+                brick_id=brick_id,
+                reaction="LIKE",
+            )
+            session.add(reaction)
+
+        interaction = BrickInteraction(
+            brick_id=brick_id,
+            learner_id=2,
+            session_id="test_forget_session",
+            type="LISTEN",
+        )
+        session.add(interaction)
+        session.commit()
+
+    try:
+        response = client.post(f"/api/bricks/{brick_id}/forget")
+        assert response.status_code == 204
+
+        with Session(engine) as session:
+            # Brick still exists
+            remaining_brick = session.get(Brick, brick_id)
+            assert remaining_brick is not None
+
+            # Memory is removed
+            rem = session.exec(
+                select(BrickMemory).where(
+                    BrickMemory.brick_id == brick_id,
+                    BrickMemory.learner_id == 2,
+                )
+            ).first()
+            assert rem is None
+
+            # Reviews are removed
+            revs = session.exec(
+                select(BrickReview).where(
+                    BrickReview.brick_id == brick_id,
+                    BrickReview.learner_id == 2,
+                )
+            ).all()
+            assert len(revs) == 0
+
+            # Reaction is removed
+            react = session.get(BrickReaction, (2, brick_id))
+            assert react is None
+
+            # Interactions are removed
+            ints = session.exec(
+                select(BrickInteraction).where(
+                    BrickInteraction.brick_id == brick_id,
+                    BrickInteraction.learner_id == 2,
+                )
+            ).all()
+            assert len(ints) == 0
+    finally:
+        app.dependency_overrides.clear()
+
+
+def test_forget_brick_not_found(client: TestClient):
+    fake_learner = Learner(id=2, name="test_learner", setting=LearnerSetting())
+    app.dependency_overrides[auth_service.decode_token_get_learner] = lambda: (
+        fake_learner
+    )
+
+    try:
+        response = client.post("/api/bricks/99999999/forget")
+        assert response.status_code == 404
+    finally:
         app.dependency_overrides.clear()
