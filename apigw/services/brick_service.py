@@ -12,6 +12,7 @@ from database import (
     Brick,
     BrickInteraction,
     BrickMemory,
+    BrickReaction,
     BrickReport,
     BrickReview,
     Collection,
@@ -698,4 +699,54 @@ def report_brick(
         reason=reason,
     )
     session.add(report)
+    session.commit()
+
+
+def forget_brick(
+    session: Session,
+    brick_id: int,
+    learner_id: int,
+) -> None:
+    brick = session.get(Brick, brick_id)
+    if not brick:
+        raise RequestException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            debug_message=f"Brick with id {brick_id} not found",
+        )
+
+    # Delete BrickMemory
+    memory = session.exec(
+        select(BrickMemory).where(
+            BrickMemory.brick_id == brick_id,
+            BrickMemory.learner_id == learner_id,
+        )
+    ).first()
+    if memory:
+        session.delete(memory)
+
+    # Delete BrickReview rows
+    reviews = session.exec(
+        select(BrickReview).where(
+            BrickReview.brick_id == brick_id,
+            BrickReview.learner_id == learner_id,
+        )
+    ).all()
+    for review in reviews:
+        session.delete(review)
+
+    # Delete BrickReaction
+    reaction = session.get(BrickReaction, (learner_id, brick_id))
+    if reaction:
+        session.delete(reaction)
+
+    # Delete BrickInteraction rows
+    interactions = session.exec(
+        select(BrickInteraction).where(
+            BrickInteraction.brick_id == brick_id,
+            BrickInteraction.learner_id == learner_id,
+        )
+    ).all()
+    for interaction in interactions:
+        session.delete(interaction)
+
     session.commit()
