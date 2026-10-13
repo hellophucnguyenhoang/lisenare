@@ -835,3 +835,29 @@ def test_forget_brick_not_found(client: TestClient):
         assert response.status_code == 404
     finally:
         app.dependency_overrides.clear()
+
+
+def test_get_listening_bricks_returns_full_audio_url(client: TestClient):
+    fake_learner = Learner(id=2, name="test_learner", setting=LearnerSetting())
+    app.dependency_overrides[auth_service.decode_token_get_learner] = lambda: (
+        fake_learner
+    )
+
+    with patch(
+        "services.audio_cache_service.get_brick_audio_url",
+        return_value="https://cdn.example.com/audio/brick_audio.wav",
+    ) as mock_get_audio:
+        try:
+            response = client.get("/api/bricks/listening?limit=5")
+            assert response.status_code == 200
+            data = response.json()
+            assert "items" in data
+            assert len(data["items"]) > 0
+            for item in data["items"]:
+                assert (
+                    item["audio_path"]
+                    == "https://cdn.example.com/audio/brick_audio.wav"
+                )
+            assert mock_get_audio.called
+        finally:
+            app.dependency_overrides.clear()
