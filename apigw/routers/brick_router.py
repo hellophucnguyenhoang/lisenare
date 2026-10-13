@@ -117,7 +117,7 @@ def get_listening_bricks(
     ],
     collection_ids: Annotated[list[int] | None, Query()] = None,
     offset: Annotated[int, Query(ge=0)] = 0,
-    limit: Annotated[int, Query(ge=0, le=100)] = 20,
+    limit: Annotated[int, Query(ge=0, le=100)] = 10,
     shuffle_page: Annotated[bool, Query()] = False,
 ) -> BrickListeningPage:
     logger.info(f"{collection_ids = }")
@@ -139,7 +139,11 @@ def get_listening_bricks(
     return BrickListeningPage(
         items=[
             BrickListeningData(
-                audio_path=brick.target_audio_path,
+                audio_path=audio_cache_service.get_brick_audio_url(
+                    session=session,
+                    brick_id=brick.id,
+                    learner_id=creator.id,
+                ),
                 target_text=brick.target_text,
                 native_text=brick.native_text,
             )
