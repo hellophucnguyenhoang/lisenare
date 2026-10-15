@@ -122,7 +122,9 @@ async def evaluate_pronunciation_audio(
     learner_file: UploadFile,
 ):
     target_brick = brick_service.get_brick(
-        session, target_brick_id, learner.id
+        session,
+        target_brick_id,
+        learner.id,
     )
     (
         learner_audio_path,

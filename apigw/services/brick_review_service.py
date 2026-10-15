@@ -18,7 +18,8 @@ def save_review(
     session: Session, learner_id: int, review_create: ReviewCreate
 ) -> int:
     fsrs_rating = similarity_to_fsrs(
-        review_create.first_score, review_create.is_answer_revealed
+        review_create.first_score,
+        review_create.is_answer_revealed,
     )
 
     # 1. Fetch or initialize learning card
@@ -90,7 +91,10 @@ def get_true_retention(
     ).where(BrickReview.learner_id == learner_id)
 
     statement = apply_time_filter(
-        statement, BrickReview.reviewed_at, tz_name, days
+        statement,
+        BrickReview.reviewed_at,
+        tz_name,
+        days,
     )
 
     result = session.exec(statement).one()
@@ -129,7 +133,10 @@ def get_daily_review_counts(
     )
 
     statement = apply_time_filter(
-        statement, BrickReview.reviewed_at, tz_name, days
+        statement,
+        BrickReview.reviewed_at,
+        tz_name,
+        days,
     )
 
     rows = session.exec(statement).all()

@@ -74,7 +74,6 @@ def handle_interaction_and_update_profile(
         )
 
         embedding = search_service.get_embedding(session, data.brick_id)
-
         if embedding is not None:
             session_profile_service.update_session_profile(
                 db_session=session,

@@ -325,7 +325,9 @@ def import_collection(
     for item in bricks:
         norm_text = item.target_text.strip().lower()
         if norm_text in seen_in_batch or check_brick_exists(
-            session, learner_id, item.target_text
+            session,
+            learner_id,
+            item.target_text,
         ):
             skipped += 1
             continue
