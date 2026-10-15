@@ -101,6 +101,8 @@ class BrickListeningData(SQLModel):
     audio_path: str
     target_text: str
     native_text: str
+    target_pron: str | None = None
+    context: str | None = None
 
 
 class BrickListeningPage(SQLModel):
