@@ -858,6 +858,8 @@ def test_get_listening_bricks_returns_full_audio_url(client: TestClient):
                     item["audio_path"]
                     == "https://cdn.example.com/audio/brick_audio.wav"
                 )
+                assert "target_pron" in item
+                assert "context" in item
             assert mock_get_audio.called
         finally:
             app.dependency_overrides.clear()

@@ -146,6 +146,8 @@ def get_listening_bricks(
                 ),
                 target_text=brick.target_text,
                 native_text=brick.native_text,
+                target_pron=brick.target_pron,
+                context=brick.context,
             )
             for brick in bricks
         ],
