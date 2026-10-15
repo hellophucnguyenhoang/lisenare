@@ -26,7 +26,8 @@ def create_account(
     learner_account_create: LearnerAccountCreate,
 ) -> Token:
     account = account_service.create_learner_account(
-        session, learner_account_create
+        session,
+        learner_account_create,
     )
     data = {"sub": str(account.learner_id), "username": account.username}
     access_token = security.create_access_token(data=data)
@@ -41,7 +42,9 @@ async def send_otp(
     request: SendOTPRequest,
 ) -> Response:
     account_service.send_otp_by_username(
-        session, background_tasks, request.username
+        session,
+        background_tasks,
+        request.username,
     )
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
@@ -86,7 +89,10 @@ async def send_email_change_otp(
     request: EmailChangeOTPRequest,
 ) -> Response:
     account_service.send_email_change_otp(
-        session, background_tasks, learner.id, request
+        session,
+        background_tasks,
+        learner.id,
+        request,
     )
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 

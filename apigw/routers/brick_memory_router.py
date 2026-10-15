@@ -39,7 +39,10 @@ def get_learning_stats(
     ] = None,
 ):
     return brick_memory_service.get_learning_stats(
-        session, learner.id, tz_name, days
+        session,
+        learner.id,
+        tz_name,
+        days,
     )
 
 
