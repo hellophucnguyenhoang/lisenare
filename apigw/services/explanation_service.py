@@ -157,7 +157,9 @@ def simplify_until_better(
     """
     current_text = text.strip()
     current_score = calculate_sentence_familiarity(
-        session, learner_id, current_text
+        session,
+        learner_id,
+        current_text,
     )
     target_stems = get_lenient_stems(target_term)
 
@@ -181,7 +183,9 @@ def simplify_until_better(
             break
 
         new_score = calculate_sentence_familiarity(
-            session, learner_id, simplified
+            session,
+            learner_id,
+            simplified,
         )
 
         simplified_stems = get_lenient_stems(simplified)

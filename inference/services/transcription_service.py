@@ -156,7 +156,9 @@ class PhonemeService:
         waveform, sr = torchaudio.load(audio_file)
         if sr != self.sample_rate:
             waveform = torchaudio.functional.resample(
-                waveform, sr, self.sample_rate
+                waveform,
+                sr,
+                self.sample_rate,
             )
 
         # Convert to mono if multi-channel and output as NumPy array
@@ -176,7 +178,9 @@ class PhonemeService:
             waveform, sr = torchaudio.load(audio_file)
             if sr != self.sample_rate:
                 waveform = torchaudio.functional.resample(
-                    waveform, sr, self.sample_rate
+                    waveform,
+                    sr,
+                    self.sample_rate,
                 )
             emissions, _ = self.model(waveform.to(self.device))
             emissions = torch.log_softmax(emissions, dim=-1)

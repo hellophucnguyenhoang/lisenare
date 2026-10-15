@@ -29,7 +29,9 @@ def login_for_access_token(
     form_data: Annotated[OAuth2PasswordRequestForm, Depends()],
 ) -> Token:
     account = auth_service.authenticate_account(
-        session, form_data.username, form_data.password
+        session,
+        form_data.username,
+        form_data.password,
     )
     data = {"sub": str(account.learner_id), "username": account.username}
     access_token = security.create_access_token(data=data)

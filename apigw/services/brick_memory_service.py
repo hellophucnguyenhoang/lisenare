@@ -85,7 +85,8 @@ def optimize_learner_scheduler(learner_id: int):
 
             # 3. Save Settings
             settings = session.get(
-                LearnerSetting, learner_id
+                LearnerSetting,
+                learner_id,
             ) or LearnerSetting(learner_id=learner_id)
             settings.fsrs_weights = optimal_params
             settings.target_retention = optimal_retention
@@ -117,7 +118,8 @@ def optimize_learner_scheduler(learner_id: int):
                 # Use the card_id from the first log entry for this card
                 fresh_card.card_id = card_logs[0].card_id
                 rescheduled_card = optimal_scheduler.reschedule_card(
-                    fresh_card, card_logs
+                    fresh_card,
+                    card_logs,
                 )
 
                 # Update the database card with new stability/difficulty/due date
@@ -158,7 +160,10 @@ def get_estimated_recalled(
     )
 
     statement = apply_time_filter(
-        statement, BrickMemory.created_at, tz_name, days
+        statement,
+        BrickMemory.created_at,
+        tz_name,
+        days,
     )
 
     rows = session.exec(statement).all()
@@ -187,7 +192,10 @@ def get_learning_stats(
     ).where(BrickMemory.learner_id == learner_id)
 
     statement = apply_time_filter(
-        statement, BrickMemory.created_at, tz_name, days
+        statement,
+        BrickMemory.created_at,
+        tz_name,
+        days,
     )
 
     result = session.exec(statement).one()
@@ -195,11 +203,17 @@ def get_learning_stats(
         "total_learning": result.total_learning,
         "due_count": result.due_count,
         "true_retention": get_true_retention(
-            session, learner_id, tz_name, days
+            session,
+            learner_id,
+            tz_name,
+            days,
         ),
         "next_due": get_next_due(session, learner_id),
         "estimated_recalled": get_estimated_recalled(
-            session, learner_id, tz_name, days
+            session,
+            learner_id,
+            tz_name,
+            days,
         ),
         "timestamp": now,
     }
@@ -241,7 +255,10 @@ def get_daily_learning_counts(
     )
 
     statement = apply_time_filter(
-        statement, BrickMemory.created_at, tz_name, days
+        statement,
+        BrickMemory.created_at,
+        tz_name,
+        days,
     )
 
     rows = session.exec(statement).all()
