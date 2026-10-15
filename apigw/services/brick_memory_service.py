@@ -135,27 +135,19 @@ def optimize_learner_scheduler(learner_id: int):
             )
 
 
-def get_next_due_in_seconds(
+def get_next_due(
     session: Session,
     learner_id: int,
-    now: datetime,
-) -> int | None:
+) -> datetime | None:
     """
-    Returns seconds remaining until the earliest upcoming card is due.
-    Returns 0 if any card is already due.
-    Returns None if the learner has no cards scheduled.
+    Returns the earliest due date/time among cards for this learner,
+    or None if the learner has no cards scheduled.
     """
-    earliest_due = session.exec(
+    return session.exec(
         select(func.min(BrickMemory.due)).where(
             BrickMemory.learner_id == learner_id
         )
     ).one()
-
-    if earliest_due is None:
-        return None
-
-    remaining_seconds = int((earliest_due - now).total_seconds())
-    return max(0, remaining_seconds)
 
 
 def get_estimated_recalled(
@@ -205,9 +197,7 @@ def get_learning_stats(
         "true_retention": get_true_retention(
             session, learner_id, tz_name, days
         ),
-        "next_due_in_seconds": get_next_due_in_seconds(
-            session, learner_id, now
-        ),
+        "next_due": get_next_due(session, learner_id),
         "estimated_recalled": get_estimated_recalled(
             session, learner_id, tz_name, days
         ),
