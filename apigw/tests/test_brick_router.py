@@ -583,7 +583,9 @@ def test_get_recommended_bricks_unauthenticated_fails(client: TestClient):
 
 
 def test_get_recommended_bricks_endpoint(client: TestClient):
-    fake_learner = Learner(id=2, name="test_learner", setting=LearnerSetting())
+    fake_learner = Learner(
+        id=2, name="test_learner", setting=LearnerSetting(retrieval_lang="en")
+    )
     app.dependency_overrides[auth_service.decode_token_get_learner] = lambda: (
         fake_learner
     )
@@ -595,6 +597,28 @@ def test_get_recommended_bricks_endpoint(client: TestClient):
         assert "total" in data
         assert len(data["items"]) == data["total"]
         assert len(data["items"]) > 0
+        for b in data["items"]:
+            assert b["target_lang"] == "en"
+    finally:
+        app.dependency_overrides.clear()
+
+
+def test_get_recommended_bricks_matches_retrieval_lang(client: TestClient):
+    fake_learner = Learner(
+        id=2,
+        name="test_learner",
+        setting=LearnerSetting(retrieval_lang="non_existent_lang"),
+    )
+    app.dependency_overrides[auth_service.decode_token_get_learner] = lambda: (
+        fake_learner
+    )
+    try:
+        response = client.get(
+            "/api/bricks/recommended/test_session_lang_filter"
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert len(data["items"]) == 0
     finally:
         app.dependency_overrides.clear()
 

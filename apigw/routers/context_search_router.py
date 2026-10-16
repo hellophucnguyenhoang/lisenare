@@ -47,5 +47,6 @@ def search_context_bricks(
         kind=context_search_request.kind,
         limit=context_search_request.limit,
         offset=context_search_request.offset,
+        retrieval_lang=learner.retrieval_lang,
     )
     return search_result

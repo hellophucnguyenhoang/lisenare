@@ -125,6 +125,7 @@ def get_random_bricks(
     session: Session,
     limit: int = 5,
     exclude_ids: list[int] | None = None,
+    retrieval_lang: str | None = None,
 ) -> list[Brick]:
     query = (
         select(Brick)
@@ -133,6 +134,8 @@ def get_random_bricks(
     )
     if exclude_ids:
         query = query.where(Brick.id.not_in(exclude_ids))
+    if retrieval_lang:
+        query = query.where(Brick.target_lang == retrieval_lang)
 
     query = query.order_by(func.random()).limit(limit)
     return list(session.exec(query).all())
@@ -142,6 +145,7 @@ def get_recommended_bricks(
     session: Session,
     session_id: str,
     limit: int = 5,
+    retrieval_lang: str | None = None,
 ) -> list[Brick]:
     """
     Get most relevant bricks to the profile_vector of a session_id.
@@ -167,6 +171,7 @@ def get_recommended_bricks(
             session,
             limit=limit,
             exclude_ids=exclude_ids,
+            retrieval_lang=retrieval_lang,
         )
         if bricks:
             redis.sadd(cache_key, *[b.id for b in bricks if b.id is not None])
@@ -183,6 +188,7 @@ def get_recommended_bricks(
             session,
             limit=limit,
             exclude_ids=exclude_ids,
+            retrieval_lang=retrieval_lang,
         )
         if bricks:
             redis.sadd(cache_key, *[b.id for b in bricks if b.id is not None])
@@ -201,6 +207,8 @@ def get_recommended_bricks(
         .options(selectinload(Brick.creator))
         .order_by(order_preserved)
     )
+    if retrieval_lang:
+        query = query.where(Brick.target_lang == retrieval_lang)
 
     bricks = list(session.exec(query).all())
     if bricks:

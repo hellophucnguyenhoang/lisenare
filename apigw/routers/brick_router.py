@@ -185,6 +185,7 @@ def get_recommended_bricks(
         session,
         session_id,
         page_size,
+        retrieval_lang=learner.retrieval_lang,
     )
     if len(bricks) < page_size:
         exclude_ids = [b.id for b in bricks if b.id is not None]
@@ -197,6 +198,7 @@ def get_recommended_bricks(
             session,
             limit=page_size - len(bricks),
             exclude_ids=exclude_ids,
+            retrieval_lang=learner.retrieval_lang,
         )
         if additional_bricks:
             redis.sadd(
