@@ -24,8 +24,8 @@ def search_bricks_literal(
             target_audio_path, 
             is_private
         FROM brick
-        WHERE to_tsvector('simple', target_text || ' ' || native_text) @@ websearch_to_tsquery('simple', :val)
-        ORDER BY ts_rank(to_tsvector('simple', target_text), websearch_to_tsquery('simple', :val)) DESC
+        WHERE (target_text || ' ' || native_text) &@ :val
+        ORDER BY pgroonga_score(tableoid, ctid) DESC
     """)
 
     results = session.exec(statement, params={"val": keyword})
@@ -252,6 +252,14 @@ def create_vector_indexes(session: Session):
         text("""
         CREATE INDEX IF NOT EXISTS idx_langchain_hnsw 
         ON langchain_pg_embedding USING hnsw (embedding vector_cosine_ops);
+    """)
+    )
+
+    logger.info("Creating PGroonga index for literal text search...")
+    session.exec(
+        text("""
+        CREATE INDEX IF NOT EXISTS idx_brick_literal_search 
+        ON brick USING pgroonga ((target_text || ' ' || native_text));
     """)
     )
     session.commit()

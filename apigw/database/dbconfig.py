@@ -41,19 +41,30 @@ def init_db():
     # Use SQLAlchemy to check if tables exist
     inspector = inspect(engine)
     if not inspector.has_table("brick"):
-        logger.info("Database tables not found, creating schema...")
+        logger.info("Database tables not found, initializing schema...")
 
-        # Create SQLModel tables
-        SQLModel.metadata.create_all(engine)
-
+        # Enable extensions first
         with Session(engine) as session:
-            # Enable Extensions
+            # For LangChain semantic search
             session.exec(text("CREATE EXTENSION IF NOT EXISTS vector;"))
 
+            # For Japanese literal search
+            session.exec(text("CREATE EXTENSION IF NOT EXISTS pgroonga;"))
+
+            # Make extensions available globally right now
+            session.commit()
+            logger.info("Database extensions enabled.")
+
+        # Create SQLModel tables
+        logger.info("Creating SQLModel tables...")
+        SQLModel.metadata.create_all(engine)
+
+        # Seed data
+        with Session(engine) as session:
             init_bricks(session)
             session.commit()
 
-        logger.info("Data initialization complete except embeddings.")
+        logger.info("Data initialization complete EXCEPT brick embeddings.")
     else:
         logger.info("Database already initialized, skipping.")
 

@@ -26,7 +26,9 @@ services:
     restart: always
 
   database:
-    image: pgvector/pgvector:pg16
+    build:
+      context: .
+      dockerfile: Dockerfile
     restart: always
     environment:
       POSTGRES_USER: ${DB_USER}
