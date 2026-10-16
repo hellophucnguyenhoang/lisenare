@@ -1,10 +1,8 @@
-import time
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Response, status
 from sqlmodel import Session
 
-from config import logger
 from database import Learner, get_session
 from schemas import (
     BrickContextSearch,
@@ -34,6 +32,7 @@ def init_embeddings(
 
 
 @router.post("/bricks-search")
+@metrics.measure_time
 def search_context_bricks(
     session: Annotated[Session, Depends(get_session)],
     learner: Annotated[
@@ -41,7 +40,6 @@ def search_context_bricks(
     ],
     context_search_request: ContextSearchRequest,
 ) -> list[BrickContextSearch]:
-    start = time.time()
     search_result = search_service.search_bricks(
         session,
         text_utils.refined_spell_fix(context_search_request.query),
@@ -50,6 +48,4 @@ def search_context_bricks(
         limit=context_search_request.limit,
         offset=context_search_request.offset,
     )
-    end = time.time()
-    logger.info(f"brick search time: {(end - start) * 1000} ms")
     return search_result
