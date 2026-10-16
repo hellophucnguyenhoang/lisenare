@@ -1,4 +1,4 @@
-from .dbconfig import delete_db, engine, get_session, init_db
+from .dbconfig import delete_db, delete_db_force, engine, get_session, init_db
 from .models import (
     OTP,
     Account,
@@ -8,7 +8,7 @@ from .models import (
     BrickReaction,
     BrickReport,
     BrickReview,
-    Collection,
+    Island,
     Learner,
     LearnerSetting,
     SessionProfile,
@@ -18,6 +18,7 @@ from .models import (
 
 __all__ = [
     "delete_db",
+    "delete_db_force",
     "engine",
     "get_session",
     "init_db",
@@ -28,7 +29,7 @@ __all__ = [
     "BrickMemory",
     "BrickReaction",
     "BrickReport",
-    "Collection",
+    "Island",
     "Learner",
     "LearnerSetting",
     "BrickReview",

@@ -1,13 +1,13 @@
 from fastapi import status
 from sqlmodel import Session, func, select
 
-from database import Brick, BrickReview, Collection
+from database import Brick, BrickReview, Island
 from exceptions import ErrorCode, RequestException
 from schemas import (
-    AddCollectionResult,
+    AddIslandResult,
     BrickExport,
-    CollectionCreate,
-    CollectionUpdate,
+    IslandCreate,
+    IslandUpdate,
 )
 
 from .brick_service import check_brick_exists
@@ -19,111 +19,109 @@ from .tag_service import (
 )
 
 
-def create_collection(
+def create_island(
     session: Session,
     creator_id: int,
-    collection_create: CollectionCreate,
-) -> tuple[Collection, list[str]]:
-    cleaned_name = collection_create.name.strip()
+    island_create: IslandCreate,
+) -> tuple[Island, list[str]]:
+    cleaned_name = island_create.name.strip()
     if not cleaned_name:
         raise RequestException(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-            debug_message="Collection name cannot be empty",
+            debug_message="Island name cannot be empty",
         )
 
-    existing_stmt = select(Collection).where(
-        Collection.creator_id == creator_id,
-        Collection.name == cleaned_name,
+    existing_stmt = select(Island).where(
+        Island.creator_id == creator_id,
+        Island.name == cleaned_name,
     )
     if session.exec(existing_stmt).first():
         raise RequestException(
             status_code=status.HTTP_409_CONFLICT,
-            debug_message=f"Collection named '{cleaned_name}' already exists for this learner",
+            debug_message=f"Island named '{cleaned_name}' already exists for this learner",
             error_code=ErrorCode.COLLECTION_ALREADY_EXISTS,
         )
 
-    collection = Collection(
+    island = Island(
         name=cleaned_name,
-        description=collection_create.description,
+        description=island_create.description,
         creator_id=creator_id,
     )
-    session.add(collection)
+    session.add(island)
     session.flush()
 
     tags: list[str] = []
-    if collection_create.tags:
+    if island_create.tags:
         tags = set_tags_for_entity(
             session=session,
-            entity_id=collection.id,
-            entity_type="Collection",
-            tag_names=collection_create.tags,
+            entity_id=island.id,
+            entity_type="Island",
+            tag_names=island_create.tags,
             creator_id=creator_id,
         )
 
     session.commit()
-    session.refresh(collection)
+    session.refresh(island)
 
-    return collection, tags
+    return island, tags
 
 
-def get_or_create_collection(
-    session: Session, collection_name: str, creator_id: int
-) -> Collection:
-    stmt = select(Collection).where(
-        Collection.name == collection_name, Collection.creator_id == creator_id
+def get_or_create_island(
+    session: Session, island_name: str, creator_id: int
+) -> Island:
+    stmt = select(Island).where(
+        Island.name == island_name, Island.creator_id == creator_id
     )
-    collection = session.exec(stmt).first()
+    island = session.exec(stmt).first()
 
-    if not collection:
-        collection = Collection(
-            name=collection_name,
+    if not island:
+        island = Island(
+            name=island_name,
             creator_id=creator_id,
         )
-        session.add(collection)
+        session.add(island)
         session.commit()
-        session.refresh(collection)
+        session.refresh(island)
 
-    return collection
+    return island
 
 
-def get_collections(
+def get_islands(
     session: Session, creator_id: int
-) -> list[tuple[Collection, int, int, list]]:
-    # Get all collections for this creator
-    collections = session.exec(
-        select(Collection).where(Collection.creator_id == creator_id)
+) -> list[tuple[Island, int, int, list]]:
+    # Get all islands for this creator
+    islands = session.exec(
+        select(Island).where(Island.creator_id == creator_id)
     ).all()
 
-    if not collections:
+    if not islands:
         return []
 
-    collection_ids = [c.id for c in collections]
+    island_ids = [c.id for c in islands]
 
-    # Get total brick counts per collection
+    # Get total brick counts per island
     brick_counts = dict(
         session.exec(
-            select(Brick.collection_id, func.count(Brick.id))
-            .where(Brick.collection_id.in_(collection_ids))
-            .group_by(Brick.collection_id)
+            select(Brick.island_id, func.count(Brick.id))
+            .where(Brick.island_id.in_(island_ids))
+            .group_by(Brick.island_id)
         ).all()
     )
 
-    # Get learned brick counts per collection
+    # Get learned brick counts per island
     learned_counts = dict(
         session.exec(
-            select(Brick.collection_id, func.count(Brick.id))
+            select(Brick.island_id, func.count(Brick.id))
             .join(BrickReview, BrickReview.brick_id == Brick.id)
             .where(
-                Brick.collection_id.in_(collection_ids),
+                Brick.island_id.in_(island_ids),
                 BrickReview.learner_id == creator_id,
             )
-            .group_by(Brick.collection_id)
+            .group_by(Brick.island_id)
         ).all()
     )
 
-    collection_tags = fetch_tags_for_entities(
-        session, collection_ids, "Collection"
-    )
+    island_tags = fetch_tags_for_entities(session, island_ids, "Island")
 
     # Merge everything into a clear, flat tuple list
     return [
@@ -131,101 +129,99 @@ def get_collections(
             col,
             brick_counts.get(col.id, 0),
             learned_counts.get(col.id, 0),
-            collection_tags[col.id],
+            island_tags[col.id],
         )
-        for col in collections
+        for col in islands
     ]
 
 
-def delete_collection(
+def delete_island(
     session: Session,
     creator_id: int,
-    collection_id: int,
+    island_id: int,
 ) -> str:
-    collection = session.get(Collection, collection_id)
-    if not collection:
+    island = session.get(Island, island_id)
+    if not island:
         raise RequestException(
             status_code=status.HTTP_404_NOT_FOUND,
-            debug_message=f"{collection_id=} not found",
+            debug_message=f"{island_id=} not found",
         )
 
-    if collection.creator_id != creator_id:
+    if island.creator_id != creator_id:
         raise RequestException(
             status_code=status.HTTP_403_FORBIDDEN,
-            debug_message=f"{creator_id=} is not the creator to delete {collection_id=}",
+            debug_message=f"{creator_id=} is not the creator to delete {island_id=}",
         )
 
-    delete_tags_for_entity(session, collection_id, "Collection")
-    session.delete(collection)
+    delete_tags_for_entity(session, island_id, "Island")
+    session.delete(island)
     session.commit()
 
     return "COLLECTION_DELETED"
 
 
-def update_collection(
+def update_island(
     session: Session,
     creator_id: int,
-    collection_id: int,
-    collection_update: CollectionUpdate,
-) -> tuple[Collection, int, int, list[str]]:
-    collection = session.get(Collection, collection_id)
-    if not collection:
+    island_id: int,
+    island_update: IslandUpdate,
+) -> tuple[Island, int, int, list[str]]:
+    island = session.get(Island, island_id)
+    if not island:
         raise RequestException(
             status_code=status.HTTP_404_NOT_FOUND,
-            debug_message=f"{collection_id=} not found",
+            debug_message=f"{island_id=} not found",
         )
 
-    if collection.creator_id != creator_id:
+    if island.creator_id != creator_id:
         raise RequestException(
             status_code=status.HTTP_403_FORBIDDEN,
-            debug_message=f"{creator_id=} not the creator to edit {collection_id=}",
+            debug_message=f"{creator_id=} not the creator to edit {island_id=}",
         )
 
-    if collection_update.name is not None:
-        cleaned_name = collection_update.name.strip()
+    if island_update.name is not None:
+        cleaned_name = island_update.name.strip()
         if not cleaned_name:
             raise RequestException(
                 status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-                debug_message="New collection name is empty",
+                debug_message="New island name is empty",
             )
 
-        existing_stmt = select(Collection).where(
-            Collection.creator_id == creator_id,
-            Collection.name == cleaned_name,
-            Collection.id != collection_id,
+        existing_stmt = select(Island).where(
+            Island.creator_id == creator_id,
+            Island.name == cleaned_name,
+            Island.id != island_id,
         )
         if session.exec(existing_stmt).first():
             raise RequestException(
                 status_code=status.HTTP_409_CONFLICT,
-                debug_message=f"Collection named '{cleaned_name}' already exists for this learner",
+                debug_message=f"Island named '{cleaned_name}' already exists for this learner",
                 error_code=ErrorCode.COLLECTION_ALREADY_EXISTS,
             )
-        collection.name = cleaned_name
+        island.name = cleaned_name
 
-    if collection_update.description is not None:
-        collection.description = collection_update.description
+    if island_update.description is not None:
+        island.description = island_update.description
 
-    session.add(collection)
+    session.add(island)
 
-    if collection_update.tags is not None:
+    if island_update.tags is not None:
         tags = set_tags_for_entity(
             session=session,
-            entity_id=collection.id,
-            entity_type="Collection",
-            tag_names=collection_update.tags,
+            entity_id=island.id,
+            entity_type="Island",
+            tag_names=island_update.tags,
             creator_id=creator_id,
         )
     else:
-        tags = fetch_tags_for_entity(session, collection.id, "Collection")
+        tags = fetch_tags_for_entity(session, island.id, "Island")
 
     session.commit()
-    session.refresh(collection)
+    session.refresh(island)
 
     brick_count = (
         session.exec(
-            select(func.count(Brick.id)).where(
-                Brick.collection_id == collection.id
-            )
+            select(func.count(Brick.id)).where(Brick.island_id == island.id)
         ).one()
         or 0
     )
@@ -235,45 +231,45 @@ def update_collection(
             select(func.count(Brick.id))
             .join(BrickReview, BrickReview.brick_id == Brick.id)
             .where(
-                Brick.collection_id == collection.id,
+                Brick.island_id == island.id,
                 BrickReview.learner_id == creator_id,
             )
         ).one()
         or 0
     )
 
-    return collection, brick_count, learned_count, tags
+    return island, brick_count, learned_count, tags
 
 
-def rename_collection(
+def rename_island(
     session: Session,
     creator_id: int,
-    collection_id: int,
+    island_id: int,
     new_name: str,
-) -> Collection:
-    col, _, _, _ = update_collection(
+) -> Island:
+    col, _, _, _ = update_island(
         session=session,
         creator_id=creator_id,
-        collection_id=collection_id,
-        collection_update=CollectionUpdate(name=new_name),
+        island_id=island_id,
+        island_update=IslandUpdate(name=new_name),
     )
     return col
 
 
-def export_collection(
+def export_island(
     session: Session,
-    collection_id: int,
+    island_id: int,
     learner_id: int,
 ) -> list[BrickExport]:
-    collection = session.get(Collection, collection_id)
-    if not collection:
+    island = session.get(Island, island_id)
+    if not island:
         raise RequestException(
             status_code=status.HTTP_404_NOT_FOUND,
-            debug_message=f"Collection {collection_id} not found",
+            debug_message=f"Island {island_id} not found",
         )
 
-    stmt = select(Brick).where(Brick.collection_id == collection_id)
-    if collection.creator_id != learner_id:
+    stmt = select(Brick).where(Brick.island_id == island_id)
+    if island.creator_id != learner_id:
         stmt = stmt.where(Brick.is_private == False)  # noqa: E712
 
     bricks = session.exec(stmt).all()
@@ -299,23 +295,23 @@ def export_collection(
     ]
 
 
-def import_collection(
+def import_island(
     session: Session,
-    collection_id: int,
+    island_id: int,
     learner_id: int,
     bricks: list[BrickExport],
-) -> AddCollectionResult:
-    collection = session.get(Collection, collection_id)
-    if not collection:
+) -> AddIslandResult:
+    island = session.get(Island, island_id)
+    if not island:
         raise RequestException(
             status_code=status.HTTP_404_NOT_FOUND,
-            debug_message=f"Collection {collection_id} not found",
+            debug_message=f"Island {island_id} not found",
         )
 
-    if collection.creator_id != learner_id:
+    if island.creator_id != learner_id:
         raise RequestException(
             status_code=status.HTTP_403_FORBIDDEN,
-            debug_message=f"{learner_id=} is not the creator of collection {collection_id}",
+            debug_message=f"{learner_id=} is not the creator of island {island_id}",
         )
 
     added = 0
@@ -343,7 +339,7 @@ def import_collection(
             kind=item.kind,
             is_private=item.is_private,
             creator_id=learner_id,
-            collection_id=collection_id,
+            island_id=island_id,
         )
         session.add(brick)
         session.flush()
@@ -360,4 +356,4 @@ def import_collection(
         added += 1
 
     session.commit()
-    return AddCollectionResult(added=added, skipped=skipped)
+    return AddIslandResult(added=added, skipped=skipped)
