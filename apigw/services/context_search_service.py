@@ -76,6 +76,7 @@ class ContextSearchService:
         kind: str | None = None,
         limit: int = 30,
         offset: int = 0,
+        retrieval_lang: str | None = None,
     ) -> list[BrickContextSearch]:
         literal_results = search_bricks_literal(session, query)
         semantic_results = self.search_bricks_semantic(query, mmr=True)
@@ -101,6 +102,8 @@ class ContextSearchService:
         )
         if kind:
             stmt = stmt.where(Brick.kind == kind)
+        if retrieval_lang:
+            stmt = stmt.where(Brick.target_lang == retrieval_lang)
         visible_rows = session.exec(stmt).all()
         visible_brick_ids = {row[0] for row in visible_rows}
         own_brick_ids = (

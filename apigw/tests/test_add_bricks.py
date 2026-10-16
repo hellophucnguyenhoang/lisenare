@@ -533,3 +533,35 @@ def test_search_bricks_kind_filter_and_pagination():
         assert word.id not in {r.brick_id for r in sentences}
         assert len(page1) == 2 and len(page2) == 2
         assert not {r.brick_id for r in page1} & {r.brick_id for r in page2}
+
+
+def test_search_bricks_retrieval_lang_filter():
+    """search_bricks only returns bricks matching retrieval_lang."""
+    from services.context_search_service import search_service
+
+    token = f"tok{uuid.uuid4().hex[:10]}"
+    with Session(engine) as session:
+        owner = _ensure_learner(session, 37, "LangFilterOwner")
+        col = _ensure_island(session, owner.id, "LangFilter Col")
+        brick_en = _create_public_brick(
+            session, owner.id, col.id, f"{token} english"
+        )
+        brick_en.target_lang = "en"
+        brick_ja = _create_public_brick(
+            session, owner.id, col.id, f"{token} japanese"
+        )
+        brick_ja.target_lang = "ja"
+        session.add_all([brick_en, brick_ja])
+        session.commit()
+
+        with patch.object(
+            search_service, "search_bricks_semantic", return_value=[]
+        ):
+            search = search_service.search_bricks
+            res_en = search(session, token, 37, retrieval_lang="en")
+            res_ja = search(session, token, 37, retrieval_lang="ja")
+            res_fr = search(session, token, 37, retrieval_lang="fr")
+
+        assert [r.brick_id for r in res_en] == [brick_en.id]
+        assert [r.brick_id for r in res_ja] == [brick_ja.id]
+        assert len(res_fr) == 0
