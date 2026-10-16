@@ -23,7 +23,7 @@ def get_learner_me(
         id=db_learner.id,
         name=db_learner.name,
         email=email,
-        practice_lang=db_learner.practice_lang,
+        retrieval_lang=db_learner.retrieval_lang,
     )
 
 

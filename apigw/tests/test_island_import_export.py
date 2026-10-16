@@ -5,7 +5,7 @@ import uuid
 from fastapi.testclient import TestClient
 from sqlmodel import Session, select
 
-from database import Brick, Collection, Learner, LearnerSetting, engine
+from database import Brick, Island, Learner, LearnerSetting, engine
 from main import app
 from services import auth_service
 from services.tag_service import set_tags_for_entity
@@ -21,27 +21,25 @@ def _ensure_learner(session: Session, learner_id: int, name: str) -> Learner:
     return learner
 
 
-def _ensure_collection(
-    session: Session, creator_id: int, name: str
-) -> Collection:
+def _ensure_island(session: Session, creator_id: int, name: str) -> Island:
     col = session.exec(
-        select(Collection).where(
-            Collection.creator_id == creator_id, Collection.name == name
+        select(Island).where(
+            Island.creator_id == creator_id, Island.name == name
         )
     ).first()
     if not col:
-        col = Collection(name=name, creator_id=creator_id)
+        col = Island(name=name, creator_id=creator_id)
         session.add(col)
         session.commit()
         session.refresh(col)
     return col
 
 
-def test_export_collection_success(client: TestClient):
+def test_export_island_success(client: TestClient):
     suffix = uuid.uuid4().hex[:6]
     with Session(engine) as session:
         _ensure_learner(session, 101, "Exporter")
-        col = _ensure_collection(session, 101, f"Col-Export-{suffix}")
+        col = _ensure_island(session, 101, f"Col-Export-{suffix}")
 
         b1 = Brick(
             native_text="Xin chào",
@@ -50,7 +48,7 @@ def test_export_collection_success(client: TestClient):
             kind="word",
             is_private=True,
             creator_id=101,
-            collection_id=col.id,
+            island_id=col.id,
         )
         b2 = Brick(
             native_text="Tạm biệt",
@@ -59,7 +57,7 @@ def test_export_collection_success(client: TestClient):
             kind="sentence",
             is_private=False,
             creator_id=101,
-            collection_id=col.id,
+            island_id=col.id,
         )
         session.add(b1)
         session.add(b2)
@@ -77,7 +75,7 @@ def test_export_collection_success(client: TestClient):
         Learner(id=101, name="Exporter", setting=LearnerSetting())
     )
     try:
-        response = client.get(f"/api/collections/{col_id}/export")
+        response = client.get(f"/api/islands/{col_id}/export")
         assert response.status_code == 200
         data = response.json()
         assert len(data) == 2
@@ -91,7 +89,7 @@ def test_export_collection_success(client: TestClient):
         for item in data:
             assert "id" not in item or item.get("id") is None
             assert "creator_id" not in item
-            assert "collection_id" not in item
+            assert "island_id" not in item
             assert "target_audio_path" in item
 
         # Verify tags exported
@@ -103,14 +101,14 @@ def test_export_collection_success(client: TestClient):
         app.dependency_overrides.clear()
 
 
-def test_export_other_learner_collection_only_returns_public(
+def test_export_other_learner_island_only_returns_public(
     client: TestClient,
 ):
     suffix = uuid.uuid4().hex[:6]
     with Session(engine) as session:
         _ensure_learner(session, 102, "Owner")
         _ensure_learner(session, 103, "Other Learner")
-        col = _ensure_collection(session, 102, f"Col-Mixed-{suffix}")
+        col = _ensure_island(session, 102, f"Col-Mixed-{suffix}")
 
         b_priv = Brick(
             native_text="Bí mật",
@@ -119,7 +117,7 @@ def test_export_other_learner_collection_only_returns_public(
             kind="sentence",
             is_private=True,
             creator_id=102,
-            collection_id=col.id,
+            island_id=col.id,
         )
         b_pub = Brick(
             native_text="Công khai",
@@ -128,7 +126,7 @@ def test_export_other_learner_collection_only_returns_public(
             kind="sentence",
             is_private=False,
             creator_id=102,
-            collection_id=col.id,
+            island_id=col.id,
         )
         session.add(b_priv)
         session.add(b_pub)
@@ -139,7 +137,7 @@ def test_export_other_learner_collection_only_returns_public(
         Learner(id=103, name="Other Learner", setting=LearnerSetting())
     )
     try:
-        response = client.get(f"/api/collections/{col_id}/export")
+        response = client.get(f"/api/islands/{col_id}/export")
         assert response.status_code == 200
         data = response.json()
         assert len(data) == 1
@@ -148,7 +146,7 @@ def test_export_other_learner_collection_only_returns_public(
         app.dependency_overrides.clear()
 
 
-def test_export_collection_not_found(client: TestClient):
+def test_export_island_not_found(client: TestClient):
     with Session(engine) as session:
         _ensure_learner(session, 101, "Exporter")
 
@@ -156,17 +154,17 @@ def test_export_collection_not_found(client: TestClient):
         Learner(id=101, name="Exporter", setting=LearnerSetting())
     )
     try:
-        response = client.get("/api/collections/999999/export")
+        response = client.get("/api/islands/999999/export")
         assert response.status_code == 404
     finally:
         app.dependency_overrides.clear()
 
 
-def test_import_collection_success(client: TestClient):
+def test_import_island_success(client: TestClient):
     suffix = uuid.uuid4().hex[:6]
     with Session(engine) as session:
         _ensure_learner(session, 104, "Importer")
-        target_col = _ensure_collection(session, 104, f"Target-Col-{suffix}")
+        target_col = _ensure_island(session, 104, f"Target-Col-{suffix}")
         target_col_id = target_col.id
 
     import_data = [
@@ -193,7 +191,7 @@ def test_import_collection_success(client: TestClient):
     )
     try:
         response = client.post(
-            f"/api/collections/{target_col_id}/import",
+            f"/api/islands/{target_col_id}/import",
             files={"file": ("bricks.json", file_bytes, "application/json")},
         )
         assert response.status_code == 200
@@ -204,17 +202,17 @@ def test_import_collection_success(client: TestClient):
         # Verify bricks created in database for the importer
         with Session(engine) as session:
             imported = session.exec(
-                select(Brick).where(Brick.collection_id == target_col_id)
+                select(Brick).where(Brick.island_id == target_col_id)
             ).all()
             assert len(imported) == 2
             for b in imported:
                 assert b.creator_id == 104
-                assert b.collection_id == target_col_id
+                assert b.island_id == target_col_id
 
         # Verify duplicate import skips existing
         file_bytes.seek(0)
         dup_response = client.post(
-            f"/api/collections/{target_col_id}/import",
+            f"/api/islands/{target_col_id}/import",
             files={"file": ("bricks.json", file_bytes, "application/json")},
         )
         assert dup_response.status_code == 200
@@ -225,11 +223,11 @@ def test_import_collection_success(client: TestClient):
         app.dependency_overrides.clear()
 
 
-def test_import_collection_wrapped_in_dict(client: TestClient):
+def test_import_island_wrapped_in_dict(client: TestClient):
     suffix = uuid.uuid4().hex[:6]
     with Session(engine) as session:
         _ensure_learner(session, 105, "Importer Dict")
-        target_col = _ensure_collection(session, 105, f"Dict-Col-{suffix}")
+        target_col = _ensure_island(session, 105, f"Dict-Col-{suffix}")
         target_col_id = target_col.id
 
     import_data = {
@@ -250,7 +248,7 @@ def test_import_collection_wrapped_in_dict(client: TestClient):
     )
     try:
         response = client.post(
-            f"/api/collections/{target_col_id}/import",
+            f"/api/islands/{target_col_id}/import",
             files={"file": ("bricks.json", file_bytes, "application/json")},
         )
         assert response.status_code == 200
@@ -259,12 +257,12 @@ def test_import_collection_wrapped_in_dict(client: TestClient):
         app.dependency_overrides.clear()
 
 
-def test_import_collection_forbidden_to_other_learner(client: TestClient):
+def test_import_island_forbidden_to_other_learner(client: TestClient):
     suffix = uuid.uuid4().hex[:6]
     with Session(engine) as session:
         _ensure_learner(session, 106, "Owner Learner")
         _ensure_learner(session, 107, "Attacker Learner")
-        col = _ensure_collection(session, 106, f"Owner-Col-{suffix}")
+        col = _ensure_island(session, 106, f"Owner-Col-{suffix}")
         col_id = col.id
 
     import_data = [
@@ -281,7 +279,7 @@ def test_import_collection_forbidden_to_other_learner(client: TestClient):
     )
     try:
         response = client.post(
-            f"/api/collections/{col_id}/import",
+            f"/api/islands/{col_id}/import",
             files={"file": ("hack.json", file_bytes, "application/json")},
         )
         assert response.status_code == 403
@@ -289,11 +287,11 @@ def test_import_collection_forbidden_to_other_learner(client: TestClient):
         app.dependency_overrides.clear()
 
 
-def test_import_collection_invalid_json(client: TestClient):
+def test_import_island_invalid_json(client: TestClient):
     suffix = uuid.uuid4().hex[:6]
     with Session(engine) as session:
         _ensure_learner(session, 108, "JSON Tester")
-        col = _ensure_collection(session, 108, f"Invalid-Col-{suffix}")
+        col = _ensure_island(session, 108, f"Invalid-Col-{suffix}")
         col_id = col.id
 
     bad_bytes = io.BytesIO(b"this is not json {")
@@ -303,7 +301,7 @@ def test_import_collection_invalid_json(client: TestClient):
     )
     try:
         response = client.post(
-            f"/api/collections/{col_id}/import",
+            f"/api/islands/{col_id}/import",
             files={"file": ("bad.json", bad_bytes, "application/json")},
         )
         assert response.status_code == 400

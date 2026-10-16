@@ -21,9 +21,9 @@ from routers import (
     brick_memory_router,
     brick_router,
     chat_router,
-    collection_router,
     context_search_router,
     explanation_router,
+    island_router,
     learner_router,
     text_router,
 )
@@ -45,7 +45,7 @@ async def lifespan(app: FastAPI):
     # Shutdown code
     audio_cache_service.stop_audio_cleanup_scheduler(audio_scheduler)
     redis_client.close_redis_client()
-    # database.delete_db()
+    # database.delete_db_force()
     http_client.close_client()
     await http_client.close_async_client()
 
@@ -119,7 +119,7 @@ async def http_exception_handler(request, exc: StarletteHTTPException):
 # Allow requests from the frontend
 origins = [
     "http://127.0.0.1:5173",
-    "http://192.168.1.105:5173",
+    # "http://192.168.1.105:5173",
 ]
 
 app.add_middleware(
@@ -144,7 +144,7 @@ for router_module in [
     brick_memory_router,
     brick_router,
     chat_router,
-    collection_router,
+    island_router,
     context_search_router,
     explanation_router,
     learner_router,

@@ -12,7 +12,7 @@ from database import (
     BrickReaction,
     BrickReport,
     BrickReview,
-    Collection,
+    Island,
     Learner,
     LearnerSetting,
     Taggable,
@@ -30,7 +30,7 @@ def test_create_brick_with_tags_success(client: TestClient):
 
     with Session(engine) as session:
         col = session.exec(
-            select(Collection).where(Collection.creator_id == 2)
+            select(Island).where(Island.creator_id == 2)
         ).first()
         assert col is not None
         col_id = col.id
@@ -38,7 +38,7 @@ def test_create_brick_with_tags_success(client: TestClient):
     brick_payload = {
         "native_text": "Xin chào",
         "target_text": "Hello world unique test brick",
-        "collection_id": col_id,
+        "island_id": col_id,
         "tags": ["greeting", "basic"],
     }
     audio_file = io.BytesIO(b"fake audio data")
@@ -65,7 +65,7 @@ def test_create_brick_with_tags_success(client: TestClient):
     assert data["native_text"] == "Xin chào"
     assert data["target_text"] == "Hello world unique test brick"
     assert data["target_lang"] == "en"
-    assert data["collection_id"] == col.id
+    assert data["island_id"] == col.id
     assert sorted(data["tags"]) == ["basic", "greeting"]
     brick_id = data["id"]
 
@@ -127,7 +127,7 @@ def test_create_brick_with_custom_target_lang(client: TestClient):
 
     with Session(engine) as session:
         col = session.exec(
-            select(Collection).where(Collection.creator_id == 2)
+            select(Island).where(Island.creator_id == 2)
         ).first()
         assert col is not None
         col_id = col.id
@@ -136,7 +136,7 @@ def test_create_brick_with_custom_target_lang(client: TestClient):
         "native_text": "Xin chào",
         "target_text": "Konnichiwa",
         "target_lang": "ja",
-        "collection_id": col_id,
+        "island_id": col_id,
     }
     audio_file = io.BytesIO(b"fake audio data")
 
@@ -169,7 +169,7 @@ def test_create_brick_with_custom_target_lang(client: TestClient):
     app.dependency_overrides.clear()
 
 
-def test_create_brick_collection_not_found(client: TestClient):
+def test_create_brick_island_not_found(client: TestClient):
     existing_learner = Learner(id=2, setting=LearnerSetting())
     app.dependency_overrides[auth_service.decode_token_get_learner] = lambda: (
         existing_learner
@@ -178,7 +178,7 @@ def test_create_brick_collection_not_found(client: TestClient):
     brick_payload = {
         "native_text": "Xin chào",
         "target_text": "Test not found",
-        "collection_id": 999999,
+        "island_id": 999999,
     }
     audio_file = io.BytesIO(b"fake audio data")
 
@@ -198,7 +198,7 @@ def test_create_brick_collection_not_found(client: TestClient):
     assert response.status_code == 404
 
 
-def test_create_brick_collection_forbidden(client: TestClient):
+def test_create_brick_island_forbidden(client: TestClient):
     other_learner = Learner(id=99999, setting=LearnerSetting())
     app.dependency_overrides[auth_service.decode_token_get_learner] = lambda: (
         other_learner
@@ -206,7 +206,7 @@ def test_create_brick_collection_forbidden(client: TestClient):
 
     with Session(engine) as session:
         col = session.exec(
-            select(Collection).where(Collection.creator_id == 2)
+            select(Island).where(Island.creator_id == 2)
         ).first()
         assert col is not None
         col_id = col.id
@@ -214,7 +214,7 @@ def test_create_brick_collection_forbidden(client: TestClient):
     brick_payload = {
         "native_text": "Xin chào",
         "target_text": "Test forbidden",
-        "collection_id": col_id,
+        "island_id": col_id,
     }
     audio_file = io.BytesIO(b"fake audio data")
 
@@ -407,7 +407,7 @@ def test_get_next_brick_with_brick_id_forbidden(client: TestClient):
 
 def test_get_next_brick_without_brick_id(client: TestClient):
     existing_learner = Learner(
-        id=2, setting=LearnerSetting(practice_lang="en")
+        id=2, setting=LearnerSetting(retrieval_lang="en")
     )
     app.dependency_overrides[auth_service.decode_token_get_learner] = lambda: (
         existing_learner
@@ -422,8 +422,8 @@ def test_get_next_brick_without_brick_id(client: TestClient):
     assert data["target_lang"] == "en"
 
 
-def test_get_next_brick_filters_by_practice_lang(client: TestClient):
-    learner_ja = Learner(id=2, setting=LearnerSetting(practice_lang="ja"))
+def test_get_next_brick_filters_by_retrieval_lang(client: TestClient):
+    learner_ja = Learner(id=2, setting=LearnerSetting(retrieval_lang="ja"))
     app.dependency_overrides[auth_service.decode_token_get_learner] = lambda: (
         learner_ja
     )
@@ -435,7 +435,7 @@ def test_get_next_brick_filters_by_practice_lang(client: TestClient):
     assert response.json() is None
 
 
-def test_get_next_brick_with_specific_id_ignores_practice_lang(
+def test_get_next_brick_with_specific_id_ignores_retrieval_lang(
     client: TestClient,
 ):
     with Session(engine) as session:
@@ -447,7 +447,7 @@ def test_get_next_brick_with_specific_id_ignores_practice_lang(
         assert brick_en is not None
         brick_en_id = brick_en.id
 
-    learner_ja = Learner(id=2, setting=LearnerSetting(practice_lang="ja"))
+    learner_ja = Learner(id=2, setting=LearnerSetting(retrieval_lang="ja"))
     app.dependency_overrides[auth_service.decode_token_get_learner] = lambda: (
         learner_ja
     )
@@ -471,7 +471,7 @@ def test_get_bricks_kind_and_tags_filter(client: TestClient):
 
     with Session(engine) as session:
         col = session.exec(
-            select(Collection).where(Collection.creator_id == 2)
+            select(Island).where(Island.creator_id == 2)
         ).first()
         assert col is not None
 
@@ -483,7 +483,7 @@ def test_get_bricks_kind_and_tags_filter(client: TestClient):
             target_lang="en",
             kind="word",
             is_private=True,
-            collection_id=col.id,
+            island_id=col.id,
             creator_id=2,
         )
         session.add(brick_word)
@@ -503,7 +503,7 @@ def test_get_bricks_kind_and_tags_filter(client: TestClient):
             target_lang="en",
             kind="sentence",
             is_private=True,
-            collection_id=col.id,
+            island_id=col.id,
             creator_id=2,
         )
         session.add(brick_sent)

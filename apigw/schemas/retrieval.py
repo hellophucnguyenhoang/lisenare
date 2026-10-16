@@ -1,24 +1,24 @@
 from pydantic import BaseModel, Field
 
 
-class StartPracticeRequest(BaseModel):
+class StartRetrievalRequest(BaseModel):
     learner_id: int
     topic_ids: list[int] = Field(min_length=1)
 
 
-class AnswerPracticeRequest(BaseModel):
+class AnswerRetrievalRequest(BaseModel):
     session_id: str
     learner_id: int
     question_id: int
     learner_answer: str
 
 
-class EndPracticeRequest(BaseModel):
+class EndRetrievalRequest(BaseModel):
     session_id: str
     learner_id: int
 
 
-class PracticeQuestionResponse(BaseModel):
+class RetrievalQuestionResponse(BaseModel):
     id: int
     question: str | None = None
     content: str | None = None
@@ -27,15 +27,15 @@ class PracticeQuestionResponse(BaseModel):
     difficulty: float
 
 
-class StartPracticeResponse(BaseModel):
+class StartRetrievalResponse(BaseModel):
     session_id: str
     theta: float
-    question: PracticeQuestionResponse
+    question: RetrievalQuestionResponse
 
 
-class AnswerPracticeResponse(BaseModel):
+class AnswerRetrievalResponse(BaseModel):
     is_correct: bool
     correct_answer: str | None = None
     theta: float
-    practice_completed: bool
-    next_question: PracticeQuestionResponse | None = None
+    retrieval_completed: bool
+    next_question: RetrievalQuestionResponse | None = None

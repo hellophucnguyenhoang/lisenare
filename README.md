@@ -8,7 +8,7 @@ Users learn English by listening and repeating small real-world sentences they a
 
 Instead of fixed lessons, learners:
 - Add sentences they personally want to speak
-- Practice them through an automated repetition scheduler
+- Retrieval them through an automated repetition scheduler
 - Keep track of their learning progress
 
 The system automatically determines when each sentence should be reviewed to help long-term retention.
@@ -20,8 +20,8 @@ The system automatically determines when each sentence should be reviewed to hel
 ## Current Focus
 
 - Sentence (brick) management per user
-- Personalized practice system
-- Self-driven vocabulary and sentence collection
+- Personalized retrieval retrieval system
+- Self-driven vocabulary and island (sentence collection)
 
 ---
 

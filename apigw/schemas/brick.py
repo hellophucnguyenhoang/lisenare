@@ -14,7 +14,7 @@ class BrickUpdate(SQLModel):
     context: str | None = None
     kind: str | None = None
     is_private: bool | None = None
-    collection_id: int | None = None
+    island_id: int | None = None
     tags: list[str] | None = None
 
 
@@ -26,18 +26,18 @@ class BrickContextSearch(SQLModel):
 
 
 class AddBrickRequest(SQLModel):
-    collection_id: int
+    island_id: int
 
 
 class BrickReportCreate(SQLModel):
     reason: str = "Not provided"
 
 
-class AddCollectionRequest(SQLModel):
-    target_collection_id: int
+class AddIslandRequest(SQLModel):
+    target_island_id: int
 
 
-class AddCollectionResult(SQLModel):
+class AddIslandResult(SQLModel):
     added: int
     skipped: int
 
@@ -63,7 +63,7 @@ class BrickBase(SQLModel):
     kind: str = "sentence"
     is_private: bool = True
     tags: list[str] = []
-    collection_id: int
+    island_id: int
 
 
 class BrickCreate(BrickBase):
@@ -85,7 +85,7 @@ class BrickLearnRead(BrickRead):
 
 
 class BrickDetailRead(BrickRead):
-    collection_name: str = ""
+    island_name: str = ""
 
 
 class BrickCreateRequest(BrickBase):

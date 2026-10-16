@@ -48,7 +48,7 @@ def compare_sentences(
         http_response.json()
     )
 
-    lang = comparison_payload.lang or current_learner.practice_lang
+    lang = comparison_payload.lang or current_learner.retrieval_lang
 
     # 2. Extract and analyze linguistic phonemes
     phoneme_response = http_client.get_client().post(

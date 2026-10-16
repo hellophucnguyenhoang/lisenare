@@ -48,7 +48,7 @@ def get_learning_stats(
 
 @router.get(
     "/stats/timeseries",
-    summary="Get learner practice history",
+    summary="Get learner retrieval history",
     response_model=LearningTimeSeries,
 )
 def get_learning_timeseries(

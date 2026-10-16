@@ -12,7 +12,7 @@ def test_get_learner_me(client: TestClient):
         assert learner_in_db is not None
         setting_in_db = session.get(LearnerSetting, 2)
         if not setting_in_db:
-            setting_in_db = LearnerSetting(learner_id=2, practice_lang="en")
+            setting_in_db = LearnerSetting(learner_id=2, retrieval_lang="en")
             session.add(setting_in_db)
             session.commit()
             session.refresh(setting_in_db)
@@ -28,10 +28,10 @@ def test_get_learner_me(client: TestClient):
     data = response.json()
     assert data["id"] == 2
     assert "name" in data
-    assert data["practice_lang"] == "en"
+    assert data["retrieval_lang"] == "en"
 
 
-def test_update_learner_practice_lang(client: TestClient):
+def test_update_learner_retrieval_lang(client: TestClient):
     with Session(engine) as session:
         learner_in_db = session.get(Learner, 2)
         assert learner_in_db is not None
@@ -40,19 +40,19 @@ def test_update_learner_practice_lang(client: TestClient):
         learner_in_db
     )
 
-    response = client.patch("/learners/me", json={"practice_lang": "ja"})
+    response = client.patch("/learners/me", json={"retrieval_lang": "ja"})
     assert response.status_code == 200
     data = response.json()
-    assert data["practice_lang"] == "ja"
+    assert data["retrieval_lang"] == "ja"
 
     # Verify directly in DB
     with Session(engine) as session:
         setting = session.get(LearnerSetting, 2)
         assert setting is not None
-        assert setting.practice_lang == "ja"
+        assert setting.retrieval_lang == "ja"
 
         # Restore to en
-        setting.practice_lang = "en"
+        setting.retrieval_lang = "en"
         session.add(setting)
         session.commit()
 
@@ -84,7 +84,7 @@ def test_update_learner_name(client: TestClient):
     app.dependency_overrides.clear()
 
 
-def test_update_learner_both_name_and_practice_lang(client: TestClient):
+def test_update_learner_both_name_and_retrieval_lang(client: TestClient):
     with Session(engine) as session:
         learner_in_db = session.get(Learner, 2)
         assert learner_in_db is not None
@@ -96,12 +96,12 @@ def test_update_learner_both_name_and_practice_lang(client: TestClient):
 
     response = client.patch(
         "/learners/me",
-        json={"name": "Bilingual Learner", "practice_lang": "fr"},
+        json={"name": "Bilingual Learner", "retrieval_lang": "fr"},
     )
     assert response.status_code == 200
     data = response.json()
     assert data["name"] == "Bilingual Learner"
-    assert data["practice_lang"] == "fr"
+    assert data["retrieval_lang"] == "fr"
 
     # Verify and restore
     with Session(engine) as session:
@@ -109,7 +109,7 @@ def test_update_learner_both_name_and_practice_lang(client: TestClient):
         learner.name = orig_name
         setting = session.get(LearnerSetting, 2)
         if setting:
-            setting.practice_lang = "en"
+            setting.retrieval_lang = "en"
             session.add(setting)
         session.add(learner)
         session.commit()
@@ -117,7 +117,7 @@ def test_update_learner_both_name_and_practice_lang(client: TestClient):
     app.dependency_overrides.clear()
 
 
-def test_update_learner_invalid_practice_lang(client: TestClient):
+def test_update_learner_invalid_retrieval_lang(client: TestClient):
     with Session(engine) as session:
         learner_in_db = session.get(Learner, 2)
         assert learner_in_db is not None
@@ -127,11 +127,11 @@ def test_update_learner_invalid_practice_lang(client: TestClient):
     )
 
     # Too long
-    response = client.patch("/learners/me", json={"practice_lang": "eng"})
+    response = client.patch("/learners/me", json={"retrieval_lang": "eng"})
     assert response.status_code == 422
 
     # Too short
-    response = client.patch("/learners/me", json={"practice_lang": "e"})
+    response = client.patch("/learners/me", json={"retrieval_lang": "e"})
     assert response.status_code == 422
 
     app.dependency_overrides.clear()

@@ -17,8 +17,8 @@ from constants import LEARNER_AUDIOS_DIR
 from database import Learner, get_session
 from schemas import (
     AddBrickRequest,
-    AddCollectionRequest,
-    AddCollectionResult,
+    AddIslandRequest,
+    AddIslandResult,
     BrickCreateRequest,
     BrickDetailRead,
     BrickListeningData,
@@ -48,7 +48,7 @@ def get_bricks(
     creator: Annotated[
         Learner, Depends(auth_service.decode_token_get_learner)
     ],
-    collection_ids: Annotated[list[int] | None, Query()] = None,
+    island_ids: Annotated[list[int] | None, Query()] = None,
     status: BrickStatus | None = None,
     kind: Literal["word", "sentence"] | None = None,
     tags: Annotated[list[str] | None, Query()] = None,
@@ -70,7 +70,7 @@ def get_bricks(
     bricks_list = brick_service.get_bricks(
         session=session,
         creator_id=creator.id,
-        collection_ids=collection_ids,
+        island_ids=island_ids,
         status=status,
         kind=kind,
         tags=cleaned_tags or None,
@@ -82,7 +82,7 @@ def get_bricks(
     total_count = brick_service.count_bricks(
         session=session,
         creator_id=creator.id,
-        collection_ids=collection_ids,
+        island_ids=island_ids,
         status=status,
         kind=kind,
         tags=cleaned_tags or None,
@@ -97,15 +97,15 @@ def get_next_brick(
     creator: Annotated[
         Learner, Depends(auth_service.decode_token_get_learner)
     ],
-    collection_ids: Annotated[list[int] | None, Query()] = None,
+    island_ids: Annotated[list[int] | None, Query()] = None,
     brick_id: int | None = None,
 ):
     return brick_service.get_next_brick(
         session=session,
         creator_id=creator.id,
-        collection_ids=collection_ids,
+        island_ids=island_ids,
         brick_id=brick_id,
-        practice_lang=creator.practice_lang,
+        retrieval_lang=creator.retrieval_lang,
     )
 
 
@@ -115,16 +115,16 @@ def get_listening_bricks(
     creator: Annotated[
         Learner, Depends(auth_service.decode_token_get_learner)
     ],
-    collection_ids: Annotated[list[int] | None, Query()] = None,
+    island_ids: Annotated[list[int] | None, Query()] = None,
     offset: Annotated[int, Query(ge=0)] = 0,
     limit: Annotated[int, Query(ge=0, le=100)] = 10,
     shuffle_page: Annotated[bool, Query()] = False,
 ) -> BrickListeningPage:
-    logger.info(f"{collection_ids = }")
+    logger.info(f"{island_ids = }")
     bricks = brick_service.get_bricks(
         session=session,
         creator_id=creator.id,
-        collection_ids=collection_ids,
+        island_ids=island_ids,
         offset=offset,
         limit=limit,
     )
@@ -134,7 +134,7 @@ def get_listening_bricks(
     total = brick_service.count_bricks(
         session=session,
         creator_id=creator.id,
-        collection_ids=collection_ids,
+        island_ids=island_ids,
     )
     return BrickListeningPage(
         items=[
@@ -226,7 +226,7 @@ def add_brick_from(
     return brick_service.add_brick_from(
         session=session,
         source_brick_id=brick_id,
-        collection_id=request.collection_id,
+        island_id=request.island_id,
         learner_id=learner.id,
     )
 
@@ -266,24 +266,24 @@ def forget_brick(
 
 
 @router.post(
-    "/add-from-collection/{collection_id}",
-    response_model=AddCollectionResult,
+    "/add-from-island/{island_id}",
+    response_model=AddIslandResult,
 )
-def add_bricks_from_collection(
+def add_bricks_from_island(
     session: Annotated[Session, Depends(get_session)],
     learner: Annotated[
         Learner, Depends(auth_service.decode_token_get_learner)
     ],
-    collection_id: int,
-    request: AddCollectionRequest,
-) -> AddCollectionResult:
-    result = brick_service.add_bricks_from_collection(
+    island_id: int,
+    request: AddIslandRequest,
+) -> AddIslandResult:
+    result = brick_service.add_bricks_from_island(
         session=session,
-        source_collection_id=collection_id,
-        target_collection_id=request.target_collection_id,
+        source_island_id=island_id,
+        target_island_id=request.target_island_id,
         learner_id=learner.id,
     )
-    return AddCollectionResult(**result)
+    return AddIslandResult(**result)
 
 
 @router.get("/{brick_id}", response_model=BrickDetailRead)

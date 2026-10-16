@@ -7,59 +7,59 @@ from sqlmodel import Session
 from database import Learner, get_session
 from exceptions import RequestException
 from schemas import (
-    AddCollectionResult,
+    AddIslandResult,
     BrickExport,
-    CollectionCreate,
-    CollectionRead,
-    CollectionUpdate,
+    IslandCreate,
+    IslandRead,
+    IslandUpdate,
 )
 from services import (
     auth_service,
-    collection_service,
+    island_service,
 )
 
-router = APIRouter(prefix="/collections", tags=["Collections"])
+router = APIRouter(prefix="/islands", tags=["Islands"])
 
 
-@router.get("", response_model=list[CollectionRead])
-def get_collections(
+@router.get("", response_model=list[IslandRead])
+def get_islands(
     session: Annotated[Session, Depends(get_session)],
     creator: Annotated[
         Learner, Depends(auth_service.decode_token_get_learner)
     ],
 ):
-    results = collection_service.get_collections(session, creator.id)
+    results = island_service.get_islands(session, creator.id)
     return [
-        CollectionRead.model_validate(
-            collection,
+        IslandRead.model_validate(
+            island,
             update={
                 "brick_count": brick_count,
                 "learned_count": learned_count,
                 "tags": tags,
             },
         )
-        for collection, brick_count, learned_count, tags in results
+        for island, brick_count, learned_count, tags in results
     ]
 
 
 @router.post(
-    "", response_model=CollectionRead, status_code=status.HTTP_201_CREATED
+    "", response_model=IslandRead, status_code=status.HTTP_201_CREATED
 )
-def create_collection(
-    payload: CollectionCreate,
+def create_island(
+    payload: IslandCreate,
     session: Annotated[Session, Depends(get_session)],
     creator: Annotated[
         Learner,
         Depends(auth_service.decode_token_get_learner),
     ],
-) -> CollectionRead:
-    collection, tags = collection_service.create_collection(
+) -> IslandRead:
+    island, tags = island_service.create_island(
         session=session,
         creator_id=creator.id,
-        collection_create=payload,
+        island_create=payload,
     )
-    return CollectionRead.model_validate(
-        collection,
+    return IslandRead.model_validate(
+        island,
         update={
             "brick_count": 0,
             "learned_count": 0,
@@ -68,26 +68,24 @@ def create_collection(
     )
 
 
-@router.patch("/{collection_id}", response_model=CollectionRead)
-def update_collection(
-    collection_id: int,
-    payload: CollectionUpdate,
+@router.patch("/{island_id}", response_model=IslandRead)
+def update_island(
+    island_id: int,
+    payload: IslandUpdate,
     session: Annotated[Session, Depends(get_session)],
     creator: Annotated[
         Learner,
         Depends(auth_service.decode_token_get_learner),
     ],
-) -> CollectionRead:
-    collection, brick_count, learned_count, tags = (
-        collection_service.update_collection(
-            session=session,
-            creator_id=creator.id,
-            collection_id=collection_id,
-            collection_update=payload,
-        )
+) -> IslandRead:
+    island, brick_count, learned_count, tags = island_service.update_island(
+        session=session,
+        creator_id=creator.id,
+        island_id=island_id,
+        island_update=payload,
     )
-    return CollectionRead.model_validate(
-        collection,
+    return IslandRead.model_validate(
+        island,
         update={
             "brick_count": brick_count,
             "learned_count": learned_count,
@@ -96,45 +94,45 @@ def update_collection(
     )
 
 
-@router.delete("/{collection_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_collection(
+@router.delete("/{island_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_island(
     session: Annotated[Session, Depends(get_session)],
     creator: Annotated[
         Learner, Depends(auth_service.decode_token_get_learner)
     ],
-    collection_id: int,
+    island_id: int,
 ) -> Response:
-    collection_service.delete_collection(session, creator.id, collection_id)
+    island_service.delete_island(session, creator.id, island_id)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
-@router.get("/{collection_id}/export", response_model=list[BrickExport])
-def export_collection(
-    collection_id: int,
+@router.get("/{island_id}/export", response_model=list[BrickExport])
+def export_island(
+    island_id: int,
     session: Annotated[Session, Depends(get_session)],
     creator: Annotated[
         Learner, Depends(auth_service.decode_token_get_learner)
     ],
 ) -> list[BrickExport]:
-    return collection_service.export_collection(
+    return island_service.export_island(
         session=session,
-        collection_id=collection_id,
+        island_id=island_id,
         learner_id=creator.id,
     )
 
 
 @router.post(
-    "/{collection_id}/import",
-    response_model=AddCollectionResult,
+    "/{island_id}/import",
+    response_model=AddIslandResult,
 )
-async def import_collection(
-    collection_id: int,
+async def import_island(
+    island_id: int,
     file: Annotated[UploadFile, File()],
     session: Annotated[Session, Depends(get_session)],
     creator: Annotated[
         Learner, Depends(auth_service.decode_token_get_learner)
     ],
-) -> AddCollectionResult:
+) -> AddIslandResult:
     try:
         content = json.loads(await file.read())
     except Exception:
@@ -160,9 +158,9 @@ async def import_collection(
             debug_message=f"Invalid brick data: {e}",
         )
 
-    return collection_service.import_collection(
+    return island_service.import_island(
         session=session,
-        collection_id=collection_id,
+        island_id=island_id,
         learner_id=creator.id,
         bricks=bricks,
     )

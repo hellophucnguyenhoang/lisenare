@@ -12,8 +12,8 @@ from .account import (
 from .auth import PasswordRecoveryResponse, Token, TokenPayload
 from .brick import (
     AddBrickRequest,
-    AddCollectionRequest,
-    AddCollectionResult,
+    AddIslandRequest,
+    AddIslandResult,
     BrickContextSearch,
     BrickCreate,
     BrickCreateRequest,
@@ -30,18 +30,18 @@ from .brick import (
     BrickUpdate,
 )
 from .brick_interaction import BrickInteractionCreate, InteractionType
-from .collection import (
-    CollectionCreate,
-    CollectionRead,
-    CollectionRenameRequest,
-    CollectionUpdate,
-)
 from .context_search import ContextSearchRequest
 from .explanation import (
     ExplanationRequest,
     ExplanationResponse,
 )
 from .forced_alignment import WordSegmentSecond
+from .island import (
+    IslandCreate,
+    IslandRead,
+    IslandRenameRequest,
+    IslandUpdate,
+)
 from .learner import (
     LearnerDetailRead,
     LearnerRead,
@@ -57,8 +57,8 @@ from .text import PronunciationAnalysisResponse
 
 __all__ = [
     "AddBrickRequest",
-    "AddCollectionRequest",
-    "AddCollectionResult",
+    "AddIslandRequest",
+    "AddIslandResult",
     "BrickContextSearch",
     "BrickCreate",
     "BrickCreateRequest",
@@ -74,10 +74,10 @@ __all__ = [
     "BrickSort",
     "BrickStatus",
     "BrickUpdate",
-    "CollectionCreate",
-    "CollectionRead",
-    "CollectionRenameRequest",
-    "CollectionUpdate",
+    "IslandCreate",
+    "IslandRead",
+    "IslandRenameRequest",
+    "IslandUpdate",
     "ContextSearchRequest",
     "EmailChangeOTPRequest",
     "EmailChangeRequest",

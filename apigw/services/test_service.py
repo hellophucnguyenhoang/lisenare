@@ -26,7 +26,7 @@ def export_bricks_to_csv(
             "target_text": b.target_text,
             "cefr_level": b.cefr_level,
             "is_public": b.is_public,
-            "collection_id": b.collection_id,
+            "island_id": b.island_id,
             # Metadata fields (flattened)
             "kind": br_mt.kind,
             "structure": br_mt.structure,
