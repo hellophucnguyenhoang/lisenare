@@ -19,7 +19,7 @@ from schemas import (
 from .models import (
     Account,
     Brick,
-    Collection,
+    Island,
     Learner,
     LearnerSetting,
     Tag,
@@ -74,6 +74,21 @@ def delete_db():
     logger.info("Dropped all tables in the database.")
 
 
+def delete_db_force():
+    with Session(engine) as session:
+        # Drop the entire public schema and all its contents
+        session.exec(text("DROP SCHEMA public CASCADE;"))
+
+        # Recreate the blank public schema
+        session.exec(text("CREATE SCHEMA public;"))
+
+        # Grant default permissions back
+        session.exec(text("GRANT ALL ON SCHEMA public TO public;"))
+        session.commit()
+
+    logger.info("Dropped and recreated a clean public schema.")
+
+
 def init_bricks(session: Session):
     def create_learner_account(
         session: Session, learner_account_create: LearnerAccountCreate
@@ -110,8 +125,8 @@ def init_bricks(session: Session):
     )
     me_account = create_learner_account(session, me_account_create)
 
-    odd_collection = Collection(
-        name="Odd Collection",
+    odd_island = Island(
+        name="Odd Island",
         creator=me_account.learner,
     )
     odd_col_tags = [
@@ -125,8 +140,8 @@ def init_bricks(session: Session):
         ),
     ]
 
-    even_collection = Collection(
-        name="Even Collection",
+    even_island = Island(
+        name="Even Island",
         creator=me_account.learner,
     )
     even_col_tags = [
@@ -140,7 +155,7 @@ def init_bricks(session: Session):
         ),
     ]
 
-    session.add_all([odd_collection, even_collection])
+    session.add_all([odd_island, even_island])
 
     for tag in odd_col_tags:
         session.add(tag)
@@ -153,8 +168,8 @@ def init_bricks(session: Session):
         session.add(
             Taggable(
                 tag_id=tag.id,
-                taggable_id=odd_collection.id,
-                taggable_type="Collection",
+                taggable_id=odd_island.id,
+                taggable_type="Island",
             )
         )
 
@@ -162,8 +177,8 @@ def init_bricks(session: Session):
         session.add(
             Taggable(
                 tag_id=tag.id,
-                taggable_id=even_collection.id,
-                taggable_type="Collection",
+                taggable_id=even_island.id,
+                taggable_type="Island",
             )
         )
 
@@ -184,7 +199,7 @@ def init_bricks(session: Session):
     for _, row in brick_metadata_df.iterrows():
         lesson_id = int(row["lesson_id"])
 
-        collection = odd_collection if lesson_id % 2 == 1 else even_collection
+        island = odd_island if lesson_id % 2 == 1 else even_island
 
         brick = Brick(
             native_text=row["vi_translation"],
@@ -195,7 +210,7 @@ def init_bricks(session: Session):
             target_lang="en",
             kind=row["kind"],
             creator=me_account.learner,
-            collection=collection,
+            island=island,
             is_private=False,
         )
 

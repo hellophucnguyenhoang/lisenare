@@ -7,7 +7,7 @@ from constants import (
     AUDIO_CATCH_PREFIX,
     BRICK_CACHE_PREFIX,
 )
-from database import Brick, Collection, Learner, engine
+from database import Brick, Island, Learner, engine
 from main import app
 from redis_client import get_redis_client
 from schemas import BrickUpdate
@@ -27,14 +27,14 @@ def _setup_test_brick(learner_id: int = 1) -> Brick:
             session.add(learner)
             session.commit()
 
-        collection = session.exec(
-            select(Collection).where(Collection.creator_id == learner_id)
+        island = session.exec(
+            select(Island).where(Island.creator_id == learner_id)
         ).first()
-        if not collection:
-            collection = Collection(name="Test Col", creator_id=learner_id)
-            session.add(collection)
+        if not island:
+            island = Island(name="Test Col", creator_id=learner_id)
+            session.add(island)
             session.commit()
-            session.refresh(collection)
+            session.refresh(island)
 
         brick = session.exec(
             select(Brick).where(Brick.creator_id == learner_id)
@@ -47,7 +47,7 @@ def _setup_test_brick(learner_id: int = 1) -> Brick:
                 kind="word",
                 is_private=True,
                 creator_id=learner_id,
-                collection_id=collection.id,
+                island_id=island.id,
             )
             session.add(brick)
             session.commit()
@@ -441,7 +441,7 @@ def test_delete_brick_clears_redis_cache():
     """Deleting a brick must clear its audio cache from Redis."""
     with Session(engine) as session:
         col = session.exec(
-            select(Collection).where(Collection.creator_id == 1)
+            select(Island).where(Island.creator_id == 1)
         ).first()
         brick = Brick(
             native_text="To be deleted",
@@ -449,7 +449,7 @@ def test_delete_brick_clears_redis_cache():
             target_audio_path="system-brick-audios/delete.wav",
             kind="word",
             creator_id=1,
-            collection_id=col.id,
+            island_id=col.id,
         )
         session.add(brick)
         session.commit()

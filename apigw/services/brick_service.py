@@ -15,7 +15,7 @@ from database import (
     BrickReaction,
     BrickReport,
     BrickReview,
-    Collection,
+    Island,
     LearnerSetting,
     SessionProfile,
     Tag,
@@ -48,7 +48,7 @@ from .tag_service import (
 def get_bricks(
     session: Session,
     creator_id: int,
-    collection_ids: list[int] | None = None,
+    island_ids: list[int] | None = None,
     status: BrickStatus | None = None,
     kind: str | None = None,
     tags: list[str] | None = None,
@@ -67,8 +67,8 @@ def get_bricks(
     stmt = select(Brick, learned_column).where(Brick.creator_id == creator_id)
 
     conditions = []
-    if collection_ids:
-        conditions.append(Brick.collection_id.in_(collection_ids))
+    if island_ids:
+        conditions.append(Brick.island_id.in_(island_ids))
 
     if status is not None:
         if status == BrickStatus.LEARNED:
@@ -212,7 +212,7 @@ def get_recommended_bricks(
 def count_bricks(
     session: Session,
     creator_id: int,
-    collection_ids: list[int] | None = None,
+    island_ids: list[int] | None = None,
     status: BrickStatus | None = None,
     kind: str | None = None,
     tags: list[str] | None = None,
@@ -227,8 +227,8 @@ def count_bricks(
     stmt = select(func.count(Brick.id)).where(Brick.creator_id == creator_id)
     conditions = []
 
-    if collection_ids:
-        conditions.append(Brick.collection_id.in_(collection_ids))
+    if island_ids:
+        conditions.append(Brick.island_id.in_(island_ids))
 
     if status is not None:
         if status == BrickStatus.LEARNED:
@@ -292,15 +292,15 @@ def get_brick_detail(
 
     tags = fetch_tags_for_entity(session, brick.id, "Brick")
     reaction_map = get_reaction_map(session, [brick.id], learner_id)
-    collection = session.get(Collection, brick.collection_id)
-    collection_name = collection.name if collection else ""
+    island = session.get(Island, brick.island_id)
+    island_name = island.name if island else ""
 
     return BrickDetailRead.model_validate(
         brick,
         update={
             "tags": tags,
             "reaction": reaction_map.get(brick.id),
-            "collection_name": collection_name,
+            "island_name": island_name,
         },
     )
 
@@ -319,18 +319,18 @@ def get_brick_by_audio_path(session: Session, audio_path: str) -> Brick:
 def get_next_brick(
     session: Session,
     creator_id: int,
-    collection_ids: list[int] | None = None,
+    island_ids: list[int] | None = None,
     brick_id: int | None = None,
-    practice_lang: str | None = None,
+    retrieval_lang: str | None = None,
 ) -> BrickRead | None:
     if brick_id is not None:
         brick = get_brick(session, brick_id, creator_id)
         tags = fetch_tags_for_entity(session, brick.id, "Brick")
         return BrickRead.model_validate(brick, update={"tags": tags})
 
-    if practice_lang is None:
+    if retrieval_lang is None:
         setting = session.get(LearnerSetting, creator_id)
-        practice_lang = setting.practice_lang if setting else "en"
+        retrieval_lang = setting.retrieval_lang if setting else "en"
 
     now = datetime.now(timezone.utc)
     broken_brick_ids = session.exec(
@@ -341,12 +341,12 @@ def get_next_brick(
     ).all()
 
     def apply_filters(stmt):
-        if collection_ids:
-            stmt = stmt.where(Brick.collection_id.in_(collection_ids))
+        if island_ids:
+            stmt = stmt.where(Brick.island_id.in_(island_ids))
         if broken_brick_ids:
             stmt = stmt.where(Brick.id.not_in(broken_brick_ids))
-        if practice_lang:
-            stmt = stmt.where(Brick.target_lang == practice_lang)
+        if retrieval_lang:
+            stmt = stmt.where(Brick.target_lang == retrieval_lang)
         return stmt
 
     due_stmt = (
@@ -410,17 +410,17 @@ def create_brick(
     creator_id: int,
     target_audio_path: str,
 ) -> BrickRead:
-    collection = session.get(Collection, request_data.collection_id)
-    if not collection:
+    island = session.get(Island, request_data.island_id)
+    if not island:
         raise RequestException(
             status_code=status.HTTP_404_NOT_FOUND,
-            debug_message=f"Collection with id {request_data.collection_id} not found",
+            debug_message=f"Island with id {request_data.island_id} not found",
         )
 
-    if collection.creator_id != creator_id:
+    if island.creator_id != creator_id:
         raise RequestException(
             status_code=status.HTTP_403_FORBIDDEN,
-            debug_message=f"{creator_id=} is not the creator of collection {request_data.collection_id}",
+            debug_message=f"{creator_id=} is not the creator of island {request_data.island_id}",
         )
 
     brick_create = BrickCreate(
@@ -433,7 +433,7 @@ def create_brick(
         target_audio_path=target_audio_path,
         is_private=request_data.is_private,
         creator_id=creator_id,
-        collection_id=collection.id,
+        island_id=island.id,
     )
     brick = Brick.model_validate(brick_create)
     session.add(brick)
@@ -559,10 +559,10 @@ def delete_brick(session: Session, creator_id: int, brick_id: int) -> str:
 def add_brick_from(
     session: Session,
     source_brick_id: int,
-    collection_id: int,
+    island_id: int,
     learner_id: int,
 ) -> BrickRead:
-    """Copy a public brick into the learner's collection."""
+    """Copy a public brick into the learner's island."""
     source = session.get(Brick, source_brick_id)
     if not source:
         raise RequestException(
@@ -577,12 +577,12 @@ def add_brick_from(
             debug_message="Cannot add a private brick from another learner",
         )
 
-    # Target collection must belong to the learner
-    collection = session.get(Collection, collection_id)
-    if not collection or collection.creator_id != learner_id:
+    # Target island must belong to the learner
+    island = session.get(Island, island_id)
+    if not island or island.creator_id != learner_id:
         raise RequestException(
             status_code=status.HTTP_404_NOT_FOUND,
-            debug_message=f"Collection {collection_id} not found",
+            debug_message=f"Island {island_id} not found",
         )
 
     # Check for duplicate
@@ -602,7 +602,7 @@ def add_brick_from(
         kind=source.kind,
         is_private=True,
         creator_id=learner_id,
-        collection_id=collection_id,
+        island_id=island_id,
     )
     session.add(brick)
     session.commit()
@@ -624,32 +624,32 @@ def add_brick_from(
     return BrickRead.model_validate(brick, update={"tags": []})
 
 
-def add_bricks_from_collection(
+def add_bricks_from_island(
     session: Session,
-    source_collection_id: int,
-    target_collection_id: int,
+    source_island_id: int,
+    target_island_id: int,
     learner_id: int,
 ) -> dict:
-    """Copy all public bricks from another learner's collection."""
-    source_collection = session.get(Collection, source_collection_id)
-    if not source_collection:
+    """Copy all public bricks from another learner's island."""
+    source_island = session.get(Island, source_island_id)
+    if not source_island:
         raise RequestException(
             status_code=status.HTTP_404_NOT_FOUND,
-            debug_message=f"Source collection {source_collection_id} not found",
+            debug_message=f"Source island {source_island_id} not found",
         )
 
-    # Target collection must belong to the learner
-    target_collection = session.get(Collection, target_collection_id)
-    if not target_collection or target_collection.creator_id != learner_id:
+    # Target island must belong to the learner
+    target_island = session.get(Island, target_island_id)
+    if not target_island or target_island.creator_id != learner_id:
         raise RequestException(
             status_code=status.HTTP_404_NOT_FOUND,
-            debug_message=f"Target collection {target_collection_id} not found",
+            debug_message=f"Target island {target_island_id} not found",
         )
 
-    # Get all bricks from the source collection that are public
-    # (or owned by the learner, if they're adding from their own collection)
-    stmt = select(Brick).where(Brick.collection_id == source_collection_id)
-    if source_collection.creator_id != learner_id:
+    # Get all bricks from the source island that are public
+    # (or owned by the learner, if they're adding from their own island)
+    stmt = select(Brick).where(Brick.island_id == source_island_id)
+    if source_island.creator_id != learner_id:
         stmt = stmt.where(Brick.is_private == False)  # noqa: E712
     source_bricks = session.exec(stmt).all()
 
@@ -671,7 +671,7 @@ def add_bricks_from_collection(
             kind=source.kind,
             is_private=True,
             creator_id=learner_id,
-            collection_id=target_collection_id,
+            island_id=target_island_id,
         )
         session.add(brick)
         added += 1

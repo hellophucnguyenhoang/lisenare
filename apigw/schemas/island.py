@@ -3,22 +3,22 @@ from datetime import datetime
 from sqlmodel import SQLModel
 
 
-class CollectionBase(SQLModel):
+class IslandBase(SQLModel):
     name: str
     description: str | None = None
 
 
-class CollectionCreate(CollectionBase):
+class IslandCreate(IslandBase):
     tags: list[str] = []
 
 
-class CollectionUpdate(SQLModel):
+class IslandUpdate(SQLModel):
     name: str | None = None
     description: str | None = None
     tags: list[str] | None = None
 
 
-class CollectionRead(CollectionBase):
+class IslandRead(IslandBase):
     id: int
     creator_id: int
     created_at: datetime
@@ -27,5 +27,5 @@ class CollectionRead(CollectionBase):
     tags: list[str] = []
 
 
-class CollectionRenameRequest(SQLModel):
+class IslandRenameRequest(SQLModel):
     new_name: str

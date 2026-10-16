@@ -48,7 +48,7 @@ def test_sentence_comparison_japanese_endpoint(client: TestClient):
     mock_learner = Learner(
         id=1,
         name="Test Learner",
-        setting=LearnerSetting(learner_id=1, practice_lang="ja"),
+        setting=LearnerSetting(learner_id=1, retrieval_lang="ja"),
     )
     app.dependency_overrides[auth_service.decode_token_get_learner] = lambda: (
         mock_learner

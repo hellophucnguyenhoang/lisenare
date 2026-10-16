@@ -19,13 +19,13 @@ def update_learner(
         db_learner.name = data.name.strip()
         session.add(db_learner)
 
-    if data.practice_lang is not None:
+    if data.retrieval_lang is not None:
         setting = db_learner.setting
         if not setting and db_learner.id:
             setting = session.get(LearnerSetting, db_learner.id)
         if not setting:
             setting = LearnerSetting(learner_id=db_learner.id)
-        setting.practice_lang = data.practice_lang.strip().lower()
+        setting.retrieval_lang = data.retrieval_lang.strip().lower()
         session.add(setting)
         db_learner.setting = setting
 

@@ -52,10 +52,10 @@ class Brick(SQLModel, table=True):
         sa_type=DateTime(timezone=True),
     )
 
-    collection_id: int = Field(
-        foreign_key="collection.id", ondelete="CASCADE", index=True
+    island_id: int = Field(
+        foreign_key="island.id", ondelete="CASCADE", index=True
     )
-    collection: "Collection" = Relationship(back_populates="bricks")
+    island: "Island" = Relationship(back_populates="bricks")
 
     creator_id: int = Field(
         foreign_key="learner.id", ondelete="CASCADE", index=True
@@ -191,11 +191,9 @@ class BrickReview(SQLModel, table=True):
     )
 
 
-class Collection(SQLModel, table=True):
+class Island(SQLModel, table=True):
     __table_args__ = (
-        UniqueConstraint(
-            "creator_id", "name", name="uq_creator_collection_name"
-        ),
+        UniqueConstraint("creator_id", "name", name="uq_creator_island_name"),
     )
 
     id: int | None = Field(default=None, primary_key=True)
@@ -207,10 +205,10 @@ class Collection(SQLModel, table=True):
     )
 
     creator_id: int = Field(foreign_key="learner.id", ondelete="CASCADE")
-    creator: "Learner" = Relationship(back_populates="collections")
+    creator: "Learner" = Relationship(back_populates="islands")
 
     bricks: list[Brick] | None = Relationship(
-        back_populates="collection", cascade_delete=True
+        back_populates="island", cascade_delete=True
     )
 
 
@@ -221,7 +219,7 @@ class Learner(SQLModel, table=True):
     account: Account | None = Relationship(
         back_populates="learner", cascade_delete=True
     )
-    collections: list[Collection] | None = Relationship(
+    islands: list[Island] | None = Relationship(
         back_populates="creator", cascade_delete=True
     )
     bricks: list[Brick] | None = Relationship(
@@ -247,9 +245,9 @@ class Learner(SQLModel, table=True):
     )
 
     @property
-    def practice_lang(self) -> str:
+    def retrieval_lang(self) -> str:
         try:
-            return self.setting.practice_lang if self.setting else "en"
+            return self.setting.retrieval_lang if self.setting else "en"
         except Exception:
             return "en"
 
@@ -260,7 +258,7 @@ class LearnerSetting(SQLModel, table=True):
     )
     fsrs_weights: list[float] | None = Field(default=None, sa_type=JSONB)
     target_retention: float = Field(default=0.9)
-    practice_lang: str = Field(default="en", max_length=2)  # ISO 639-1 code
+    retrieval_lang: str = Field(default="en", max_length=2)  # ISO 639-1 code
     learner: "Learner" = Relationship(back_populates="setting")
 
 
@@ -302,7 +300,7 @@ class Taggable(SQLModel, table=True):
     tag: "Tag" = Relationship()
     taggable_id: int = Field(primary_key=True, index=True)
 
-    # 'Brick', 'Collection',...
+    # 'Brick', 'Island',...
     taggable_type: str = Field(primary_key=True, max_length=20, index=True)
 
     created_at: datetime = Field(
