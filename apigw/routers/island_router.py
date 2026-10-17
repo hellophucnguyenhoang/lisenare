@@ -113,11 +113,15 @@ def export_island(
     creator: Annotated[
         Learner, Depends(auth_service.decode_token_get_learner)
     ],
+    include_memory: bool = True,
+    include_review_history: bool = True,
 ) -> list[BrickExport]:
     return island_service.export_island(
         session=session,
         island_id=island_id,
         learner_id=creator.id,
+        include_memory=include_memory,
+        include_review_history=include_review_history,
     )
 
 

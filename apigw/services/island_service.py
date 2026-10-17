@@ -1,11 +1,16 @@
-from fastapi import status
-from sqlmodel import Session, func, select
+from collections import defaultdict
+from datetime import datetime, timezone
 
-from database import Brick, BrickReview, Island
+from fastapi import status
+from sqlmodel import Session, col, func, select
+
+from database import Brick, BrickMemory, BrickReview, Island
 from exceptions import ErrorCode, RequestException
 from schemas import (
     AddIslandResult,
     BrickExport,
+    BrickMemoryExport,
+    BrickReviewExport,
     IslandCreate,
     IslandUpdate,
 )
@@ -260,6 +265,8 @@ def export_island(
     session: Session,
     island_id: int,
     learner_id: int,
+    include_memory: bool = True,
+    include_review_history: bool = True,
 ) -> list[BrickExport]:
     island = session.get(Island, island_id)
     if not island:
@@ -279,20 +286,72 @@ def export_island(
     brick_ids = [b.id for b in bricks if b.id is not None]
     tags_map = fetch_tags_for_entities(session, brick_ids, "Brick")
 
-    return [
-        BrickExport(
-            native_text=b.native_text,
-            target_text=b.target_text,
-            target_audio_path=b.target_audio_path,
-            target_lang=b.target_lang,
-            target_pron=b.target_pron,
-            context=b.context,
-            kind=b.kind,
-            tags=tags_map.get(b.id, []),
-            is_private=b.is_private,
+    memories_map: dict[int, BrickMemory] = {}
+    if include_memory and brick_ids:
+        memories = session.exec(
+            select(BrickMemory).where(
+                BrickMemory.learner_id == learner_id,
+                col(BrickMemory.brick_id).in_(brick_ids),
+            )
+        ).all()
+        memories_map = {m.brick_id: m for m in memories}
+
+    reviews_map: dict[int, list[BrickReview]] = defaultdict(list)
+    if include_review_history and brick_ids:
+        reviews = session.exec(
+            select(BrickReview)
+            .where(
+                BrickReview.learner_id == learner_id,
+                col(BrickReview.brick_id).in_(brick_ids),
+            )
+            .order_by(BrickReview.reviewed_at.asc())
+        ).all()
+        for r in reviews:
+            reviews_map[r.brick_id].append(r)
+
+    result = []
+    for b in bricks:
+        memory_export = None
+        if include_memory and b.id in memories_map:
+            m = memories_map[b.id]
+            memory_export = BrickMemoryExport(
+                fsrs_card_dict=m.fsrs_card_dict,
+                due=m.due,
+                created_at=m.created_at,
+            )
+
+        review_history_export = None
+        if include_review_history:
+            review_history_export = [
+                BrickReviewExport(
+                    reviewed_at=r.reviewed_at,
+                    first_score=r.first_score,
+                    is_answer_revealed=r.is_answer_revealed,
+                    fsrs_rating=r.fsrs_rating,
+                    fsrs_log_dict=r.fsrs_log_dict,
+                    learner_target_text=r.learner_target_text,
+                    learner_target_audio_path=r.learner_target_audio_path,
+                )
+                for r in reviews_map.get(b.id, [])
+            ]
+
+        result.append(
+            BrickExport(
+                native_text=b.native_text,
+                target_text=b.target_text,
+                target_audio_path=b.target_audio_path,
+                target_lang=b.target_lang,
+                target_pron=b.target_pron,
+                context=b.context,
+                kind=b.kind,
+                tags=tags_map.get(b.id, []),
+                is_private=b.is_private,
+                memory=memory_export,
+                review_history=review_history_export,
+            )
         )
-        for b in bricks
-    ]
+
+    return result
 
 
 def import_island(
@@ -352,6 +411,32 @@ def import_island(
                 tag_names=item.tags,
                 creator_id=learner_id,
             )
+
+        if item.memory:
+            db_memory = BrickMemory(
+                learner_id=learner_id,
+                brick_id=brick.id,
+                fsrs_card_dict=item.memory.fsrs_card_dict,
+                due=item.memory.due,
+                created_at=item.memory.created_at
+                or datetime.now(timezone.utc),
+            )
+            session.add(db_memory)
+
+        if item.review_history:
+            for r in item.review_history:
+                db_review = BrickReview(
+                    learner_id=learner_id,
+                    brick_id=brick.id,
+                    reviewed_at=r.reviewed_at,
+                    first_score=r.first_score,
+                    is_answer_revealed=r.is_answer_revealed,
+                    fsrs_rating=r.fsrs_rating,
+                    fsrs_log_dict=r.fsrs_log_dict,
+                    learner_target_text=r.learner_target_text,
+                    learner_target_audio_path=r.learner_target_audio_path,
+                )
+                session.add(db_review)
 
         added += 1
 
