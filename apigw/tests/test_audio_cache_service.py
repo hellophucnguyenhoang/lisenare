@@ -462,7 +462,7 @@ def test_delete_brick_clears_redis_cache():
     assert redis.exists(cache_key)
 
     with patch(
-        "services.brick_service.search_service.delete_item_from_vector_store"
+        "services.brick_service.cs_service.delete_item_from_vector_store"
     ):
         with Session(engine) as session:
             brick_service.delete_brick(

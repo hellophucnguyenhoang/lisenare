@@ -12,7 +12,7 @@ def test_get_pending_islands(client: TestClient):
         existing_learner
     )
 
-    response = client.get("/islands")
+    response = client.get("/api/islands")
 
     app.dependency_overrides.clear()
 
@@ -33,7 +33,7 @@ def test_create_island_success(client: TestClient):
 
     col_name = "My New Test Island"
     response = client.post(
-        "/islands",
+        "/api/islands",
         json={
             "name": col_name,
             "description": "A description for testing",
@@ -72,7 +72,7 @@ def test_create_island_duplicate_name(client: TestClient):
     )
 
     response = client.post(
-        "/islands",
+        "/api/islands",
         json={
             "name": "Odd Island",
             "description": "Trying to duplicate Odd Island",
@@ -92,7 +92,7 @@ def test_create_island_empty_name(client: TestClient):
     )
 
     response = client.post(
-        "/islands",
+        "/api/islands",
         json={
             "name": "   ",
             "description": "Empty name test",
@@ -112,7 +112,7 @@ def test_create_island_with_tags_success(client: TestClient):
 
     col_name = "Island With Tags Test"
     response = client.post(
-        "/islands",
+        "/api/islands",
         json={
             "name": col_name,
             "description": "A description for testing with tags",
@@ -151,7 +151,7 @@ def test_create_island_with_tags_success(client: TestClient):
     assert len(taggables) == 2
 
     # Clean up
-    client.delete(f"/islands/{data['id']}")
+    client.delete(f"/api/islands/{data['id']}")
     session.delete(created)
     session.commit()
 
@@ -164,7 +164,7 @@ def test_update_island_success(client: TestClient):
 
     # First create a island
     create_res = client.post(
-        "/islands",
+        "/api/islands",
         json={
             "name": "Update Island Test",
             "description": "Original description",
@@ -176,7 +176,7 @@ def test_update_island_success(client: TestClient):
 
     # Now update it
     update_res = client.patch(
-        f"/islands/{col_id}",
+        f"/api/islands/{col_id}",
         json={
             "name": "Updated Island Name",
             "description": "Updated description",
@@ -187,10 +187,10 @@ def test_update_island_success(client: TestClient):
     updated_data = update_res.json()
     assert updated_data["name"] == "Updated Island Name"
     assert updated_data["description"] == "Updated description"
-    assert sorted(updated_data["tags"]) == ["updated_tag1", "updated_tag2"]
+    assert sorted(updated_data["tags"]) == ["updatedtag1", "updatedtag2"]
 
     # Clean up via delete endpoint
-    del_res = client.delete(f"/islands/{col_id}")
+    del_res = client.delete(f"/api/islands/{col_id}")
     assert del_res.status_code == 204
 
     app.dependency_overrides.clear()
@@ -204,7 +204,7 @@ def test_update_island_duplicate_name(client: TestClient):
 
     # Create island
     create_res = client.post(
-        "/islands",
+        "/api/islands",
         json={
             "name": "Another Unique Island",
         },
@@ -214,7 +214,7 @@ def test_update_island_duplicate_name(client: TestClient):
 
     # Try to update to existing name "Odd Island"
     update_res = client.patch(
-        f"/islands/{col_id}",
+        f"/api/islands/{col_id}",
         json={
             "name": "Odd Island",
         },
@@ -223,7 +223,7 @@ def test_update_island_duplicate_name(client: TestClient):
     assert update_res.json()["error_code"] == "COLLECTION_ALREADY_EXISTS"
 
     # Clean up
-    client.delete(f"/islands/{col_id}")
+    client.delete(f"/api/islands/{col_id}")
     app.dependency_overrides.clear()
 
 
@@ -235,7 +235,7 @@ def test_delete_island_success(client: TestClient):
 
     # Create island with tags
     create_res = client.post(
-        "/islands",
+        "/api/islands",
         json={
             "name": "Delete Me Island",
             "tags": ["to_be_deleted"],
@@ -245,7 +245,7 @@ def test_delete_island_success(client: TestClient):
     col_id = create_res.json()["id"]
 
     # Delete island
-    del_res = client.delete(f"/islands/{col_id}")
+    del_res = client.delete(f"/api/islands/{col_id}")
     assert del_res.status_code == 204
 
     # Verify island and taggable are deleted
@@ -285,7 +285,7 @@ def test_delete_island_forbidden(client: TestClient):
     ).first()
     assert col is not None
 
-    response = client.delete(f"/islands/{col.id}")
+    response = client.delete(f"/api/islands/{col.id}")
     assert response.status_code == 403
 
     app.dependency_overrides.clear()

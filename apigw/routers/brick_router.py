@@ -38,6 +38,7 @@ from services import (
 )
 from utils import file_utils
 from utils.form_utils import JsonFormBody
+from utils.tag_utils import clean_tags
 
 router = APIRouter(prefix="/bricks", tags=["Bricks"])
 
@@ -58,14 +59,7 @@ def get_bricks(
 ) -> BrickPage:
     offset = (page - 1) * limit
 
-    cleaned_tags: list[str] | None = None
-    if tags:
-        cleaned_tags = []
-        for t in tags:
-            for item in t.split(","):
-                item_clean = item.strip()
-                if item_clean and item_clean not in cleaned_tags:
-                    cleaned_tags.append(item_clean)
+    cleaned_tags = clean_tags(tags) if tags else None
 
     bricks_list = brick_service.get_bricks(
         session=session,
