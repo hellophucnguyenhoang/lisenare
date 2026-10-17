@@ -21,7 +21,7 @@ def test_get_learner_me(client: TestClient):
         learner_in_db
     )
 
-    response = client.get("/learners/me")
+    response = client.get("/api/learners/me")
     app.dependency_overrides.clear()
 
     assert response.status_code == 200
@@ -40,7 +40,7 @@ def test_update_learner_retrieval_lang(client: TestClient):
         learner_in_db
     )
 
-    response = client.patch("/learners/me", json={"retrieval_lang": "ja"})
+    response = client.patch("/api/learners/me", json={"retrieval_lang": "ja"})
     assert response.status_code == 200
     data = response.json()
     assert data["retrieval_lang"] == "ja"
@@ -69,7 +69,7 @@ def test_update_learner_name(client: TestClient):
         learner_in_db
     )
 
-    response = client.patch("/learners/me", json={"name": "Updated Name"})
+    response = client.patch("/api/learners/me", json={"name": "Updated Name"})
     assert response.status_code == 200
     data = response.json()
     assert data["name"] == "Updated Name"
@@ -95,7 +95,7 @@ def test_update_learner_both_name_and_retrieval_lang(client: TestClient):
     )
 
     response = client.patch(
-        "/learners/me",
+        "/api/learners/me",
         json={"name": "Bilingual Learner", "retrieval_lang": "fr"},
     )
     assert response.status_code == 200
@@ -127,11 +127,11 @@ def test_update_learner_invalid_retrieval_lang(client: TestClient):
     )
 
     # Too long
-    response = client.patch("/learners/me", json={"retrieval_lang": "eng"})
+    response = client.patch("/api/learners/me", json={"retrieval_lang": "eng"})
     assert response.status_code == 422
 
     # Too short
-    response = client.patch("/learners/me", json={"retrieval_lang": "e"})
+    response = client.patch("/api/learners/me", json={"retrieval_lang": "e"})
     assert response.status_code == 422
 
     app.dependency_overrides.clear()

@@ -1,9 +1,11 @@
 from datetime import datetime
 from enum import Enum
 
+from pydantic import field_validator
 from sqlmodel import SQLModel
 
 from schemas.learner import LearnerRead
+from utils.tag_utils import clean_tags
 
 
 class BrickUpdate(SQLModel):
@@ -16,6 +18,13 @@ class BrickUpdate(SQLModel):
     is_private: bool | None = None
     island_id: int | None = None
     tags: list[str] | None = None
+
+    @field_validator("tags", mode="before")
+    @classmethod
+    def clean_tags_field(cls, v: list[str] | None) -> list[str] | None:
+        if v is None:
+            return None
+        return clean_tags(v)
 
 
 class BrickContextSearch(SQLModel):
@@ -53,6 +62,13 @@ class BrickExport(SQLModel):
     tags: list[str] = []
     is_private: bool = True
 
+    @field_validator("tags", mode="before")
+    @classmethod
+    def clean_tags_field(cls, v: list[str] | None) -> list[str]:
+        if v is None:
+            return []
+        return clean_tags(v)
+
 
 class BrickBase(SQLModel):
     native_text: str
@@ -64,6 +80,13 @@ class BrickBase(SQLModel):
     is_private: bool = True
     tags: list[str] = []
     island_id: int
+
+    @field_validator("tags", mode="before")
+    @classmethod
+    def clean_tags_field(cls, v: list[str] | None) -> list[str]:
+        if v is None:
+            return []
+        return clean_tags(v)
 
 
 class BrickCreate(BrickBase):
