@@ -1,7 +1,8 @@
 from datetime import datetime
 from enum import Enum
+from typing import Any
 
-from pydantic import field_validator
+from pydantic import field_validator, model_validator
 from sqlmodel import SQLModel
 
 from schemas.learner import LearnerRead
@@ -51,6 +52,22 @@ class AddIslandResult(SQLModel):
     skipped: int
 
 
+class BrickMemoryExport(SQLModel):
+    fsrs_card_dict: dict = {}
+    due: datetime
+    created_at: datetime | None = None
+
+
+class BrickReviewExport(SQLModel):
+    reviewed_at: datetime
+    first_score: float
+    is_answer_revealed: bool = False
+    fsrs_rating: int = 3
+    fsrs_log_dict: dict = {}
+    learner_target_text: str | None = None
+    learner_target_audio_path: str | None = None
+
+
 class BrickExport(SQLModel):
     native_text: str
     target_text: str
@@ -61,6 +78,16 @@ class BrickExport(SQLModel):
     kind: str = "sentence"
     tags: list[str] = []
     is_private: bool = True
+    memory: BrickMemoryExport | None = None
+    review_history: list[BrickReviewExport] | None = None
+
+    @model_validator(mode="before")
+    @classmethod
+    def check_reviews_alias(cls, data: Any) -> Any:
+        if isinstance(data, dict):
+            if "review_history" not in data and "reviews" in data:
+                data["review_history"] = data["reviews"]
+        return data
 
     @field_validator("tags", mode="before")
     @classmethod

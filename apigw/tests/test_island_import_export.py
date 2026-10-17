@@ -1,3 +1,4 @@
+from datetime import datetime, timezone
 import io
 import json
 import uuid
@@ -5,7 +6,15 @@ import uuid
 from fastapi.testclient import TestClient
 from sqlmodel import Session, select
 
-from database import Brick, Island, Learner, LearnerSetting, engine
+from database import (
+    Brick,
+    BrickMemory,
+    BrickReview,
+    Island,
+    Learner,
+    LearnerSetting,
+    engine,
+)
 from main import app
 from services import auth_service
 from services.tag_service import set_tags_for_entity
@@ -305,5 +314,168 @@ def test_import_island_invalid_json(client: TestClient):
             files={"file": ("bad.json", bad_bytes, "application/json")},
         )
         assert response.status_code == 400
+    finally:
+        app.dependency_overrides.clear()
+
+
+def test_export_island_with_memory_and_reviews(client: TestClient):
+    suffix = uuid.uuid4().hex[:6]
+    now = datetime.now(timezone.utc)
+    with Session(engine) as session:
+        _ensure_learner(session, 109, "MemExporter")
+        col = _ensure_island(session, 109, f"MemCol-{suffix}")
+
+        b = Brick(
+            native_text="Kỷ niệm",
+            target_text=f"Memory-{suffix}",
+            target_audio_path=f"audios/mem-{suffix}.wav",
+            kind="word",
+            is_private=True,
+            creator_id=109,
+            island_id=col.id,
+        )
+        session.add(b)
+        session.commit()
+        session.refresh(b)
+
+        mem = BrickMemory(
+            learner_id=109,
+            brick_id=b.id,
+            fsrs_card_dict={"state": 2, "stability": 4.5},
+            due=now,
+        )
+        rev = BrickReview(
+            learner_id=109,
+            brick_id=b.id,
+            reviewed_at=now,
+            first_score=0.95,
+            is_answer_revealed=False,
+            fsrs_rating=3,
+            fsrs_log_dict={"rating": 3},
+            learner_target_text=f"Memory-{suffix}",
+        )
+        session.add(mem)
+        session.add(rev)
+        session.commit()
+        col_id = col.id
+
+    app.dependency_overrides[auth_service.decode_token_get_learner] = lambda: (
+        Learner(id=109, name="MemExporter", setting=LearnerSetting())
+    )
+    try:
+        # Default: both True
+        res_default = client.get(f"/api/islands/{col_id}/export")
+        assert res_default.status_code == 200
+        data_default = res_default.json()
+        assert len(data_default) == 1
+        item = data_default[0]
+        assert item["memory"] is not None
+        assert item["memory"]["fsrs_card_dict"] == {
+            "state": 2,
+            "stability": 4.5,
+        }
+        assert len(item["review_history"]) == 1
+        assert item["review_history"][0]["first_score"] == 0.95
+
+        # include_memory=False
+        res_no_mem = client.get(
+            f"/api/islands/{col_id}/export?include_memory=false"
+        )
+        assert res_no_mem.status_code == 200
+        data_no_mem = res_no_mem.json()
+        assert data_no_mem[0]["memory"] is None
+        assert data_no_mem[0]["review_history"] is not None
+
+        # include_review_history=False
+        res_no_rev = client.get(
+            f"/api/islands/{col_id}/export?include_review_history=false"
+        )
+        assert res_no_rev.status_code == 200
+        data_no_rev = res_no_rev.json()
+        assert data_no_rev[0]["memory"] is not None
+        assert data_no_rev[0]["review_history"] is None
+
+        # Both False
+        res_none = client.get(
+            f"/api/islands/{col_id}/export?include_memory=false&include_review_history=false"
+        )
+        assert res_none.status_code == 200
+        data_none = res_none.json()
+        assert data_none[0]["memory"] is None
+        assert data_none[0]["review_history"] is None
+    finally:
+        app.dependency_overrides.clear()
+
+
+def test_import_island_with_memory_and_reviews(client: TestClient):
+    suffix = uuid.uuid4().hex[:6]
+    now_iso = datetime.now(timezone.utc).isoformat()
+    with Session(engine) as session:
+        _ensure_learner(session, 110, "MemImporter")
+        target_col = _ensure_island(session, 110, f"ImportCol-{suffix}")
+        target_col_id = target_col.id
+
+    import_data = [
+        {
+            "native_text": "Hồi tưởng",
+            "target_text": f"Recall-{suffix}",
+            "target_audio_path": f"audios/recall-{suffix}.wav",
+            "kind": "word",
+            "tags": ["history"],
+            "memory": {
+                "fsrs_card_dict": {"stability": 5.0},
+                "due": now_iso,
+            },
+            "reviews": [
+                {
+                    "reviewed_at": now_iso,
+                    "first_score": 1.0,
+                    "is_answer_revealed": False,
+                    "fsrs_rating": 4,
+                    "fsrs_log_dict": {"rating": 4},
+                }
+            ],
+        }
+    ]
+
+    file_bytes = io.BytesIO(json.dumps(import_data).encode("utf-8"))
+
+    app.dependency_overrides[auth_service.decode_token_get_learner] = lambda: (
+        Learner(id=110, name="MemImporter", setting=LearnerSetting())
+    )
+    try:
+        response = client.post(
+            f"/api/islands/{target_col_id}/import",
+            files={"file": ("bricks.json", file_bytes, "application/json")},
+        )
+        assert response.status_code == 200
+        assert response.json()["added"] == 1
+
+        with Session(engine) as session:
+            brick = session.exec(
+                select(Brick).where(Brick.island_id == target_col_id)
+            ).first()
+            assert brick is not None
+
+            # Verify BrickMemory created for importer
+            mem = session.exec(
+                select(BrickMemory).where(
+                    BrickMemory.brick_id == brick.id,
+                    BrickMemory.learner_id == 110,
+                )
+            ).first()
+            assert mem is not None
+            assert mem.fsrs_card_dict == {"stability": 5.0}
+
+            # Verify BrickReview created for importer
+            reviews = session.exec(
+                select(BrickReview).where(
+                    BrickReview.brick_id == brick.id,
+                    BrickReview.learner_id == 110,
+                )
+            ).all()
+            assert len(reviews) == 1
+            assert reviews[0].first_score == 1.0
+            assert reviews[0].fsrs_rating == 4
     finally:
         app.dependency_overrides.clear()
