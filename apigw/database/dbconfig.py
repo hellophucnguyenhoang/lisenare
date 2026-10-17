@@ -142,7 +142,7 @@ def init_bricks(session: Session):
     )
     odd_col_tags = [
         Tag(
-            name="odd english",
+            name="oddenglish",
             creator=me_account.learner,
         ),
         Tag(
@@ -157,7 +157,7 @@ def init_bricks(session: Session):
     )
     even_col_tags = [
         Tag(
-            name="even english",
+            name="evenenglish",
             creator=me_account.learner,
         ),
         Tag(
@@ -232,7 +232,7 @@ def init_bricks(session: Session):
 
         if tag is None:
             tag = Tag(
-                name=f"Lesson {lesson_id}",
+                name=f"lesson{lesson_id}",
                 creator=me_account.learner,
             )
             session.add(tag)

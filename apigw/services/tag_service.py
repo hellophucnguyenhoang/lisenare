@@ -1,6 +1,16 @@
 from sqlmodel import Session, col, select
 
 from database import Tag, Taggable
+from utils.tag_utils import clean_tag, clean_tags
+
+__all__ = [
+    "clean_tag",
+    "clean_tags",
+    "delete_tags_for_entity",
+    "fetch_tags_for_entities",
+    "fetch_tags_for_entity",
+    "set_tags_for_entity",
+]
 
 
 def fetch_tags_for_entities(
@@ -46,14 +56,7 @@ def set_tags_for_entity(
     """Sets (replaces) tags for a specific entity, creating new Tag records if needed."""
     delete_tags_for_entity(session, entity_id, entity_type)
 
-    cleaned_tags: list[str] = []
-    seen: set[str] = set()
-    for name in tag_names:
-        cleaned = name.strip()
-        if cleaned and cleaned not in seen:
-            seen.add(cleaned)
-            cleaned_tags.append(cleaned)
-
+    cleaned_tags = clean_tags(tag_names)
     if not cleaned_tags:
         return []
 

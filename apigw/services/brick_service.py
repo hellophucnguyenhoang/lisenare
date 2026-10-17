@@ -38,6 +38,7 @@ from . import audio_cache_service
 from . import context_search_service as cs_service
 from .brick_reaction_service import get_reaction_map
 from .tag_service import (
+    clean_tags,
     delete_tags_for_entity,
     fetch_tags_for_entities,
     fetch_tags_for_entity,
@@ -80,16 +81,20 @@ def get_bricks(
         conditions.append(Brick.kind == kind)
 
     if tags:
-        tag_subquery = (
-            select(Taggable.taggable_id)
-            .distinct()
-            .join(Tag, Taggable.tag_id == Tag.id)
-            .where(
-                Taggable.taggable_type == "Brick",
-                Tag.name.in_(tags),
+        cleaned_tags = clean_tags(tags)
+        if cleaned_tags:
+            tag_subquery = (
+                select(Taggable.taggable_id)
+                .distinct()
+                .join(Tag, Taggable.tag_id == Tag.id)
+                .where(
+                    Taggable.taggable_type == "Brick",
+                    Tag.name.in_(cleaned_tags),
+                )
             )
-        )
-        conditions.append(Brick.id.in_(tag_subquery))
+            conditions.append(Brick.id.in_(tag_subquery))
+        else:
+            conditions.append(Brick.id == -1)
 
     if conditions:
         stmt = stmt.where(*conditions)
@@ -249,16 +254,20 @@ def count_bricks(
         conditions.append(Brick.kind == kind)
 
     if tags:
-        tag_subquery = (
-            select(Taggable.taggable_id)
-            .distinct()
-            .join(Tag, Taggable.tag_id == Tag.id)
-            .where(
-                Taggable.taggable_type == "Brick",
-                Tag.name.in_(tags),
+        cleaned_tags = clean_tags(tags)
+        if cleaned_tags:
+            tag_subquery = (
+                select(Taggable.taggable_id)
+                .distinct()
+                .join(Tag, Taggable.tag_id == Tag.id)
+                .where(
+                    Taggable.taggable_type == "Brick",
+                    Tag.name.in_(cleaned_tags),
+                )
             )
-        )
-        conditions.append(Brick.id.in_(tag_subquery))
+            conditions.append(Brick.id.in_(tag_subquery))
+        else:
+            conditions.append(Brick.id == -1)
 
     if conditions:
         stmt = stmt.where(*conditions)
