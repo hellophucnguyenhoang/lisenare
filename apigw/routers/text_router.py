@@ -39,6 +39,9 @@ def compare_sentences(
     background_tasks: BackgroundTasks,
     comparison_payload: SentenceCompareRequest,
 ) -> SentenceCompareResponse:
+    lang = comparison_payload.lang or current_learner.retrieval_lang
+    comparison_payload.lang = lang
+
     # 1. Fetch external semantic evaluation
     http_response = http_client.get_client().post(
         "/text/semantic-comparison",
@@ -47,8 +50,6 @@ def compare_sentences(
     evaluation_result = SentenceCompareResponse.model_validate(
         http_response.json()
     )
-
-    lang = comparison_payload.lang or current_learner.retrieval_lang
 
     # 2. Extract and analyze linguistic phonemes
     phoneme_response = http_client.get_client().post(

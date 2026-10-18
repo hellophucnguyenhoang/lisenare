@@ -1,6 +1,10 @@
 from fastapi.testclient import TestClient
 
 from main import app
+from shared_schemas.sentence import (
+    SentenceCompareRequest,
+    SentenceCompareResponse,
+)
 from shared_schemas.text import (
     BatchRarityRequest,
     BatchRarityResponse,
@@ -201,3 +205,35 @@ def test_batch_rarity_endpoint():
     assert len(data.rarities) == 3
     # Common word rarer than "antediluvian"
     assert data.rarities[1] > data.rarities[0]
+
+
+def test_semantic_comparison_endpoint_english():
+    client = TestClient(app)
+    req = SentenceCompareRequest(
+        sentence1="How are you?",
+        sentence2="How are you doing?",
+        lang="en",
+    )
+    res = client.post(
+        "/text/semantic-comparison", json=req.model_dump(mode="json")
+    )
+    assert res.status_code == 200
+    data = SentenceCompareResponse.model_validate(res.json())
+    assert 0.0 <= data.score <= 1.0
+    assert data.score > 0.8
+
+
+def test_semantic_comparison_endpoint_japanese():
+    client = TestClient(app)
+    req = SentenceCompareRequest(
+        sentence1="4月",
+        sentence2="四月",
+        lang="ja",
+    )
+    res = client.post(
+        "/text/semantic-comparison", json=req.model_dump(mode="json")
+    )
+    assert res.status_code == 200
+    data = SentenceCompareResponse.model_validate(res.json())
+    assert data.score > 0.9
+    assert data.correct is True
