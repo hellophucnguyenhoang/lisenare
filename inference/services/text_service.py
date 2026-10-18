@@ -26,8 +26,9 @@ class TextService:
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
 
         # 1. Load Similarity Model
+        # sentence-transformers/paraphrase-multilingual-mpnet-base-v2 (768 dim)
         self.similarity_model = SentenceTransformer(
-            "all-mpnet-base-v2",
+            "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2",  # (384 dim)
             device=self.device,
         )
 
@@ -42,7 +43,7 @@ class TextService:
             repo_id="hexgrad/Kokoro-82M",
             device=self.device,
         )
-        logger.info(f"Running Kokoro on: {self.device}")
+        logger.info(f"Running TextService inference on: {self.device}")
 
         # 3. Dictionary checker for spell checking and word validation
         self.dict_checker = enchant.Dict("en_US")

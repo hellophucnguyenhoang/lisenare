@@ -1,6 +1,6 @@
 from typing import Annotated
 
-from fastapi import APIRouter, BackgroundTasks, Depends, UploadFile
+from fastapi import APIRouter, BackgroundTasks, Depends, File, UploadFile
 from sqlmodel import Session
 
 import http_client as http_client
@@ -32,7 +32,12 @@ router = APIRouter(prefix="/audio", tags=["Audio"])
 
 
 @router.post("/transcripts", response_model=STTResponse)
-def transcribe_audio(file: UploadFile):
+def transcribe_audio(
+    learner: Annotated[
+        Learner, Depends(auth_service.decode_token_get_learner)
+    ],
+    file: Annotated[UploadFile, File()],
+):
     files = {
         "file": (
             file.filename,
@@ -40,12 +45,16 @@ def transcribe_audio(file: UploadFile):
             file.content_type,
         )
     }
-    r = http_client.get_client().post("/audio/transcripts", files=files)
+    r = http_client.get_client().post(
+        "/audio/transcripts",
+        files=files,
+        params={"lang": learner.retrieval_lang},
+    )
     return r.json()
 
 
 @router.post("/phonemes", response_model=STTResponse)
-def get_phonemes(file: UploadFile):
+def get_phonemes(file: Annotated[UploadFile, File()]):
     files = {
         "file": (
             file.filename,
@@ -119,7 +128,7 @@ async def evaluate_pronunciation_audio(
     ],
     background_tasks: BackgroundTasks,
     target_brick_id: int,
-    learner_file: UploadFile,
+    learner_file: Annotated[UploadFile, File()],
 ):
     target_brick = brick_service.get_brick(
         session,
