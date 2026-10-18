@@ -158,6 +158,11 @@ app.add_middleware(
     allow_headers=["Authorization", "Content-Type"],
 )
 
+# Only use when cloud doesn't support
+# from fastapi.middleware.httpsredirect import HTTPSRedirectMiddleware
+# if os.getenv("ENV") == "production":
+#     app.add_middleware(HTTPSRedirectMiddleware)
+
 
 @app.middleware("http")
 async def add_security_headers(request: Request, call_next):
@@ -165,7 +170,16 @@ async def add_security_headers(request: Request, call_next):
     response.headers["Strict-Transport-Security"] = (
         "max-age=31536000; includeSubDomains"
     )
-    response.headers["Content-Security-Policy"] = "default-src 'self';"
+
+    # Allow loading fonts from any external, secure HTTPS source
+    response.headers["Content-Security-Policy"] = (
+        "default-src 'self'; "
+        "font-src 'self' https: data:; "
+        "style-src 'self' 'unsafe-inline' https:;"
+        "script-src 'self' https://static.cloudflareinsights.com; "
+        "img-src 'self' https://placecats.com data:;"
+    )
+
     response.headers["X-Frame-Options"] = "SAMEORIGIN"
     response.headers["X-Content-Type-Options"] = "nosniff"
     response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
