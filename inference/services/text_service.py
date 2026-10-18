@@ -2,7 +2,6 @@ import io
 import math
 import re
 import string
-
 from difflib import get_close_matches
 
 import enchant
@@ -26,17 +25,22 @@ class TextService:
         # Determine device (GPU if available, else CPU)
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
 
-        # 1. Load Similarity Model (all-mpnet-base-v2)
+        # 1. Load Similarity Model
         self.similarity_model = SentenceTransformer(
-            "all-mpnet-base-v2", device=self.device
+            "all-mpnet-base-v2",
+            device=self.device,
         )
 
         # 2. Load text to speech model
         self.tts_pipeline_en = KPipeline(
-            lang_code="a", repo_id="hexgrad/Kokoro-82M", device=self.device
+            lang_code="a",
+            repo_id="hexgrad/Kokoro-82M",
+            device=self.device,
         )
         self.tts_pipeline_jp = KPipeline(
-            lang_code="ja", repo_id="hexgrad/Kokoro-82M", device=self.device
+            lang_code="ja",
+            repo_id="hexgrad/Kokoro-82M",
+            device=self.device,
         )
         logger.info(f"Running Kokoro on: {self.device}")
 
@@ -63,7 +67,8 @@ class TextService:
 
         # Process cleaned strings
         embeddings = self.similarity_model.encode(
-            [s1_clean, s2_clean], convert_to_tensor=True
+            [s1_clean, s2_clean],
+            convert_to_tensor=True,
         )
         score = util.cos_sim(embeddings[0], embeddings[1])
         return float(score.item())
@@ -101,7 +106,8 @@ class TextService:
             learner_phonemes = "".join(
                 [item["hepburn"] for item in self.kks.convert(learner_text)]
             ).lower()
-            # Clean punctuation and whitespace so punctuation does not unfairly penalize pronunciation accuracy
+            # Clean punctuation and whitespace
+            # so punctuation does not unfairly penalize pronunciation accuracy
             teacher_phonemes = re.sub(r"[\s\W_]+", "", teacher_phonemes)
             learner_phonemes = re.sub(r"[\s\W_]+", "", learner_phonemes)
 
