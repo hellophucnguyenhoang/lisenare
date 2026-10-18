@@ -170,22 +170,25 @@ async def add_security_headers(request: Request, call_next):
     response.headers["Strict-Transport-Security"] = (
         "max-age=31536000; includeSubDomains"
     )
-
-    # Allow loading fonts from any external, secure HTTPS source
-    response.headers["Content-Security-Policy"] = (
-        "default-src 'self'; "
-        "font-src 'self' https: data:; "
-        "style-src 'self' 'unsafe-inline' https:;"
-        "script-src 'self' https://static.cloudflareinsights.com; "
-        "img-src 'self' https://placecats.com data:;"
-    )
-
     response.headers["X-Frame-Options"] = "SAMEORIGIN"
     response.headers["X-Content-Type-Options"] = "nosniff"
     response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+
+    # Allow 'self' for microphone
     response.headers["Permissions-Policy"] = (
-        "geolocation=(), microphone=(), camera=()"
+        "geolocation=(), microphone=(self), camera=()"
     )
+
+    # Allow loading from external secure HTTPS source
+    response.headers["Content-Security-Policy"] = (
+        "default-src 'self';"
+        "style-src 'self' 'unsafe-inline' https:;"
+        "script-src 'self' https://static.cloudflareinsights.com;"
+        "media-src 'self' blob:;"
+        "font-src 'self' https: data:;"
+        "img-src 'self' https://placecats.com data:;"
+    )
+
     return response
 
 
