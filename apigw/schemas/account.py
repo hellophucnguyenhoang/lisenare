@@ -4,7 +4,7 @@ from sqlmodel import Field, SQLModel
 
 class LearnerAccountCreate(SQLModel):
     name: str = "The Avid Learner"
-    username: str = Field(default="qwerwert", min_length=3)
+    username: str = Field(default="abc", min_length=3)
     password: str = Field(default="12345678", min_length=8)
     email: EmailStr | None = Field(default=None)
 
