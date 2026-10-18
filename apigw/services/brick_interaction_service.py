@@ -55,6 +55,10 @@ def create_interaction(
     if commit:
         session.commit()
 
+    logger.info(
+        f"Recorded interaction '{interaction_type.value}' for brick ID: {brick_id}, "
+        f"learner ID: {learner_id}, session ID: {session_id}"
+    )
     return interaction
 
 
@@ -83,9 +87,16 @@ def handle_interaction_and_update_profile(
                 commit=True,
             )
         else:
-            logger.warning("embedding None, consider to add brick embeddings")
+            logger.warning(
+                f"Missing embedding for brick ID: {data.brick_id}, skipped profile update"
+            )
 
         return interaction
     except Exception as e:
         session.rollback()
+        logger.error(
+            f"Failed to process interaction for brick ID: {data.brick_id}, "
+            f"learner ID: {learner_id}, session ID: {data.session_id}: {e}",
+            exc_info=True,
+        )
         raise e

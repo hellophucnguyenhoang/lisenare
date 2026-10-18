@@ -1,5 +1,6 @@
 from sqlmodel import Session, select
 
+from config import logger
 from database import Learner, LearnerSetting
 from schemas import LearnerUpdate
 
@@ -33,4 +34,5 @@ def update_learner(
     session.refresh(db_learner)
     if db_learner.setting:
         session.refresh(db_learner.setting)
+    logger.info(f"Updated settings for learner ID: {db_learner.id}")
     return db_learner

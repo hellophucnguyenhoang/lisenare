@@ -4,6 +4,8 @@ from enum import Enum
 
 import matplotlib.pyplot as plt
 
+from config import logger
+
 w = [
     0.212,  # w0
     1.2931,  # w1
@@ -174,7 +176,7 @@ def sim(grades: list[Grade]) -> list[Step]:
 
     i = interval(s, desired_retention)
     steps.append(Step(t, s, d, i))
-    print(steps[-1])
+    logger.debug(f"Simulation step: {steps[-1]}")
     # n-th review
     for g in grades:
         r = retrievability(i, s)  # used to calculate loss
@@ -188,7 +190,7 @@ def sim(grades: list[Grade]) -> list[Step]:
 
         t += i
         steps.append(Step(t, s, d, i))
-        print(steps[-1])
+        logger.debug(f"Simulation step: {steps[-1]}")
     return steps
 
 

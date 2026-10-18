@@ -4,6 +4,7 @@ from zoneinfo import ZoneInfo
 from fsrs import Card
 from sqlmodel import Session, case, func, select
 
+from config import logger
 from database import BrickMemory, BrickReview
 from schemas import ReviewCreate
 from utils.db_utils import apply_time_filter
@@ -65,6 +66,10 @@ def save_review(
         BrickReview.fsrs_log_dict != {},
     )
     total_learner_reviews = session.exec(statement).one()
+    logger.info(
+        f"Saved review for brick ID: {review_create.brick_id} by learner ID: {learner_id} "
+        f"(rating: {fsrs_rating}, score: {review_create.first_score}, total_reviews: {total_learner_reviews})"
+    )
     return total_learner_reviews
 
 

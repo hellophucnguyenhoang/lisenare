@@ -38,35 +38,44 @@ def init_db():
     """
     Create the tables an insert data to them if the database does not exits.
     """
-    # Use SQLAlchemy to check if tables exist
-    inspector = inspect(engine)
-    if not inspector.has_table("brick"):
-        logger.info("Database tables not found, initializing schema...")
+    try:
+        # Use SQLAlchemy to check if tables exist
+        inspector = inspect(engine)
+        if not inspector.has_table("brick"):
+            logger.info("Database tables not found, initializing schema...")
 
-        # Enable extensions first
-        with Session(engine) as session:
-            # For LangChain semantic search
-            session.exec(text("CREATE EXTENSION IF NOT EXISTS vector;"))
+            # Enable extensions first
+            with Session(engine) as session:
+                # For LangChain semantic search
+                session.exec(text("CREATE EXTENSION IF NOT EXISTS vector;"))
 
-            # For Japanese literal search
-            session.exec(text("CREATE EXTENSION IF NOT EXISTS pgroonga;"))
+                # For Japanese literal search
+                session.exec(text("CREATE EXTENSION IF NOT EXISTS pgroonga;"))
 
-            # Make extensions available globally right now
-            session.commit()
-            logger.info("Database extensions enabled.")
+                # Make extensions available globally right now
+                session.commit()
+                logger.info("Database extensions enabled.")
 
-        # Create SQLModel tables
-        logger.info("Creating SQLModel tables...")
-        SQLModel.metadata.create_all(engine)
+            # Create SQLModel tables
+            logger.info("Creating SQLModel tables...")
+            SQLModel.metadata.create_all(engine)
 
-        # Seed data
-        with Session(engine) as session:
-            init_bricks(session)
-            session.commit()
+            # Seed data
+            with Session(engine) as session:
+                init_bricks(session)
+                session.commit()
 
-        logger.info("Data initialization complete EXCEPT brick embeddings.")
-    else:
-        logger.info("Database already initialized, skipping.")
+            logger.info(
+                "Data initialization complete EXCEPT brick embeddings."
+            )
+        else:
+            logger.info("Database already initialized, skipping.")
+    except Exception as e:
+        logger.critical(
+            f"Database connection or initialization failed: {e}",
+            exc_info=True,
+        )
+        raise
 
 
 def delete_db():

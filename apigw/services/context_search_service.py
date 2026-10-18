@@ -312,8 +312,12 @@ def add_item_to_vector_store(
     )
 
     # Add to the store
-    store.add_documents([document], ids=[doc_id])
-    logger.info(f"[{store_key}] Successfully embedded item ID: {doc_id}")
+    try:
+        store.add_documents([document], ids=[doc_id])
+        logger.info(f"[{store_key}] Successfully embedded item ID: {doc_id}")
+    except Exception as e:
+        logger.error(f"[{store_key}] Error embedding item ID {doc_id}: {e}")
+        raise
 
 
 def delete_item_from_vector_store(

@@ -5,6 +5,7 @@ from numpy.typing import NDArray
 from sqlmodel import Session
 
 from constants import SEMANTIC_EMB_DIM
+from config import logger
 from database import SessionProfile
 from schemas import InteractionType
 from utils import np_utils
@@ -195,7 +196,10 @@ def update_session_profile(
         new_item_vec=new_brick_embedding,
         interaction_type=interaction_type,
     )
-    print(f"{np.mean(updated_profile)=}")
+    logger.info(
+        f"Updated session profile vector for session_id: {session_id} "
+        f"(interaction: {interaction_type.value}, total_interactions: {profile.interaction_count})"
+    )
     profile.profile_vector = updated_profile.astype(np.float64).tobytes()
     profile.updated_at = datetime.now(timezone.utc)
     db_session.add(profile)

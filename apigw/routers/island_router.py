@@ -4,6 +4,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, File, Response, UploadFile, status
 from sqlmodel import Session
 
+from config import logger
 from database import Learner, get_session
 from exceptions import RequestException
 from schemas import (
@@ -139,7 +140,10 @@ async def import_island(
 ) -> AddIslandResult:
     try:
         content = json.loads(await file.read())
-    except Exception:
+    except Exception as e:
+        logger.warning(
+            f"Failed to parse uploaded import JSON for island {island_id}: {e}"
+        )
         raise RequestException(
             status_code=status.HTTP_400_BAD_REQUEST,
             debug_message="Invalid JSON file",
@@ -149,6 +153,9 @@ async def import_island(
         content = content["bricks"]
 
     if not isinstance(content, list):
+        logger.warning(
+            f"Uploaded import JSON for island {island_id} does not contain a list of bricks"
+        )
         raise RequestException(
             status_code=status.HTTP_400_BAD_REQUEST,
             debug_message="JSON file must contain a list of bricks",
@@ -157,6 +164,9 @@ async def import_island(
     try:
         bricks = [BrickExport.model_validate(item) for item in content]
     except Exception as e:
+        logger.warning(
+            f"Validation failed for imported bricks in island {island_id}: {e}"
+        )
         raise RequestException(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             debug_message=f"Invalid brick data: {e}",
