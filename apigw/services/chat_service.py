@@ -2,6 +2,7 @@ import json
 
 from ollama import chat
 
+from config import logger
 from redis_client import get_redis_client
 
 SESSION_EXPIRY = 3600  # 60 minutes in seconds
@@ -42,6 +43,7 @@ def generate_chat_stream(session_id: str, user_message: str):
 
     # resets the countdown every time a message is sent
     r.setex(session_key, SESSION_EXPIRY, json.dumps(messages))
+    logger.info(f"Completed chat stream for session_id: {session_id}")
 
 
 def generate_response_stream_fake(user_message: str):

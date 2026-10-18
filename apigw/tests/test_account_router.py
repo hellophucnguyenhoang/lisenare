@@ -13,9 +13,9 @@ from services import account_service, auth_service, otp_service
 
 def test_send_otp_by_username_success(client: TestClient):
     username = "hoangphuc"
-    with patch("app.services.account_service.send_email"):
+    with patch("services.account_service.send_email"):
         response = client.post(
-            "/accounts/send-otp", json={"username": username}
+            "/api/accounts/send-otp", json={"username": username}
         )
         assert response.status_code == 204
 
@@ -36,7 +36,7 @@ def test_send_otp_by_username_success(client: TestClient):
 
 def test_send_otp_account_not_found(client: TestClient):
     response = client.post(
-        "/accounts/send-otp", json={"username": "non_existent_user_9999"}
+        "/api/accounts/send-otp", json={"username": "non_existent_user_9999"}
     )
     assert response.status_code == 404
     assert response.json()["error_code"] == ErrorCode.ACCOUNT_NOT_FOUND.value
@@ -56,7 +56,7 @@ def test_send_otp_account_no_email(client: TestClient):
         session.commit()
 
         response = client.post(
-            "/accounts/send-otp", json={"username": "qwerwert"}
+            "/api/accounts/send-otp", json={"username": "qwerwert"}
         )
         assert response.status_code == 400
         assert (
@@ -83,9 +83,9 @@ def test_send_email_change_otp_success(client: TestClient):
     )
 
     new_email = "new_verified_email@example.com"
-    with patch("app.services.account_service.send_email"):
+    with patch("services.account_service.send_email"):
         response = client.post(
-            "/accounts/email/send-otp",
+            "/api/accounts/email/send-otp",
             json={
                 "old_email": "hellophucnh@gmail.com",
                 "new_email": new_email,
@@ -118,7 +118,7 @@ def test_send_email_change_otp_wrong_old_email(client: TestClient):
     )
 
     response = client.post(
-        "/accounts/email/send-otp",
+        "/api/accounts/email/send-otp",
         json={
             "old_email": "wrong_old_email@example.com",
             "new_email": "brand_new@example.com",
@@ -143,7 +143,7 @@ def test_reset_password_success(client: TestClient):
     code = otp_service.create_otp(session, account.email)
 
     response = client.post(
-        "/accounts/reset-password",
+        "/api/accounts/reset-password",
         json={
             "username": "hoangphuc",
             "new_password": "NewSecretPassword123!",
@@ -170,7 +170,7 @@ def test_reset_password_invalid_otp(client: TestClient):
     otp_service.create_otp(session, account.email)
 
     response = client.post(
-        "/accounts/reset-password",
+        "/api/accounts/reset-password",
         json={
             "username": "hoangphuc",
             "new_password": "AnotherPassword123!",
@@ -183,7 +183,7 @@ def test_reset_password_invalid_otp(client: TestClient):
 
 def test_reset_password_account_not_found(client: TestClient):
     response = client.post(
-        "/accounts/reset-password",
+        "/api/accounts/reset-password",
         json={
             "username": "non_existent_user_12345",
             "new_password": "AnotherPassword123!",
@@ -211,7 +211,7 @@ def test_change_email_success(client: TestClient):
     code = otp_service.create_otp(session, new_email)
 
     response = client.patch(
-        "/accounts/email",
+        "/api/accounts/email",
         json={
             "old_email": "hellophucnh@gmail.com",
             "new_email": new_email,
@@ -249,7 +249,7 @@ def test_change_email_wrong_old_email(client: TestClient):
     code = otp_service.create_otp(session, new_email)
 
     response = client.patch(
-        "/accounts/email",
+        "/api/accounts/email",
         json={
             "old_email": "incorrect_email@example.com",
             "new_email": new_email,
@@ -286,7 +286,7 @@ def test_change_email_taken(client: TestClient):
 
         code = otp_service.create_otp(session, "other_taken_email@example.com")
         response = client.patch(
-            "/accounts/email",
+            "/api/accounts/email",
             json={
                 "old_email": "hellophucnh@gmail.com",
                 "new_email": "other_taken_email@example.com",
@@ -319,7 +319,7 @@ def test_change_email_invalid_otp(client: TestClient):
     otp_service.create_otp(session, new_email)
 
     response = client.patch(
-        "/accounts/email",
+        "/api/accounts/email",
         json={
             "old_email": "hellophucnh@gmail.com",
             "new_email": new_email,

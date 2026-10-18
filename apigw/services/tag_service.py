@@ -1,5 +1,6 @@
 from sqlmodel import Session, col, select
 
+from config import logger
 from database import Tag, Taggable
 from utils.tag_utils import clean_tag, clean_tags
 
@@ -84,6 +85,9 @@ def set_tags_for_entity(
         )
         session.add(taggable)
 
+    logger.info(
+        f"Set {len(cleaned_tags)} tags for {entity_type} ID: {entity_id}"
+    )
     return cleaned_tags
 
 
@@ -99,3 +103,8 @@ def delete_tags_for_entity(
     ).all()
     for taggable in taggables:
         session.delete(taggable)
+
+    if taggables:
+        logger.info(
+            f"Deleted {len(taggables)} tags for {entity_type} ID: {entity_id}"
+        )

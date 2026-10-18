@@ -429,12 +429,18 @@ def create_brick(
 ) -> BrickRead:
     island = session.get(Island, request_data.island_id)
     if not island:
+        logger.warning(
+            f"Brick creation failed: Island ID {request_data.island_id} not found"
+        )
         raise RequestException(
             status_code=status.HTTP_404_NOT_FOUND,
             debug_message=f"Island with id {request_data.island_id} not found",
         )
 
     if island.creator_id != creator_id:
+        logger.warning(
+            f"Brick creation forbidden: creator_id: {creator_id} is not owner of island {request_data.island_id}"
+        )
         raise RequestException(
             status_code=status.HTTP_403_FORBIDDEN,
             debug_message=f"{creator_id=} is not the creator of island {request_data.island_id}",
@@ -468,6 +474,9 @@ def create_brick(
 
     session.commit()
     session.refresh(brick)
+    logger.info(
+        f"Created brick ID: {brick.id} in island ID: {island.id} for creator_id: {creator_id}"
+    )
 
     cs_service.add_item_to_vector_store(
         search_service=cs_service.search_service,
@@ -495,6 +504,7 @@ def update_brick(
     stmt = select(Brick).where(Brick.id == brick_id)
     brick = session.exec(stmt).first()
     if not brick:
+        logger.warning(f"Brick update failed: brick_id: {brick_id} not found")
         raise RequestException(
             status_code=status.HTTP_404_NOT_FOUND,
             debug_message=f"{brick_id=} not found",
@@ -505,6 +515,9 @@ def update_brick(
     )
 
     if brick.creator_id != creator_id:
+        logger.warning(
+            f"Brick update forbidden: creator_id: {creator_id} is not owner of brick_id: {brick_id}"
+        )
         raise RequestException(
             status_code=status.HTTP_403_FORBIDDEN,
             debug_message=f"{creator_id=} is not the creator to update {brick_id=}",
@@ -536,6 +549,7 @@ def update_brick(
 
     session.commit()
     session.refresh(brick)
+    logger.info(f"Updated brick ID: {brick_id} for creator_id: {creator_id}")
 
     if target_audio_path:
         audio_cache_service.clear_brick_audio_cache(brick_id)
@@ -546,12 +560,16 @@ def update_brick(
 def delete_brick(session: Session, creator_id: int, brick_id: int) -> str:
     brick = session.get(Brick, brick_id)
     if not brick:
+        logger.warning(f"Brick delete failed: brick_id: {brick_id} not found")
         raise RequestException(
             status_code=status.HTTP_404_NOT_FOUND,
             debug_message=f"{brick_id=} not found",
         )
 
     if brick.creator_id != creator_id:
+        logger.warning(
+            f"Brick delete forbidden: creator_id: {creator_id} is not owner of brick_id: {brick_id}"
+        )
         raise RequestException(
             status_code=status.HTTP_403_FORBIDDEN,
             debug_message=f"{creator_id=} is not the creator to delete {brick_id=}",
@@ -567,6 +585,7 @@ def delete_brick(session: Session, creator_id: int, brick_id: int) -> str:
     delete_tags_for_entity(session, brick_id, "Brick")
     session.delete(brick)
     session.commit()
+    logger.info(f"Deleted brick ID: {brick_id} for creator_id: {creator_id}")
 
     audio_cache_service.clear_brick_audio_cache(brick_id)
 
@@ -582,6 +601,9 @@ def add_brick_from(
     """Copy a public brick into the learner's island."""
     source = session.get(Brick, source_brick_id)
     if not source:
+        logger.warning(
+            f"Add brick failed: source brick {source_brick_id} not found"
+        )
         raise RequestException(
             status_code=status.HTTP_404_NOT_FOUND,
             debug_message=f"Brick {source_brick_id} not found",
@@ -589,6 +611,9 @@ def add_brick_from(
 
     # Must be public or owned by the learner
     if source.is_private and source.creator_id != learner_id:
+        logger.warning(
+            f"Add brick forbidden: brick {source_brick_id} is private and not owned by learner_id: {learner_id}"
+        )
         raise RequestException(
             status_code=status.HTTP_403_FORBIDDEN,
             debug_message="Cannot add a private brick from another learner",
@@ -597,6 +622,9 @@ def add_brick_from(
     # Target island must belong to the learner
     island = session.get(Island, island_id)
     if not island or island.creator_id != learner_id:
+        logger.warning(
+            f"Add brick failed: target island {island_id} not found or not owned by learner_id: {learner_id}"
+        )
         raise RequestException(
             status_code=status.HTTP_404_NOT_FOUND,
             debug_message=f"Island {island_id} not found",
@@ -604,6 +632,9 @@ def add_brick_from(
 
     # Check for duplicate
     if check_brick_exists(session, learner_id, source.target_text):
+        logger.warning(
+            f"Add brick conflict: duplicate target text for learner_id: {learner_id}"
+        )
         raise RequestException(
             status_code=status.HTTP_409_CONFLICT,
             debug_message="You already have a brick with this target text",
@@ -624,6 +655,10 @@ def add_brick_from(
     session.add(brick)
     session.commit()
     session.refresh(brick)
+    logger.info(
+        f"Copied brick ID: {source_brick_id} to new brick ID: {brick.id} "
+        f"in island ID: {island_id} for learner_id: {learner_id}"
+    )
 
     cs_service.add_item_to_vector_store(
         search_service=cs_service.search_service,
@@ -650,6 +685,9 @@ def add_bricks_from_island(
     """Copy all public bricks from another learner's island."""
     source_island = session.get(Island, source_island_id)
     if not source_island:
+        logger.warning(
+            f"Add bricks from island failed: source island {source_island_id} not found"
+        )
         raise RequestException(
             status_code=status.HTTP_404_NOT_FOUND,
             debug_message=f"Source island {source_island_id} not found",
@@ -658,6 +696,9 @@ def add_bricks_from_island(
     # Target island must belong to the learner
     target_island = session.get(Island, target_island_id)
     if not target_island or target_island.creator_id != learner_id:
+        logger.warning(
+            f"Add bricks from island failed: target island {target_island_id} not found or not owned by learner_id: {learner_id}"
+        )
         raise RequestException(
             status_code=status.HTTP_404_NOT_FOUND,
             debug_message=f"Target island {target_island_id} not found",
@@ -694,6 +735,10 @@ def add_bricks_from_island(
         added += 1
 
     session.commit()
+    logger.info(
+        f"Copied bricks from island ID: {source_island_id} to island ID: {target_island_id} "
+        f"for learner_id: {learner_id} (added: {added}, skipped: {skipped})"
+    )
     return {"added": added, "skipped": skipped}
 
 
@@ -705,6 +750,7 @@ def report_brick(
 ) -> None:
     brick = session.get(Brick, brick_id)
     if not brick:
+        logger.warning(f"Report brick failed: brick_id: {brick_id} not found")
         raise RequestException(
             status_code=status.HTTP_404_NOT_FOUND,
             debug_message=f"Brick with id {brick_id} not found",
@@ -717,6 +763,9 @@ def report_brick(
     )
     session.add(report)
     session.commit()
+    logger.info(
+        f"Learner ID {learner_id} reported brick ID: {brick_id} (reason: '{reason}')"
+    )
 
 
 def forget_brick(
@@ -726,6 +775,7 @@ def forget_brick(
 ) -> None:
     brick = session.get(Brick, brick_id)
     if not brick:
+        logger.warning(f"Forget brick failed: brick_id: {brick_id} not found")
         raise RequestException(
             status_code=status.HTTP_404_NOT_FOUND,
             debug_message=f"Brick with id {brick_id} not found",
@@ -767,3 +817,6 @@ def forget_brick(
         session.delete(interaction)
 
     session.commit()
+    logger.info(
+        f"Reset memory and review history for brick ID: {brick_id} and learner_id: {learner_id}"
+    )

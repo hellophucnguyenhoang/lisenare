@@ -4,6 +4,7 @@ from datetime import datetime, timezone
 from fastapi import status
 from sqlmodel import Session, col, func, select
 
+from config import logger
 from database import Brick, BrickMemory, BrickReview, Island
 from exceptions import ErrorCode, RequestException
 from schemas import (
@@ -31,6 +32,9 @@ def create_island(
 ) -> tuple[Island, list[str]]:
     cleaned_name = island_create.name.strip()
     if not cleaned_name:
+        logger.warning(
+            f"Failed to create island: empty name for creator_id: {creator_id}"
+        )
         raise RequestException(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             debug_message="Island name cannot be empty",
@@ -41,6 +45,9 @@ def create_island(
         Island.name == cleaned_name,
     )
     if session.exec(existing_stmt).first():
+        logger.warning(
+            f"Failed to create island: '{cleaned_name}' already exists for creator_id: {creator_id}"
+        )
         raise RequestException(
             status_code=status.HTTP_409_CONFLICT,
             debug_message=f"Island named '{cleaned_name}' already exists for this learner",
@@ -67,6 +74,9 @@ def create_island(
 
     session.commit()
     session.refresh(island)
+    logger.info(
+        f"Created island '{island.name}' (ID: {island.id}) for creator_id: {creator_id}"
+    )
 
     return island, tags
 
@@ -147,12 +157,18 @@ def delete_island(
 ) -> str:
     island = session.get(Island, island_id)
     if not island:
+        logger.warning(
+            f"Island delete failed: island_id: {island_id} not found"
+        )
         raise RequestException(
             status_code=status.HTTP_404_NOT_FOUND,
             debug_message=f"{island_id=} not found",
         )
 
     if island.creator_id != creator_id:
+        logger.warning(
+            f"Island delete forbidden: creator_id: {creator_id} is not creator of island_id: {island_id}"
+        )
         raise RequestException(
             status_code=status.HTTP_403_FORBIDDEN,
             debug_message=f"{creator_id=} is not the creator to delete {island_id=}",
@@ -161,6 +177,7 @@ def delete_island(
     delete_tags_for_entity(session, island_id, "Island")
     session.delete(island)
     session.commit()
+    logger.info(f"Deleted island ID: {island_id} for creator_id: {creator_id}")
 
     return "COLLECTION_DELETED"
 
@@ -173,12 +190,18 @@ def update_island(
 ) -> tuple[Island, int, int, list[str]]:
     island = session.get(Island, island_id)
     if not island:
+        logger.warning(
+            f"Island update failed: island_id: {island_id} not found"
+        )
         raise RequestException(
             status_code=status.HTTP_404_NOT_FOUND,
             debug_message=f"{island_id=} not found",
         )
 
     if island.creator_id != creator_id:
+        logger.warning(
+            f"Island update forbidden: creator_id: {creator_id} is not creator of island_id: {island_id}"
+        )
         raise RequestException(
             status_code=status.HTTP_403_FORBIDDEN,
             debug_message=f"{creator_id=} not the creator to edit {island_id=}",
@@ -187,6 +210,9 @@ def update_island(
     if island_update.name is not None:
         cleaned_name = island_update.name.strip()
         if not cleaned_name:
+            logger.warning(
+                f"Island update failed: empty new name for island_id: {island_id}"
+            )
             raise RequestException(
                 status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                 debug_message="New island name is empty",
@@ -198,6 +224,9 @@ def update_island(
             Island.id != island_id,
         )
         if session.exec(existing_stmt).first():
+            logger.warning(
+                f"Island update conflict: name '{cleaned_name}' already exists for creator_id: {creator_id}"
+            )
             raise RequestException(
                 status_code=status.HTTP_409_CONFLICT,
                 debug_message=f"Island named '{cleaned_name}' already exists for this learner",
@@ -243,6 +272,7 @@ def update_island(
         or 0
     )
 
+    logger.info(f"Updated island ID: {island_id} for creator_id: {creator_id}")
     return island, brick_count, learned_count, tags
 
 
@@ -270,6 +300,9 @@ def export_island(
 ) -> list[BrickExport]:
     island = session.get(Island, island_id)
     if not island:
+        logger.warning(
+            f"Island export failed: island_id: {island_id} not found"
+        )
         raise RequestException(
             status_code=status.HTTP_404_NOT_FOUND,
             debug_message=f"Island {island_id} not found",
@@ -281,6 +314,9 @@ def export_island(
 
     bricks = session.exec(stmt).all()
     if not bricks:
+        logger.info(
+            f"Exported empty island ID: {island_id} for learner_id: {learner_id}"
+        )
         return []
 
     brick_ids = [b.id for b in bricks if b.id is not None]
@@ -351,6 +387,9 @@ def export_island(
             )
         )
 
+    logger.info(
+        f"Exported island ID: {island_id} ({len(result)} bricks) for learner_id: {learner_id}"
+    )
     return result
 
 
@@ -362,12 +401,18 @@ def import_island(
 ) -> AddIslandResult:
     island = session.get(Island, island_id)
     if not island:
+        logger.warning(
+            f"Island import failed: island_id: {island_id} not found"
+        )
         raise RequestException(
             status_code=status.HTTP_404_NOT_FOUND,
             debug_message=f"Island {island_id} not found",
         )
 
     if island.creator_id != learner_id:
+        logger.warning(
+            f"Island import forbidden: learner_id: {learner_id} is not creator of island_id: {island_id}"
+        )
         raise RequestException(
             status_code=status.HTTP_403_FORBIDDEN,
             debug_message=f"{learner_id=} is not the creator of island {island_id}",
@@ -441,4 +486,7 @@ def import_island(
         added += 1
 
     session.commit()
+    logger.info(
+        f"Imported island ID: {island_id} for learner_id: {learner_id} (added: {added}, skipped: {skipped})"
+    )
     return AddIslandResult(added=added, skipped=skipped)

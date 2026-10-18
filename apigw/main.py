@@ -1,6 +1,6 @@
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.openapi.utils import get_openapi
 from fastapi.responses import JSONResponse
@@ -11,6 +11,7 @@ import cloud_storage_client
 import database
 import http_client
 import redis_client
+from config import logger
 from constants import ASSETS_DIR
 from exceptions import RequestException
 from routers import (
@@ -35,19 +36,23 @@ from utils.form_utils import get_model_example_string
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Startup code
+    logger.info("Initializing Lisenare API services...")
     database.init_db()
     http_client.init_client()
     await http_client.init_async_client()
     redis_client.init_redis_client()
     cloud_storage_client.init_s3_client()
     audio_scheduler = audio_cache_service.start_audio_cleanup_scheduler()
+    logger.info("Lisenare API services initialized successfully.")
     yield
     # Shutdown code
+    logger.info("Shutting down Lisenare API services...")
     audio_cache_service.stop_audio_cleanup_scheduler(audio_scheduler)
     redis_client.close_redis_client()
     # database.delete_db_force()
     http_client.close_client()
     await http_client.close_async_client()
+    logger.info("Lisenare API services shut down successfully.")
 
 
 app = FastAPI(title="Lisenare API", lifespan=lifespan)
@@ -55,7 +60,15 @@ app = FastAPI(title="Lisenare API", lifespan=lifespan)
 
 # Unified exception response structure
 @app.exception_handler(RequestException)
-async def request_exception_handler(request, exc: RequestException):
+async def request_exception_handler(request: Request, exc: RequestException):
+    if exc.status_code >= 500:
+        logger.error(
+            f"Server error ({exc.status_code}) on {request.method} {request.url.path}: {exc.detail}"
+        )
+    else:
+        logger.warning(
+            f"Client error ({exc.status_code}) on {request.method} {request.url.path}: {exc.detail}"
+        )
     return JSONResponse(
         status_code=exc.status_code,
         content=exc.detail,
@@ -66,7 +79,17 @@ async def request_exception_handler(request, exc: RequestException):
 # Override the default system exception
 # to keep the response structure consistent
 @app.exception_handler(StarletteHTTPException)
-async def http_exception_handler(request, exc: StarletteHTTPException):
+async def http_exception_handler(
+    request: Request, exc: StarletteHTTPException
+):
+    if exc.status_code >= 500:
+        logger.error(
+            f"HTTP error ({exc.status_code}) on {request.method} {request.url.path}: {exc.detail}"
+        )
+    else:
+        logger.warning(
+            f"HTTP client error ({exc.status_code}) on {request.method} {request.url.path}: {exc.detail}"
+        )
     return JSONResponse(
         status_code=exc.status_code,
         content={"debug_message": exc.detail, "error_code": None},

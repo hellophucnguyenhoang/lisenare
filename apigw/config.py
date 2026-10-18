@@ -17,7 +17,9 @@ LOG_DIR.mkdir(parents=True, exist_ok=True)
 
 logger = logging.getLogger("apigw")
 logger.setLevel(logging.INFO)
-logger.propagate = False  # prevent propagate to the system logger
+
+# prevent propagate to the system logger, application logs only
+logger.propagate = False
 
 
 file_handler = logging.FileHandler(LOG_FILE_PATH, encoding="utf-8")

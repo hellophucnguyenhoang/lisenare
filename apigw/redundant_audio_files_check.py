@@ -3,6 +3,8 @@ from pathlib import Path
 
 import pandas as pd
 
+from config import logger
+
 # Paths
 CSV_PATH = Path("bricks-metadata.csv")
 AUDIO_DIR = Path("lisenare-assets/system-brick-audios")
@@ -25,19 +27,19 @@ missing_files = csv_audio_files - folder_audio_files
 # Files in folder but not referenced by CSV
 redundant_files = folder_audio_files - csv_audio_files
 
-# Print summary
-print(f"Audio files in CSV:       {len(csv_audio_files)}")
-print(f"Audio files in folder:    {len(folder_audio_files)}")
-print(f"Missing audio files:      {len(missing_files)}")
-print(f"Redundant audio files:    {len(redundant_files)}")
+# Log summary
+logger.info(f"Audio files in CSV:       {len(csv_audio_files)}")
+logger.info(f"Audio files in folder:    {len(folder_audio_files)}")
+logger.info(f"Missing audio files:      {len(missing_files)}")
+logger.info(f"Redundant audio files:    {len(redundant_files)}")
 
-# Print missing files
+# Log missing files
 if missing_files:
-    print("Missing audio files:")
+    logger.warning("Missing audio files:")
     for filename in sorted(missing_files):
-        print(f"  {filename}")
+        logger.warning(f"  {filename}")
 else:
-    print("No missing audio files.")
+    logger.info("No missing audio files.")
 
 # Move redundant files
 if redundant_files:
@@ -49,7 +51,8 @@ if redundant_files:
 
         shutil.move(str(source), str(destination))
 
-    print(f"Moved {len(redundant_files)} redundant files to:")
-    print(f"  {REDUNDANT_DIR}")
+    logger.info(
+        f"Moved {len(redundant_files)} redundant files to: {REDUNDANT_DIR}"
+    )
 else:
-    print("No redundant audio files.")
+    logger.info("No redundant audio files.")

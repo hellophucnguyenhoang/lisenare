@@ -11,7 +11,7 @@ from fastapi.security import OAuth2PasswordRequestForm
 from sqlmodel import Session
 
 import security
-from config import settings
+from config import logger, settings
 from database import get_session
 from schemas import Token
 from services import auth_service
@@ -36,6 +36,9 @@ def login_for_access_token(
     data = {"sub": str(account.learner_id), "username": account.username}
     access_token = security.create_access_token(data=data)
     security.set_access_token(response, access_token)
+    logger.info(
+        f"User login successful for username: '{account.username}' (learner_id: {account.learner_id})"
+    )
     return Token(access_token=access_token)
 
 
@@ -47,4 +50,5 @@ def logout(response: Response):
         secure=settings.secured_connection,
         samesite="lax",
     )
+    logger.info("User logout completed, access_token cookie removed")
     return {"message": "Successfully logged out"}

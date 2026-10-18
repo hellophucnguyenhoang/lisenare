@@ -32,10 +32,14 @@ def get_s3_client():
 
 def download_file(s3_key: str, local_path: Path):
     """Download a file from cloud storage to local_path."""
-    s3 = get_s3_client()
-    local_path.parent.mkdir(parents=True, exist_ok=True)
-    s3.download_file(settings.bucket_name, s3_key, str(local_path))
-    logger.info(f"Downloaded '{s3_key}' to '{local_path}'")
+    try:
+        s3 = get_s3_client()
+        local_path.parent.mkdir(parents=True, exist_ok=True)
+        s3.download_file(settings.bucket_name, s3_key, str(local_path))
+        logger.info(f"Downloaded '{s3_key}' to '{local_path}'")
+    except Exception as e:
+        logger.error(f"Failed to download '{s3_key}' from cloud storage: {e}")
+        raise
 
 
 def upload_bytes(
@@ -44,14 +48,18 @@ def upload_bytes(
     content_type: str = "audio/wav",
 ):
     """Upload bytes directly to cloud storage at s3_key."""
-    s3 = get_s3_client()
-    s3.put_object(
-        Bucket=settings.bucket_name,
-        Key=s3_key,
-        Body=content,
-        ContentType=content_type,
-    )
-    logger.info(f"Uploaded bytes to cloud storage '{s3_key}'")
+    try:
+        s3 = get_s3_client()
+        s3.put_object(
+            Bucket=settings.bucket_name,
+            Key=s3_key,
+            Body=content,
+            ContentType=content_type,
+        )
+        logger.info(f"Uploaded bytes to cloud storage '{s3_key}'")
+    except Exception as e:
+        logger.error(f"Failed to upload bytes to '{s3_key}': {e}")
+        raise
 
 
 def upload_file(
@@ -60,11 +68,15 @@ def upload_file(
     content_type: str = "audio/wav",
 ):
     """Upload a local file to cloud storage at s3_key."""
-    s3 = get_s3_client()
-    s3.upload_file(
-        str(local_path),
-        settings.bucket_name,
-        s3_key,
-        ExtraArgs={"ContentType": content_type},
-    )
-    logger.info(f"Uploaded '{local_path}' to '{s3_key}'")
+    try:
+        s3 = get_s3_client()
+        s3.upload_file(
+            str(local_path),
+            settings.bucket_name,
+            s3_key,
+            ExtraArgs={"ContentType": content_type},
+        )
+        logger.info(f"Uploaded '{local_path}' to '{s3_key}'")
+    except Exception as e:
+        logger.error(f"Failed to upload '{local_path}' to '{s3_key}': {e}")
+        raise
