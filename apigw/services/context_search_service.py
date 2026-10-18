@@ -51,7 +51,10 @@ class ContextSearchService:
         store = self.stores[collection_name]
         if mmr:
             return store.max_marginal_relevance_search(
-                query, k=10, fetch_k=20, lambda_mult=0.5
+                query,
+                k=10,
+                fetch_k=20,
+                lambda_mult=0.5,
             )
         return store.similarity_search(query, k=10)
 
@@ -98,7 +101,8 @@ class ContextSearchService:
             return []
 
         stmt = select(Brick.id, Brick.creator_id).where(
-            Brick.id.in_(candidate_ids), or_(*filters)
+            Brick.id.in_(candidate_ids),
+            or_(*filters),
         )
         if kind:
             stmt = stmt.where(Brick.kind == kind)
@@ -127,7 +131,6 @@ class ContextSearchService:
         return combined[offset : offset + limit]
 
     def get_embedding(self, session: Session, brick_id: int) -> NDArray | None:
-
         doc_id = f"Brick_{brick_id}"
 
         query = text("""
