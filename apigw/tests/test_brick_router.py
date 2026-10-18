@@ -1,3 +1,4 @@
+from datetime import datetime, timedelta, timezone
 import io
 import json
 from unittest.mock import MagicMock, patch
@@ -887,3 +888,178 @@ def test_get_listening_bricks_returns_full_audio_url(client: TestClient):
             assert mock_get_audio.called
         finally:
             app.dependency_overrides.clear()
+
+
+def test_get_next_brick_prefers_shared_tags(client: TestClient):
+    learner_id = 501
+    with Session(engine) as session:
+        learner = session.get(Learner, learner_id)
+        if not learner:
+            learner = Learner(
+                id=learner_id,
+                name="TagLearner",
+                setting=LearnerSetting(retrieval_lang="en"),
+            )
+            session.add(learner)
+
+        island = Island(name="TagIsland", creator_id=learner_id)
+        session.add(island)
+        session.flush()
+
+        b1 = Brick(
+            native_text="N1",
+            target_text="Shared Tag Learned Brick",
+            target_audio_path="p1",
+            target_lang="en",
+            kind="word",
+            is_private=True,
+            creator_id=learner_id,
+            island_id=island.id,
+        )
+        b2 = Brick(
+            native_text="N2",
+            target_text="Shared Tag Unlearned Brick",
+            target_audio_path="p2",
+            target_lang="en",
+            kind="word",
+            is_private=True,
+            creator_id=learner_id,
+            island_id=island.id,
+        )
+        b3 = Brick(
+            native_text="N3",
+            target_text="Different Tag Brick",
+            target_audio_path="p3",
+            target_lang="en",
+            kind="word",
+            is_private=True,
+            creator_id=learner_id,
+            island_id=island.id,
+        )
+        session.add_all([b1, b2, b3])
+        session.flush()
+
+        from services.tag_service import set_tags_for_entity
+
+        set_tags_for_entity(session, b1.id, "Brick", ["commontag"], learner_id)
+        set_tags_for_entity(session, b2.id, "Brick", ["commontag"], learner_id)
+        set_tags_for_entity(session, b3.id, "Brick", ["uniquetag"], learner_id)
+
+        # Mark b1 as learned in BrickMemory with future due date (so it's not due for review)
+        mem = BrickMemory(
+            learner_id=learner_id,
+            brick_id=b1.id,
+            due=datetime.now(timezone.utc) + timedelta(days=5),
+        )
+        session.add(mem)
+        session.commit()
+        b2_id = b2.id
+        created_brick_ids = [b1.id, b2.id, b3.id]
+        island_id = island.id
+
+    app.dependency_overrides[auth_service.decode_token_get_learner] = lambda: (
+        Learner(id=learner_id, setting=LearnerSetting(retrieval_lang="en"))
+    )
+    try:
+        response = client.get("/api/bricks/next")
+        assert response.status_code == 200
+        data = response.json()
+        assert data is not None
+        # It must prefer b2 because b2 shares 'commontag' with learned b1
+        assert data["id"] == b2_id
+        assert "commontag" in data["tags"]
+    finally:
+        app.dependency_overrides.clear()
+        with Session(engine) as session:
+            for bid in created_brick_ids:
+                b = session.get(Brick, bid)
+                if b:
+                    session.delete(b)
+            isl = session.get(Island, island_id)
+            if isl:
+                session.delete(isl)
+            lrn = session.get(Learner, learner_id)
+            if lrn:
+                session.delete(lrn)
+            session.commit()
+
+
+def test_get_next_brick_prefers_shorter_target_text_when_no_shared_tags(
+    client: TestClient,
+):
+    learner_id = 502
+    created_brick_ids = []
+    island_id = None
+    with Session(engine) as session:
+        learner = session.get(Learner, learner_id)
+        if not learner:
+            learner = Learner(
+                id=learner_id,
+                name="ShortLearner",
+                setting=LearnerSetting(retrieval_lang="en"),
+            )
+            session.add(learner)
+
+        island = Island(name="ShortIsland", creator_id=learner_id)
+        session.add(island)
+        session.flush()
+        island_id = island.id
+
+        # Add 1 very short brick and 15 long bricks
+        short_brick = Brick(
+            native_text="N_short",
+            target_text="Hi",
+            target_audio_path="p_short",
+            target_lang="en",
+            kind="word",
+            is_private=True,
+            creator_id=learner_id,
+            island_id=island.id,
+        )
+        session.add(short_brick)
+        session.flush()
+        created_brick_ids.append(short_brick.id)
+
+        for i in range(15):
+            long_brick = Brick(
+                native_text=f"N_long_{i}",
+                target_text=f"This is an exceptionally long and complicated sentence number {i} designed to test length preference",
+                target_audio_path=f"p_long_{i}",
+                target_lang="en",
+                kind="sentence",
+                is_private=True,
+                creator_id=learner_id,
+                island_id=island.id,
+            )
+            session.add(long_brick)
+            session.flush()
+            created_brick_ids.append(long_brick.id)
+
+        session.commit()
+        short_brick_id = short_brick.id
+
+    app.dependency_overrides[auth_service.decode_token_get_learner] = lambda: (
+        Learner(id=learner_id, setting=LearnerSetting(retrieval_lang="en"))
+    )
+    try:
+        response = client.get("/api/bricks/next")
+        assert response.status_code == 200
+        data = response.json()
+        assert data is not None
+        assert data["id"] == short_brick_id
+        assert data["target_text"] == "Hi"
+    finally:
+        app.dependency_overrides.clear()
+        with Session(engine) as session:
+            for bid in created_brick_ids:
+                b = session.get(Brick, bid)
+                if b:
+                    session.delete(b)
+            if island_id:
+                isl = session.get(Island, island_id)
+                if isl:
+                    session.delete(isl)
+            lrn = session.get(Learner, learner_id)
+            if lrn:
+                session.delete(lrn)
+            session.commit()

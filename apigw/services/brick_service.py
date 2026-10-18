@@ -385,21 +385,45 @@ def get_next_brick(
         return BrickRead.model_validate(brick, update={"tags": tags})
 
     logger.info("FSRS Case 2: Get a new card")
-    new_stmt = (
-        select(Brick)
-        .where(
-            Brick.creator_id == creator_id,
-            Brick.id.not_in(
-                select(BrickMemory.brick_id).where(
-                    BrickMemory.learner_id == creator_id
-                )
-            ),
-        )
-        .order_by(func.random())
+    base_new_stmt = select(Brick).where(
+        Brick.creator_id == creator_id,
+        Brick.id.not_in(
+            select(BrickMemory.brick_id).where(
+                BrickMemory.learner_id == creator_id
+            )
+        ),
+    )
+    base_new_stmt = apply_filters(base_new_stmt)
+
+    # 1. Prefer new bricks that share tags with already learned bricks
+    learned_tag_ids = select(Taggable.tag_id).where(
+        Taggable.taggable_type == "Brick",
+        Taggable.taggable_id.in_(
+            select(BrickMemory.brick_id).where(
+                BrickMemory.learner_id == creator_id
+            )
+        ),
     )
 
-    new_stmt = apply_filters(new_stmt)
-    brick = session.exec(new_stmt).first()
+    shared_tag_stmt = base_new_stmt.where(
+        Brick.id.in_(
+            select(Taggable.taggable_id).where(
+                Taggable.taggable_type == "Brick",
+                Taggable.tag_id.in_(learned_tag_ids),
+            )
+        )
+    ).order_by(func.random())
+
+    brick = session.exec(shared_tag_stmt).first()
+
+    # 2. Fallback: prefer shorter target_texts if no shared-tag bricks exist
+    if not brick:
+        fallback_stmt = base_new_stmt.order_by(
+            func.length(Brick.target_text).asc(),
+            func.random(),
+        )
+        brick = session.exec(fallback_stmt).first()
+
     if brick:
         tags = fetch_tags_for_entity(session, brick.id, "Brick")
         return BrickRead.model_validate(brick, update={"tags": tags})
