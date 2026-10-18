@@ -32,7 +32,10 @@ dependencies = [
     "pytest>=9.0.2",
     "python-dotenv>=1.2.1",
     "python-multipart>=0.0.20",
+    "reazonspeech-k2-asr",
     "sentence-transformers>=5.1.2",
+    "sherpa-onnx>=1.13.8",
+    "sherpa-onnx-bin>=1.13.8",
     "soundfile>=0.13.1",
     "spacy>=3.8.9",
     "sqlmodel>=0.0.27",
@@ -74,6 +77,7 @@ torchaudio = [
     { index = "pytorch-cpu", extra = "cpu" },
     { index = "pytorch-cu128", extra = "cu128" },
 ]
+reazonspeech-k2-asr = { workspace = true }
 
 [[tool.uv.index]]
 name = "pytorch-cpu"
@@ -84,6 +88,11 @@ explicit = true
 name = "pytorch-cu128"
 url = "https://download.pytorch.org/whl/cu128"
 explicit = true
+
+[tool.uv.workspace]
+members = [
+    "ReazonSpeech/pkg/k2-asr",
+]
 
 [tool.ruff]
 line-length = 79

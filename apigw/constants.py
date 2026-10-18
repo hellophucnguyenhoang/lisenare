@@ -3,7 +3,7 @@ from pathlib import Path
 CONTEXT_MAX_CHARS = 500
 MAX_PATH_LEN = 512
 OTP_EXPIRE_MINUTES = 5
-SEMANTIC_EMB_DIM = 384  # all-MiniLM-L6-v2
+SEMANTIC_EMB_DIM = 384
 
 ASSETS_DIR = Path("lisenare-assets")
 LEARNER_AUDIOS_DIR = Path("learner-audios")

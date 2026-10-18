@@ -9,6 +9,15 @@ import requests
 import torch
 import torchaudio
 from fastapi import UploadFile
+from reazonspeech.k2.asr import (
+    audio_from_numpy,
+)
+from reazonspeech.k2.asr import (
+    load_model as load_ja_model,
+)
+from reazonspeech.k2.asr import (
+    transcribe as transcribe_ja,
+)
 from transformers import (
     AutoModelForSpeechSeq2Seq,
     AutoProcessor,
@@ -71,7 +80,23 @@ class TranscriptionService:
             device=self.device,
         )
 
-    async def transcribe(self, audio_data: np.ndarray) -> str:
+        self.ja_model = load_ja_model(
+            device=self.device.type,
+            precision="fp32",
+            language="ja",
+        )
+        logger.info(f"ReazonSpeech k2 ja model loaded with {self.device.type}")
+
+    async def transcribe(
+        self,
+        audio_data: np.ndarray,
+        lang: str = "en",
+    ) -> str:
+        if lang == "ja":
+            audio = audio_from_numpy(audio_data, samplerate=16000)
+            result = transcribe_ja(self.ja_model, audio)
+            return result.text
+
         result = self.pipe(audio_data)
         return result["text"]
 

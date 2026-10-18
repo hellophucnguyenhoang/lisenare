@@ -16,9 +16,12 @@ router = APIRouter(prefix="/audio", tags=["Audio Features"])
 
 
 @router.post("/transcripts")
-async def transcribe_audio(file: UploadFile) -> STTResponse:
+async def transcribe_audio(
+    file: UploadFile,
+    lang: str = "en",
+) -> STTResponse:
     audio_data = await preprocess_upload_file(file)
-    transcript = await transcription_service.transcribe(audio_data)
+    transcript = await transcription_service.transcribe(audio_data, lang=lang)
     return STTResponse(transcript=transcript)
 
 
