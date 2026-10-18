@@ -67,6 +67,8 @@ def get_sentence_familiarity(
     sentence: str = Body(),
 ) -> float:
     result = brick_memory_service.calculate_sentence_familiarity(
-        session, 2, sentence
+        session,
+        2,
+        sentence,
     )
     return result

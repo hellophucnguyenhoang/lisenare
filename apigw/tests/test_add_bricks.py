@@ -405,7 +405,10 @@ def test_get_brick_detail_public_from_another_learner_success(
         owner = _ensure_learner(session, 33, "PublicCreator")
         owner_col = _ensure_island(session, owner.id, "Public Col Name")
         public_brick = _create_public_brick(
-            session, owner.id, owner_col.id, "Public detail sentence test"
+            session,
+            owner.id,
+            owner_col.id,
+            "Public detail sentence test",
         )
         brick_id = public_brick.id
 
@@ -439,7 +442,10 @@ def test_search_bricks_lightweight_without_creator_name(client: TestClient):
         owner = _ensure_learner(session, 35, "SearchOwner")
         owner_col = _ensure_island(session, owner.id, "Search Col")
         _create_public_brick(
-            session, owner.id, owner_col.id, "Zebra unique search target"
+            session,
+            owner.id,
+            owner_col.id,
+            "Zebra unique search target",
         )
 
         with patch.object(

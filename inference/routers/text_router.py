@@ -34,7 +34,8 @@ def compare(
     sentence_compare_req: SentenceCompareRequest,
 ) -> SentenceCompareResponse:
     score = text_service.get_similarity(
-        sentence_compare_req.sentence1, sentence_compare_req.sentence2
+        sentence_compare_req.sentence1,
+        sentence_compare_req.sentence2,
     )
     sentence_compare_res = SentenceCompareResponse(score=score)
     sentence_compare_res.correct = score >= sentence_compare_res.threshold
