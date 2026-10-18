@@ -25,10 +25,13 @@ class TextService:
         # Determine device (GPU if available, else CPU)
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
 
-        # 1. Load Similarity Model
-        # sentence-transformers/paraphrase-multilingual-mpnet-base-v2 (768 dim)
-        self.similarity_model = SentenceTransformer(
-            "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2",  # (384 dim)
+        # 1. Load Similarity Models
+        self.similarity_model_en = SentenceTransformer(
+            "sentence-transformers/all-MiniLM-L6-v2",  # (384 dim)
+            device=self.device,
+        )
+        self.similarity_model_ja = SentenceTransformer(
+            "cl-nagoya/ruri-v3-70m",  # (384 dim)
             device=self.device,
         )
 
@@ -57,8 +60,14 @@ class TextService:
         # 6. pykakasi for Japanese phonetic/romaji conversion
         self.kks = pykakasi.kakasi()
 
-    def get_similarity(self, s1: str, s2: str) -> float:
+    def get_similarity(self, s1: str, s2: str, lang: str = "en") -> float:
         """Computes semantic similarity score between two sentences."""
+        model = (
+            self.similarity_model_ja
+            if lang == "ja"
+            else self.similarity_model_en
+        )
+
         # Create a translation table that maps all punctuation to None
         translator = str.maketrans("", "", string.punctuation)
 
@@ -67,7 +76,7 @@ class TextService:
         s2_clean = s2.translate(translator)
 
         # Process cleaned strings
-        embeddings = self.similarity_model.encode(
+        embeddings = model.encode(
             [s1_clean, s2_clean],
             convert_to_tensor=True,
         )
