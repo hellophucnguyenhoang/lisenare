@@ -54,7 +54,7 @@ from .learning_card import (
     LearningTimeSeries,
     TimeSeriesPoint,
 )
-from .review import ReviewBase, ReviewCreate
+from .review import ReviewBase, ReviewCreate, ReviewResponse
 from .text import PronunciationAnalysisResponse
 
 __all__ = [
@@ -100,6 +100,7 @@ __all__ = [
     "PronunciationAnalysisResponse",
     "ReviewBase",
     "ReviewCreate",
+    "ReviewResponse",
     "SendOTPRequest",
     "TimeSeriesPoint",
     "Token",

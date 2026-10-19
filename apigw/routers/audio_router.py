@@ -1,26 +1,22 @@
 from typing import Annotated
 
-from fastapi import APIRouter, BackgroundTasks, Depends, File, UploadFile
+from fastapi import APIRouter, Depends, File, UploadFile
 from sqlmodel import Session
 
 import http_client as http_client
-from config import logger, settings
+from config import settings
 from constants import LEARNER_AUDIOS_DIR
 from database import Learner, get_session
 from schemas import (
     PronunciationAnalysisResponse,
-    ReviewCreate,
     WordSegmentSecond,
 )
 from services import (
     audio_cache_service,
     auth_service,
-    brick_memory_service,
-    brick_review_service,
     brick_service,
 )
 from services.text_service import text_service
-from shared_constants import PASS_SCORE
 from shared_schemas.audio import STTResponse
 from shared_schemas.text import (
     PhonemeAnalysisRequest,
@@ -126,7 +122,6 @@ async def evaluate_pronunciation_audio(
     learner: Annotated[
         Learner, Depends(auth_service.decode_token_get_learner)
     ],
-    background_tasks: BackgroundTasks,
     target_brick_id: int,
     learner_file: Annotated[UploadFile, File()],
 ):
@@ -176,42 +171,10 @@ async def evaluate_pronunciation_audio(
     )
     teacher_phonemes = phoneme_data.teacher_phonemes
     learner_phonemes = phoneme_data.learner_phonemes
-    normalized_learner_text = phoneme_data.normalized_learner_text
 
     result = text_service.evaluate_phoneme_pronunciation(
         teacher_phonemes=teacher_phonemes,
         learner_phonemes=learner_phonemes,
         lang=target_brick.target_lang,
     )
-    if (
-        not brick_review_service.review_exists(
-            session, learner_id=learner.id, brick_id=target_brick_id
-        )
-        and result["accuracy_score"] >= PASS_SCORE
-    ):
-        is_answer_revealed_assumed = True
-        review_create = ReviewCreate(
-            brick_id=target_brick_id,
-            is_answer_revealed=is_answer_revealed_assumed,
-            first_score=result["accuracy_score"],
-            learner_target_text=normalized_learner_text,
-            learner_target_audio_path=learner_audio_path,
-        )
-        total_learner_reviews = brick_review_service.save_review(
-            session=session,
-            learner_id=learner.id,
-            review_create=review_create,
-        )
-        logger.info(f"Review saved, {total_learner_reviews=}")
-        if total_learner_reviews > 100:
-            interval = max(200, int(total_learner_reviews**0.5 * 20))
-            if total_learner_reviews % interval == 0:
-                background_tasks.add_task(
-                    brick_memory_service.optimize_learner_scheduler,
-                    learner.id,
-                )
-                logger.info(
-                    f"Triggering background optimization for learner {learner.id}"
-                )
-
     return result

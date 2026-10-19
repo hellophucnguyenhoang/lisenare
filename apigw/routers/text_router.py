@@ -1,19 +1,13 @@
 from typing import Annotated
 
-from fastapi import APIRouter, BackgroundTasks, Depends, status
-from sqlmodel import Session
+from fastapi import APIRouter, Depends, status
 
 import http_client as http_client
-from config import logger, settings
+from config import settings
 from constants import GENERATED_AUDIOS_DIR
-from database import Learner, get_session
+from database import Learner
 from exceptions import RequestException
-from schemas import ReviewCreate
-from services import (
-    auth_service,
-    brick_memory_service,
-    brick_review_service,
-)
+from services import auth_service
 from services.text_service import text_service
 from shared_constants import BRICK_AVG_WORD_LEN, BRICK_MAX_WORDS
 from shared_schemas.sentence import (
@@ -32,11 +26,9 @@ router = APIRouter(prefix="/text", tags=["Text Features"])
 
 @router.post("/sentence-comparison")
 def compare_sentences(
-    session: Annotated[Session, Depends(get_session)],
     current_learner: Annotated[
         Learner, Depends(auth_service.decode_token_get_learner)
     ],
-    background_tasks: BackgroundTasks,
     comparison_payload: SentenceCompareRequest,
 ) -> SentenceCompareResponse:
     lang = comparison_payload.lang or current_learner.retrieval_lang
@@ -78,31 +70,6 @@ def compare_sentences(
         evaluation_result.correct = (
             phoneme_accuracy >= evaluation_result.threshold
         )
-
-    # 4. Handle persistence and scheduling optimization if tracking data is provided
-    if comparison_payload.review_base:
-        review_metadata = ReviewCreate(
-            **comparison_payload.review_base.model_dump(exclude_none=True),
-            first_score=evaluation_result.score,
-        )
-        total_learner_reviews = brick_review_service.save_review(
-            session=session,
-            learner_id=current_learner.id,
-            review_create=review_metadata,
-        )
-        logger.info(f"Review saved, {total_learner_reviews=}")
-
-        # Optimize spacing intervals periodically
-        if total_learner_reviews > 100:
-            interval = max(200, int(total_learner_reviews**0.5 * 20))
-            if total_learner_reviews % interval == 0:
-                background_tasks.add_task(
-                    brick_memory_service.optimize_learner_scheduler,
-                    current_learner.id,
-                )
-                logger.info(
-                    f"Triggering background optimization for learner {current_learner.id}"
-                )
 
     return evaluation_result
 

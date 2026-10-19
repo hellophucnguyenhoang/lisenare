@@ -2,7 +2,6 @@ from typing import Annotated
 
 from sqlmodel import Field, SQLModel
 
-from schemas import ReviewBase
 from shared_constants import PASS_SCORE
 
 
@@ -13,7 +12,6 @@ class SentenceCompareRequest(SQLModel):
     sentence2: Annotated[str, Field(description="The model's sentence")] = (
         "What's up?"
     )
-    review_base: ReviewBase | None = None
     lang: str | None = Field(
         default=None, description="Language code ('en', 'ja', etc.)"
     )
