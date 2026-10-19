@@ -309,6 +309,7 @@ def test_save_review_integrated_learning_card(client: TestClient):
 
         review_create = ReviewCreate(
             brick_id=brick.id,
+            rating=3,
             is_answer_revealed=False,
             first_score=0.9,
             learner_target_text=brick.target_text,

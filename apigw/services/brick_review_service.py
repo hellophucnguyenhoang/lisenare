@@ -1,7 +1,7 @@
 from collections import defaultdict
 from zoneinfo import ZoneInfo
 
-from fsrs import Card
+from fsrs import Card, Rating
 from sqlmodel import Session, case, func, select
 
 from config import logger
@@ -9,19 +9,15 @@ from database import BrickMemory, BrickReview
 from schemas import ReviewCreate
 from utils.db_utils import apply_time_filter
 
-from .spaced_repetition_service import (
-    get_scheduler_for_learner,
-    similarity_to_fsrs,
-)
+from .spaced_repetition_service import get_scheduler_for_learner
 
 
 def save_review(
-    session: Session, learner_id: int, review_create: ReviewCreate
+    session: Session,
+    learner_id: int,
+    review_create: ReviewCreate,
 ) -> int:
-    fsrs_rating = similarity_to_fsrs(
-        review_create.first_score,
-        review_create.is_answer_revealed,
-    )
+    fsrs_rating = Rating(review_create.rating)
 
     # 1. Fetch or initialize learning card
     statement = select(BrickMemory).where(
@@ -39,10 +35,12 @@ def save_review(
     card, review_log = scheduler.review_card(card, fsrs_rating)
 
     # 3. Create review with fsrs log
+    review_dict = review_create.model_dump()
+    review_dict.pop("rating", None)
     db_review = BrickReview(
-        **review_create.model_dump(),
+        **review_dict,
         learner_id=learner_id,
-        fsrs_rating=fsrs_rating,
+        fsrs_rating=int(fsrs_rating),
         fsrs_log_dict=review_log.to_dict(),
     )
     session.add(db_review)
