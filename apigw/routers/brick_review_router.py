@@ -41,7 +41,7 @@ def create_brick_review(
 
     # Optimize spacing intervals periodically
     if total_learner_reviews > 100:
-        interval = max(200, int(total_learner_reviews**0.5 * 20))
+        interval = max(200, int(total_learner_reviews**0.5 * 10))
         if total_learner_reviews % interval == 0:
             background_tasks.add_task(
                 brick_memory_service.optimize_learner_scheduler,

@@ -56,7 +56,13 @@ async def lifespan(app: FastAPI):
     logger.info("Lisenare API services shut down successfully.")
 
 
-app = FastAPI(title="Lisenare API", lifespan=lifespan)
+app = FastAPI(
+    title="Lisenare API",
+    lifespan=lifespan,
+    docs_url=None,
+    redoc_url=None,
+    openapi_url=None,
+)
 
 
 # Unified exception response structure

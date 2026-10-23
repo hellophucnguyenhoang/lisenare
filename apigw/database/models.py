@@ -39,11 +39,8 @@ class Brick(SQLModel, table=True):
         default="en",
         max_length=2,
         index=True,
-    )  # ISO 639-1 code
-    target_pron: str | None = Field(
-        default=None,
-        max_length=BRICK_MAX_WORDS * BRICK_AVG_WORD_LEN,
-    )
+    )  # ISO 639-1 code, 'en', 'ja'
+    target_pron: str | None = Field(default=None, max_length=CONTEXT_MAX_CHARS)
     context: str | None = Field(default=None, max_length=CONTEXT_MAX_CHARS)
     kind: str  # 'word' or 'sentence'
     is_private: bool = True
@@ -258,7 +255,9 @@ class LearnerSetting(SQLModel, table=True):
     )
     fsrs_weights: list[float] | None = Field(default=None, sa_type=JSONB)
     target_retention: float = Field(default=0.9)
-    retrieval_lang: str = Field(default="en", max_length=2)  # ISO 639-1 code
+    retrieval_lang: str = Field(
+        default="en", max_length=2
+    )  # ISO 639-1 code, 'en', 'ja'
     learner: "Learner" = Relationship(back_populates="setting")
 
 

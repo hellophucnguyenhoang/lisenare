@@ -80,7 +80,7 @@ def optimize_learner_scheduler(learner_id: int):
             else:
                 logger.info(
                     f"Skipping retention optimization for learner {learner_id} "
-                    f"(Need 512, have {log_count})"
+                    f"(Need at least 512, have {log_count})"
                 )
 
             # 3. Save Settings
