@@ -461,9 +461,7 @@ def test_delete_brick_clears_redis_cache():
     redis.setex(cache_key, 86400, "system-brick-audios/delete.wav")
     assert redis.exists(cache_key)
 
-    with patch(
-        "services.brick_service.cs_service.delete_item_from_vector_store"
-    ):
+    with patch("services.brick_service.search_service.remove_brick_embedding"):
         with Session(engine) as session:
             brick_service.delete_brick(
                 session, creator_id=1, brick_id=brick_id

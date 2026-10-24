@@ -26,7 +26,8 @@ def get_account_by_username(session: Session, username: str) -> Account:
 
 
 def create_learner_account(
-    session: Session, learner_account_create: LearnerAccountCreate
+    session: Session,
+    learner_account_create: LearnerAccountCreate,
 ) -> Account:
     logger.info(
         f"Initiating account creation for username: {learner_account_create.username}"

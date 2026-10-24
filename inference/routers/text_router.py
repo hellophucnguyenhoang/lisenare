@@ -9,6 +9,8 @@ from shared_schemas.sentence import (
 from shared_schemas.text import (
     BatchRarityRequest,
     BatchRarityResponse,
+    EmbeddingRequest,
+    EmbeddingResponse,
     LemmatizeRequest,
     LemmatizeResponse,
     PhonemeAnalysisRequest,
@@ -41,6 +43,18 @@ def compare(
     sentence_compare_res = SentenceCompareResponse(score=score)
     sentence_compare_res.correct = score >= sentence_compare_res.threshold
     return sentence_compare_res
+
+
+@router.post("/embeddings", response_model=EmbeddingResponse)
+def get_embeddings(request: EmbeddingRequest) -> EmbeddingResponse:
+    embeddings, model_version = text_service.get_embeddings(
+        texts=request.texts,
+        lang=request.lang,
+        is_query=request.is_query,
+    )
+    return EmbeddingResponse(
+        embeddings=embeddings, model_version=model_version
+    )
 
 
 @router.post("/to-speech")

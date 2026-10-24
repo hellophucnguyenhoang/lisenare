@@ -1,6 +1,11 @@
-from fastapi import APIRouter, status
+from typing import Annotated
 
+from fastapi import APIRouter, Depends, status
+from sqlmodel import Session
+
+from database import get_session
 from exceptions import ErrorCode, RequestException
+from services import test_service
 
 router = APIRouter(prefix="/test", tags=["Test"])
 
@@ -19,9 +24,10 @@ def test_api(
 
 
 @router.get("/two")
-def test_api2():
+def test_api2(
+    session: Annotated[Session, Depends(get_session)],
+):
     try:
-        n = 2 / 0
-        return n
+        test_service.export_bricks_to_csv(session)
     except Exception as e:
         raise e

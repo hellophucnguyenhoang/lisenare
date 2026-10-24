@@ -65,8 +65,9 @@ def save_review(
     )
     total_learner_reviews = session.exec(statement).one()
     logger.info(
-        f"Saved review for brick ID: {review_create.brick_id} by learner ID: {learner_id} "
-        f"(rating: {fsrs_rating}, score: {review_create.first_score}, total_reviews: {total_learner_reviews})"
+        f"Saved review for brick ID: {review_create.brick_id} "
+        f"by learner ID: {learner_id} (rating: {fsrs_rating}, "
+        f"score: {review_create.first_score}, total_reviews: {total_learner_reviews})"
     )
     return total_learner_reviews
 
@@ -81,7 +82,10 @@ def review_exists(session: Session, learner_id: int, brick_id: int) -> bool:
 
 
 def get_true_retention(
-    session: Session, learner_id: int, tz_name: str, days: int | None = None
+    session: Session,
+    learner_id: int,
+    tz_name: str,
+    days: int | None = None,
 ) -> float:
     """
     The percentage of successfully recalled cards

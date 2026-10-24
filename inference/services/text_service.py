@@ -83,6 +83,34 @@ class TextService:
         score = util.cos_sim(embeddings[0], embeddings[1])
         return float(score.item())
 
+    def get_embeddings(
+        self, texts: list[str], lang: str = "en", is_query: bool = False
+    ) -> tuple[list[list[float]], str]:
+        """Generate normalized 384-dimensional sentence embeddings using the appropriate model."""
+        if not texts:
+            model_version = (
+                "cl-nagoya/ruri-v3-70m"
+                if lang == "ja"
+                else "sentence-transformers/all-MiniLM-L6-v2"
+            )
+            return [], model_version
+
+        if lang == "ja":
+            model = self.similarity_model_ja
+            model_version = "cl-nagoya/ruri-v3-70m"
+            prefix = "検索クエリ: " if is_query else "検索文書: "
+            processed_texts = [prefix + t for t in texts]
+        else:
+            model = self.similarity_model_en
+            model_version = "sentence-transformers/all-MiniLM-L6-v2"
+            processed_texts = texts
+
+        embeddings = model.encode(
+            processed_texts,
+            normalize_embeddings=True,
+        )
+        return embeddings.tolist(), model_version
+
     def generate_tts_wav(
         self, text: str | list[str], voice: str = "af_heart"
     ) -> bytes | list[bytes]:

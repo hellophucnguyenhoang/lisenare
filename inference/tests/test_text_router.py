@@ -8,6 +8,8 @@ from shared_schemas.sentence import (
 from shared_schemas.text import (
     BatchRarityRequest,
     BatchRarityResponse,
+    EmbeddingRequest,
+    EmbeddingResponse,
     LemmatizeRequest,
     LemmatizeResponse,
     PhonemeAnalysisRequest,
@@ -237,3 +239,60 @@ def test_semantic_comparison_endpoint_japanese():
     data = SentenceCompareResponse.model_validate(res.json())
     assert data.score > 0.9
     assert data.correct is True
+
+
+def test_embeddings_endpoint_english():
+    client = TestClient(app)
+    req = EmbeddingRequest(
+        texts=["Hello world", "Good morning"],
+        lang="en",
+    )
+    res = client.post("/text/embeddings", json=req.model_dump(mode="json"))
+    assert res.status_code == 200
+    data = EmbeddingResponse.model_validate(res.json())
+    assert len(data.embeddings) == 2
+    assert len(data.embeddings[0]) == 384
+    assert len(data.embeddings[1]) == 384
+    assert data.model_version == "sentence-transformers/all-MiniLM-L6-v2"
+
+
+def test_embeddings_endpoint_japanese():
+    client = TestClient(app)
+    # Test document embedding
+    req_doc = EmbeddingRequest(
+        texts=["美味しい鳥"],
+        lang="ja",
+        is_query=False,
+    )
+    res_doc = client.post(
+        "/text/embeddings", json=req_doc.model_dump(mode="json")
+    )
+    assert res_doc.status_code == 200
+    data_doc = EmbeddingResponse.model_validate(res_doc.json())
+    assert len(data_doc.embeddings) == 1
+    assert len(data_doc.embeddings[0]) == 384
+    assert data_doc.model_version == "cl-nagoya/ruri-v3-70m"
+
+    # Test query embedding
+    req_query = EmbeddingRequest(
+        texts=["美味しい鳥"],
+        lang="ja",
+        is_query=True,
+    )
+    res_query = client.post(
+        "/text/embeddings", json=req_query.model_dump(mode="json")
+    )
+    assert res_query.status_code == 200
+    data_query = EmbeddingResponse.model_validate(res_query.json())
+    assert len(data_query.embeddings) == 1
+    assert len(data_query.embeddings[0]) == 384
+    assert data_query.model_version == "cl-nagoya/ruri-v3-70m"
+
+
+def test_embeddings_endpoint_empty():
+    client = TestClient(app)
+    req = EmbeddingRequest(texts=[], lang="en")
+    res = client.post("/text/embeddings", json=req.model_dump(mode="json"))
+    assert res.status_code == 200
+    data = EmbeddingResponse.model_validate(res.json())
+    assert data.embeddings == []

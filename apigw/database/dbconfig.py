@@ -39,23 +39,23 @@ def init_db():
     Create the tables an insert data to them if the database does not exits.
     """
     try:
+        logger.info("Initializing database schema...")
+
+        # Enable extensions first
+        with Session(engine) as session:
+            # For LangChain semantic search
+            session.exec(text("CREATE EXTENSION IF NOT EXISTS vector;"))
+
+            # For Japanese literal search
+            session.exec(text("CREATE EXTENSION IF NOT EXISTS pgroonga;"))
+
+            # Make extensions available globally right now
+            session.commit()
+            logger.info("Database extensions enabled.")
+
         # Use SQLAlchemy to check if tables exist
         inspector = inspect(engine)
         if not inspector.has_table("brick"):
-            logger.info("Database tables not found, initializing schema...")
-
-            # Enable extensions first
-            with Session(engine) as session:
-                # For LangChain semantic search
-                session.exec(text("CREATE EXTENSION IF NOT EXISTS vector;"))
-
-                # For Japanese literal search
-                session.exec(text("CREATE EXTENSION IF NOT EXISTS pgroonga;"))
-
-                # Make extensions available globally right now
-                session.commit()
-                logger.info("Database extensions enabled.")
-
             # Create SQLModel tables
             logger.info("Creating SQLModel tables...")
             SQLModel.metadata.create_all(engine)
@@ -79,8 +79,8 @@ def init_db():
 
 
 def delete_db():
-    # Drop the LangChain-managed tables (which SQLModel doesn't know about)
     with Session(engine) as session:
+        # Keep legacy LangChain tables cleanup for environments that may still have them
         session.exec(
             text("DROP TABLE IF EXISTS langchain_pg_embedding CASCADE;")
         )
@@ -134,13 +134,9 @@ def init_bricks(session: Session):
         session.flush()  # Populates IDs without closing transaction
         return account
 
-    # Create initial accounts
-    system_account_create = LearnerAccountCreate()
-    create_learner_account(session, system_account_create)
-
     me_account_create = LearnerAccountCreate(
-        name="Phúc",
         username="hoangphuc",
+        password="12345678",
         email="hellophucnh@gmail.com",
     )
     me_account = create_learner_account(session, me_account_create)
