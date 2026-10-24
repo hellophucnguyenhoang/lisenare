@@ -135,15 +135,18 @@ def get_embeddings(
             texts=texts, lang=lang, is_query=is_query
         ).model_dump(mode="json"),
     )
+    response.raise_for_status()
     data = EmbeddingResponse.model_validate(response.json())
     return data.embeddings, data.model_version
 
 
 def get_embedding(
     text: str, lang: str = "en", is_query: bool = False
-) -> tuple[list[float], str]:
+) -> tuple[list[float] | None, str]:
     """Get a single embedding from inference server."""
     embeddings, model_version = get_embeddings(
         [text], lang=lang, is_query=is_query
     )
+    if not embeddings:
+        return None, model_version
     return embeddings[0], model_version
