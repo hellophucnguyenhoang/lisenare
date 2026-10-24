@@ -102,3 +102,23 @@ class BatchRarityRequest(SQLModel):
 
 class BatchRarityResponse(SQLModel):
     rarities: list[float] = Field(description="List of lexical rarity scores")
+
+
+class EmbeddingRequest(SQLModel):
+    texts: list[str] = Field(description="List of texts to embed")
+    lang: str = Field(
+        default="en", description="Target language ('en', 'ja', etc.)"
+    )
+    is_query: bool = Field(
+        default=False,
+        description="Whether this is a query embedding (e.g. for asymmetric models like ruri)",
+    )
+
+
+class EmbeddingResponse(SQLModel):
+    embeddings: list[list[float]] = Field(
+        description="List of 384-dimensional embedding vectors"
+    )
+    model_version: str = Field(
+        description="Identifier of the model used to generate embeddings"
+    )

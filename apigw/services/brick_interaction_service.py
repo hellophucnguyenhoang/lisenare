@@ -6,8 +6,7 @@ from config import logger
 from database import BrickInteraction, BrickReaction
 from schemas import BrickInteractionCreate, InteractionType
 
-from . import session_profile_service
-from .context_search_service import search_service
+from . import search_service, session_profile_service
 
 
 def create_interaction(

@@ -35,7 +35,7 @@ from schemas import (
 )
 
 from . import audio_cache_service
-from . import context_search_service as cs_service
+from . import search_service
 from .brick_reaction_service import get_reaction_map
 from .tag_service import (
     clean_tags,
@@ -183,10 +183,12 @@ def get_recommended_bricks(
             redis.expire(cache_key, 3600)
         return bricks
 
-    brick_ids = cs_service.search_service.get_relevant_bricks(
+    brick_ids = search_service.get_relevant_bricks(
+        session,
         vector,
         limit=limit,
         exclude_ids=exclude_ids,
+        lang=retrieval_lang,
     )
     if not brick_ids:
         bricks = get_random_bricks(
@@ -502,19 +504,7 @@ def create_brick(
         f"Created brick ID: {brick.id} in island ID: {island.id} for creator_id: {creator_id}"
     )
 
-    cs_service.add_item_to_vector_store(
-        search_service=cs_service.search_service,
-        item=brick,
-        store_key="bricks",
-        text_getter=lambda b: f"{b.target_text} {b.native_text}",
-        metadata_getter=lambda b: {
-            "brick_id": b.id,
-            "target_text": b.target_text,
-            "native_text": b.native_text,
-            "target_lang": b.target_lang,
-        },
-        id_prefix="Brick",
-    )
+    search_service.add_brick_embedding(session, brick)
     return BrickRead.model_validate(brick, update={"tags": tags})
 
 
@@ -578,6 +568,11 @@ def update_brick(
     if target_audio_path:
         audio_cache_service.clear_brick_audio_cache(brick_id)
 
+    if any(
+        k in update_data for k in ("target_text", "native_text", "target_lang")
+    ):
+        search_service.add_brick_embedding(session, brick)
+
     return BrickRead.model_validate(brick, update={"tags": tags})
 
 
@@ -599,12 +594,7 @@ def delete_brick(session: Session, creator_id: int, brick_id: int) -> str:
             debug_message=f"{creator_id=} is not the creator to delete {brick_id=}",
         )
 
-    cs_service.delete_item_from_vector_store(
-        search_service=cs_service.search_service,
-        item_id=brick_id,
-        store_key="bricks",
-        id_prefix="Brick",
-    )
+    search_service.remove_brick_embedding(session, brick)
 
     delete_tags_for_entity(session, brick_id, "Brick")
     session.delete(brick)
@@ -684,19 +674,7 @@ def add_brick_from(
         f"in island ID: {island_id} for learner_id: {learner_id}"
     )
 
-    cs_service.add_item_to_vector_store(
-        search_service=cs_service.search_service,
-        item=brick,
-        store_key="bricks",
-        text_getter=lambda b: f"{b.target_text} {b.native_text}",
-        metadata_getter=lambda b: {
-            "brick_id": b.id,
-            "target_text": b.target_text,
-            "native_text": b.native_text,
-            "target_lang": b.target_lang,
-        },
-        id_prefix="Brick",
-    )
+    search_service.add_brick_embedding(session, brick)
     return BrickRead.model_validate(brick, update={"tags": []})
 
 
@@ -754,6 +732,7 @@ def add_bricks_from_island(
             is_private=True,
             creator_id=learner_id,
             island_id=target_island_id,
+            embedding_id=source.embedding_id,
         )
         session.add(brick)
         added += 1

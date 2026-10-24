@@ -8,14 +8,10 @@ from schemas import (
     BrickContextSearch,
     ContextSearchRequest,
 )
-from services import auth_service
-from services.context_search_service import (
-    initialize_embeddings,
-    search_service,
-)
+from services import auth_service, search_service
 from utils import metrics, text_utils
 
-router = APIRouter(prefix="/context-search", tags=["Context Search"])
+router = APIRouter(prefix="/search", tags=["Brick Search"])
 
 
 @router.post(
@@ -27,11 +23,11 @@ router = APIRouter(prefix="/context-search", tags=["Context Search"])
 def init_embeddings(
     session: Annotated[Session, Depends(get_session)],
 ) -> Response:
-    initialize_embeddings(session, search_service)
+    search_service.initialize_embeddings(session)
     return Response(status_code=status.HTTP_201_CREATED)
 
 
-@router.post("/bricks-search")
+@router.post("/bricks")
 @metrics.measure_time
 def search_context_bricks(
     session: Annotated[Session, Depends(get_session)],

@@ -91,7 +91,7 @@ def test_create_and_query_brick_with_uncleaned_tags(client: TestClient):
                 "utils.file_utils.save_upload_file",
                 return_value=("fake/path.wav", None),
             ),
-            patch("services.context_search_service.add_item_to_vector_store"),
+            patch("services.search_service.add_brick_embedding"),
         ):
             response = client.post(
                 "/api/bricks",
@@ -125,7 +125,5 @@ def test_create_and_query_brick_with_uncleaned_tags(client: TestClient):
 
     finally:
         app.dependency_overrides.clear()
-        with patch(
-            "services.context_search_service.delete_item_from_vector_store"
-        ):
+        with patch("services.search_service.remove_brick_embedding"):
             client.delete(f"/api/bricks/{brick_id}")

@@ -14,6 +14,7 @@ from .models import (
     SessionProfile,
     Tag,
     Taggable,
+    TextEmbedding,
 )
 
 __all__ = [
@@ -36,4 +37,5 @@ __all__ = [
     "SessionProfile",
     "Tag",
     "Taggable",
+    "TextEmbedding",
 ]

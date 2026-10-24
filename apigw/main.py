@@ -23,10 +23,11 @@ from routers import (
     brick_review_router,
     brick_router,
     chat_router,
-    context_search_router,
     explanation_router,
     island_router,
     learner_router,
+    search_router,
+    test_router,
     text_router,
 )
 from schemas import BrickCreateRequest, BrickUpdate
@@ -210,10 +211,11 @@ for router_module in [
     brick_router,
     chat_router,
     island_router,
-    context_search_router,
+    search_router,
     explanation_router,
     learner_router,
     text_router,
+    test_router,
 ]:
     app.include_router(router_module.router, prefix=API_PREFIX)
 

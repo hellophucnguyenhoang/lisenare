@@ -1,12 +1,18 @@
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 
+from pgvector.sqlalchemy import Vector
 from pydantic import EmailStr
-from sqlalchemy import DateTime
+from sqlalchemy import Column, DateTime, LargeBinary, UniqueConstraint
 from sqlalchemy.dialects.postgresql import JSONB
-from sqlmodel import Field, Relationship, SQLModel, UniqueConstraint
+from sqlmodel import Field, Relationship, SQLModel
 
-from constants import CONTEXT_MAX_CHARS, MAX_PATH_LEN, OTP_EXPIRE_MINUTES
+from constants import (
+    CONTEXT_MAX_CHARS,
+    MAX_PATH_LEN,
+    OTP_EXPIRE_MINUTES,
+    SEMANTIC_EMB_DIM,
+)
 from shared_constants import BRICK_AVG_WORD_LEN, BRICK_MAX_WORDS
 
 
@@ -15,7 +21,10 @@ class Account(SQLModel, table=True):
     username: str = Field(index=True, unique=True, min_length=3, max_length=20)
     hashed_password: str = Field(max_length=100)
     email: EmailStr | None = Field(
-        default=None, index=True, unique=True, max_length=254
+        default=None,
+        index=True,
+        unique=True,
+        max_length=254,
     )
     last_login_at: datetime = Field(
         default_factory=lambda: datetime.now(timezone.utc),
@@ -23,7 +32,9 @@ class Account(SQLModel, table=True):
     )
 
     learner_id: int = Field(
-        foreign_key="learner.id", unique=True, ondelete="CASCADE"
+        foreign_key="learner.id",
+        unique=True,
+        ondelete="CASCADE",
     )
 
     # Have to use `Optional` instead of `"Learner" | None` here
@@ -44,32 +55,51 @@ class Brick(SQLModel, table=True):
     context: str | None = Field(default=None, max_length=CONTEXT_MAX_CHARS)
     kind: str  # 'word' or 'sentence'
     is_private: bool = True
+
     last_edit_at: datetime = Field(
         default_factory=lambda: datetime.now(timezone.utc),
         sa_type=DateTime(timezone=True),
     )
 
     island_id: int = Field(
-        foreign_key="island.id", ondelete="CASCADE", index=True
+        foreign_key="island.id",
+        ondelete="CASCADE",
+        index=True,
     )
     island: "Island" = Relationship(back_populates="bricks")
 
     creator_id: int = Field(
-        foreign_key="learner.id", ondelete="CASCADE", index=True
+        foreign_key="learner.id",
+        ondelete="CASCADE",
+        index=True,
     )
     creator: "Learner" = Relationship(back_populates="bricks")
 
+    embedding_id: int | None = Field(
+        default=None,
+        foreign_key="text_embedding.id",
+        ondelete="RESTRICT",
+        index=True,
+    )
+    embedding: Optional["TextEmbedding"] = Relationship(
+        back_populates="bricks"
+    )
+
     interactions: list["BrickInteraction"] = Relationship(
-        back_populates="brick", cascade_delete=True
+        back_populates="brick",
+        cascade_delete=True,
     )
     memories: list["BrickMemory"] | None = Relationship(
-        back_populates="brick", cascade_delete=True
+        back_populates="brick",
+        cascade_delete=True,
     )
     reports: list["BrickReport"] = Relationship(
-        back_populates="brick", cascade_delete=True
+        back_populates="brick",
+        cascade_delete=True,
     )
     reviews: list["BrickReview"] | None = Relationship(
-        back_populates="brick", cascade_delete=True
+        back_populates="brick",
+        cascade_delete=True,
     )
 
 
@@ -90,7 +120,9 @@ class BrickInteraction(SQLModel, table=True):
     brick: Brick = Relationship(back_populates="interactions")
 
     learner_id: int | None = Field(
-        default=None, foreign_key="learner.id", ondelete="CASCADE"
+        default=None,
+        foreign_key="learner.id",
+        ondelete="CASCADE",
     )
     learner: "Learner" = Relationship(back_populates="brick_interactions")
 
@@ -104,12 +136,16 @@ class BrickMemory(SQLModel, table=True):
     id: int | None = Field(default=None, primary_key=True)
 
     learner_id: int = Field(
-        foreign_key="learner.id", ondelete="CASCADE", index=True
+        foreign_key="learner.id",
+        ondelete="CASCADE",
+        index=True,
     )
     learner: "Learner" = Relationship(back_populates="memories")
 
     brick_id: int = Field(
-        foreign_key="brick.id", ondelete="CASCADE", index=True
+        foreign_key="brick.id",
+        ondelete="CASCADE",
+        index=True,
     )
     brick: Brick = Relationship(back_populates="memories")
 
@@ -161,12 +197,16 @@ class BrickReview(SQLModel, table=True):
     )
 
     learner_id: int = Field(
-        foreign_key="learner.id", ondelete="CASCADE", index=True
+        foreign_key="learner.id",
+        ondelete="CASCADE",
+        index=True,
     )
     learner: "Learner" = Relationship(back_populates="reviews")
 
     brick_id: int = Field(
-        foreign_key="brick.id", ondelete="CASCADE", index=True
+        foreign_key="brick.id",
+        ondelete="CASCADE",
+        index=True,
     )
     brick: Brick = Relationship(back_populates="reviews")
 
@@ -184,7 +224,8 @@ class BrickReview(SQLModel, table=True):
         max_length=BRICK_MAX_WORDS * BRICK_AVG_WORD_LEN,
     )
     learner_target_audio_path: str | None = Field(
-        default=None, max_length=MAX_PATH_LEN
+        default=None,
+        max_length=MAX_PATH_LEN,
     )
 
 
@@ -205,7 +246,8 @@ class Island(SQLModel, table=True):
     creator: "Learner" = Relationship(back_populates="islands")
 
     bricks: list[Brick] | None = Relationship(
-        back_populates="island", cascade_delete=True
+        back_populates="island",
+        cascade_delete=True,
     )
 
 
@@ -214,31 +256,40 @@ class Learner(SQLModel, table=True):
     name: str = Field(max_length=100)
 
     account: Account | None = Relationship(
-        back_populates="learner", cascade_delete=True
+        back_populates="learner",
+        cascade_delete=True,
     )
     islands: list[Island] | None = Relationship(
-        back_populates="creator", cascade_delete=True
+        back_populates="creator",
+        cascade_delete=True,
     )
     bricks: list[Brick] | None = Relationship(
-        back_populates="creator", cascade_delete=True
+        back_populates="creator",
+        cascade_delete=True,
     )
     brick_interactions: list[BrickInteraction] | None = Relationship(
-        back_populates="learner", cascade_delete=True
+        back_populates="learner",
+        cascade_delete=True,
     )
     brick_reports: list["BrickReport"] | None = Relationship(
-        back_populates="learner", cascade_delete=True
+        back_populates="learner",
+        cascade_delete=True,
     )
     memories: list[BrickMemory] | None = Relationship(
-        back_populates="learner", cascade_delete=True
+        back_populates="learner",
+        cascade_delete=True,
     )
     reviews: list["BrickReview"] | None = Relationship(
-        back_populates="learner", cascade_delete=True
+        back_populates="learner",
+        cascade_delete=True,
     )
     setting: "LearnerSetting" = Relationship(
-        back_populates="learner", cascade_delete=True
+        back_populates="learner",
+        cascade_delete=True,
     )
     tags: list["Tag"] | None = Relationship(
-        back_populates="creator", cascade_delete=True
+        back_populates="creator",
+        cascade_delete=True,
     )
 
     @property
@@ -256,7 +307,8 @@ class LearnerSetting(SQLModel, table=True):
     fsrs_weights: list[float] | None = Field(default=None, sa_type=JSONB)
     target_retention: float = Field(default=0.9)
     retrieval_lang: str = Field(
-        default="en", max_length=2
+        default="en",
+        max_length=2,
     )  # ISO 639-1 code, 'en', 'ja'
     learner: "Learner" = Relationship(back_populates="setting")
 
@@ -294,7 +346,9 @@ class Tag(SQLModel, table=True):
 
 class Taggable(SQLModel, table=True):
     tag_id: int = Field(
-        foreign_key="tag.id", primary_key=True, ondelete="CASCADE"
+        foreign_key="tag.id",
+        primary_key=True,
+        ondelete="CASCADE",
     )
     tag: "Tag" = Relationship()
     taggable_id: int = Field(primary_key=True, index=True)
@@ -305,4 +359,43 @@ class Taggable(SQLModel, table=True):
     created_at: datetime = Field(
         default_factory=lambda: datetime.now(timezone.utc),
         sa_type=DateTime(timezone=True),
+    )
+
+
+class TextEmbedding(SQLModel, table=True):
+    __tablename__ = "text_embedding"
+
+    __table_args__ = (
+        UniqueConstraint(
+            "target_lang",
+            "model_version",
+            "content_hash",
+            name="uq_text_embedding_content",
+        ),
+    )
+
+    id: int | None = Field(default=None, primary_key=True)
+
+    target_lang: str = Field(max_length=2)
+    model_version: str = Field(max_length=100)
+
+    # SHA-256 digest of the canonical text.
+    content_hash: bytes = Field(
+        sa_column=Column(LargeBinary(32), nullable=False)
+    )
+
+    # Canonical text used to generate the embedding.
+    source_text: str
+
+    embedding: list[float] = Field(
+        sa_column=Column(Vector(SEMANTIC_EMB_DIM), nullable=False)
+    )
+
+    created_at: datetime = Field(
+        default_factory=lambda: datetime.now(timezone.utc),
+    )
+
+    bricks: list[Brick] = Relationship(
+        back_populates="embedding",
+        passive_deletes="all",  # disable setting the child records (bricks) foreign keys to NULL
     )

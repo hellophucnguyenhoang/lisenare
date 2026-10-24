@@ -2,6 +2,8 @@ import http_client
 from shared_schemas.text import (
     BatchRarityRequest,
     BatchRarityResponse,
+    EmbeddingRequest,
+    EmbeddingResponse,
     LemmatizeRequest,
     LemmatizeResponse,
     RarityRequest,
@@ -113,3 +115,35 @@ def refined_spell_fix(sentence: str) -> str:
     )
     data = SpellFixResponse.model_validate(response.json())
     return data.corrected_text
+
+
+def get_embeddings(
+    texts: list[str], lang: str = "en", is_query: bool = False
+) -> tuple[list[list[float]], str]:
+    """Get embeddings from inference server."""
+    if not texts:
+        model_version = (
+            "cl-nagoya/ruri-v3-70m"
+            if lang == "ja"
+            else "sentence-transformers/all-MiniLM-L6-v2"
+        )
+        return [], model_version
+
+    response = http_client.get_client().post(
+        "/text/embeddings",
+        json=EmbeddingRequest(
+            texts=texts, lang=lang, is_query=is_query
+        ).model_dump(mode="json"),
+    )
+    data = EmbeddingResponse.model_validate(response.json())
+    return data.embeddings, data.model_version
+
+
+def get_embedding(
+    text: str, lang: str = "en", is_query: bool = False
+) -> tuple[list[float], str]:
+    """Get a single embedding from inference server."""
+    embeddings, model_version = get_embeddings(
+        [text], lang=lang, is_query=is_query
+    )
+    return embeddings[0], model_version

@@ -49,7 +49,7 @@ def test_create_brick_with_tags_success(client: TestClient):
             "utils.file_utils.save_upload_file",
             return_value=("mock/path.wav", None),
         ),
-        patch("services.context_search_service.add_item_to_vector_store"),
+        patch("services.search_service.add_brick_embedding"),
     ):
         response = client.post(
             "/api/bricks",
@@ -99,9 +99,7 @@ def test_create_brick_with_tags_success(client: TestClient):
     assert updated_data["target_lang"] == "ja"
 
     # Delete brick and verify taggables are removed
-    with patch(
-        "services.context_search_service.delete_item_from_vector_store"
-    ):
+    with patch("services.search_service.remove_brick_embedding"):
         del_response = client.delete(f"/api/bricks/{brick_id}")
     assert del_response.status_code == 204
 
@@ -146,7 +144,7 @@ def test_create_brick_with_custom_target_lang(client: TestClient):
             "utils.file_utils.save_upload_file",
             return_value=("mock/path_ja.wav", None),
         ),
-        patch("services.context_search_service.add_item_to_vector_store"),
+        patch("services.search_service.add_brick_embedding"),
     ):
         response = client.post(
             "/api/bricks",
@@ -161,9 +159,7 @@ def test_create_brick_with_custom_target_lang(client: TestClient):
     assert data["target_lang"] == "ja"
     brick_id = data["id"]
 
-    with patch(
-        "services.context_search_service.delete_item_from_vector_store"
-    ):
+    with patch("services.search_service.remove_brick_embedding"):
         del_response = client.delete(f"/api/bricks/{brick_id}")
     assert del_response.status_code == 204
 
