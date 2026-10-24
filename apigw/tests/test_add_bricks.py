@@ -478,7 +478,7 @@ def test_search_bricks_lightweight_without_creator_name(client: TestClient):
 def test_search_bricks_endpoint_unauthenticated_fails(client: TestClient):
     """Calling search endpoint without auth returns 401."""
     response = client.post(
-        "/api/context-search/bricks-search",
+        "/api/search/bricks",
         json={"query": "test query"},
     )
     assert response.status_code == 401
@@ -499,7 +499,7 @@ def test_search_bricks_endpoint_authenticated_success(client: TestClient):
             return_value=[],
         ):
             response = client.post(
-                "/api/context-search/bricks-search",
+                "/api/search/bricks",
                 json={"query": "hello"},
             )
             assert response.status_code == 200

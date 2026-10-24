@@ -421,9 +421,9 @@ def test_get_next_brick_without_brick_id(client: TestClient):
 
 
 def test_get_next_brick_filters_by_retrieval_lang(client: TestClient):
-    learner_ja = Learner(id=2, setting=LearnerSetting(retrieval_lang="ja"))
+    learner_es = Learner(id=2, setting=LearnerSetting(retrieval_lang="es"))
     app.dependency_overrides[auth_service.decode_token_get_learner] = lambda: (
-        learner_ja
+        learner_es
     )
 
     response = client.get("/api/bricks/next")

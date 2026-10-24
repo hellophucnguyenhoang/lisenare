@@ -25,12 +25,14 @@ def _model_version_for(lang: str) -> str:
     return _EN_MODEL_NAME
 
 
-def _embed_document(source_text: str, lang: str) -> tuple[list[float], str]:
+def _embed_document(
+    source_text: str, lang: str
+) -> tuple[list[float] | None, str]:
     """Embed a brick's canonical text for storage via inference service."""
     return text_utils.get_embedding(source_text, lang=lang, is_query=False)
 
 
-def _embed_query(query: str, lang: str) -> list[float]:
+def _embed_query(query: str, lang: str) -> list[float] | None:
     """Embed a user search query via inference service."""
     vec, _ = text_utils.get_embedding(query, lang=lang, is_query=True)
     return vec
@@ -55,12 +57,17 @@ def get_or_create_embedding(
     session: Session,
     canonical: str,
     lang: str,
-) -> TextEmbedding:
+) -> TextEmbedding | None:
     """
     Return an existing TextEmbedding matching (target_lang, model_version,
     content_hash) or create a new one. Handles concurrent INSERT races via
-    the unique constraint.
+    the unique constraint. Returns None if embedding generation fails or
+    produces an invalid result.
     """
+    if not canonical.strip():
+        logger.warning("Empty canonical text provided, skipping embedding.")
+        return None
+
     model_version = _model_version_for(lang)
     chash = _content_hash(canonical)
 
@@ -74,7 +81,21 @@ def get_or_create_embedding(
     if existing:
         return existing
 
-    vector, retrieved_model_version = _embed_document(canonical, lang)
+    try:
+        vector, retrieved_model_version = _embed_document(canonical, lang)
+    except Exception as e:
+        logger.error(
+            f"Failed to generate embedding for '{canonical[:50]}': {e}",
+            exc_info=True,
+        )
+        return None
+
+    if not vector:
+        logger.error(
+            f"Invalid or empty embedding vector received for '{canonical[:50]}', skipping."
+        )
+        return None
+
     version_to_use = retrieved_model_version or model_version
 
     row = TextEmbedding(
@@ -111,7 +132,19 @@ def attach_embedding(session: Session, brick: Brick) -> None:
     canonical text; other bricks sharing the previous embedding are unaffected.
     """
     canonical = _canonical_text(brick)
+    if not canonical:
+        logger.warning(
+            f"Brick ID {brick.id} has empty target_text, skipping embedding."
+        )
+        return
+
     emb = get_or_create_embedding(session, canonical, brick.target_lang)
+    if emb is None:
+        logger.warning(
+            f"Could not obtain valid embedding for brick ID {brick.id}, skipping."
+        )
+        return
+
     brick.embedding_id = emb.id
 
 
@@ -175,7 +208,22 @@ def search_bricks_semantic(
     Nearest-neighbour lookup via pgvector cosine distance, then MMR
     re-ranking for relevance + diversity.
     """
-    query_vec = _embed_query(query, lang)
+    if not query.strip():
+        return []
+
+    try:
+        query_vec = _embed_query(query, lang)
+    except Exception as e:
+        logger.error(
+            f"Failed to embed search query '{query}': {e}", exc_info=True
+        )
+        return []
+
+    if not query_vec:
+        logger.warning(
+            f"No valid embedding returned for query '{query}', skipping semantic search."
+        )
+        return []
 
     nn_stmt = (
         select(
@@ -392,12 +440,15 @@ def initialize_embeddings(session: Session) -> None:
     for i, brick in enumerate(bricks):
         try:
             attach_embedding(session, brick)
-            session.add(brick)
+            if brick.embedding_id is not None:
+                session.add(brick)
             if (i + 1) % 50 == 0:
                 session.commit()
                 logger.info(f"  ...committed {i + 1}/{len(bricks)}")
         except Exception as e:
-            logger.error(f"Failed to embed brick ID: {e}", exc_info=True)
+            logger.error(
+                f"Failed to embed brick ID {brick.id}: {e}", exc_info=True
+            )
     session.commit()
     logger.info("All bricks embedded.")
 
@@ -411,9 +462,14 @@ def add_brick_embedding(session: Session, brick: Brick) -> None:
     """Compute and attach embedding for a newly created/copied/updated brick."""
     try:
         attach_embedding(session, brick)
-        session.add(brick)
-        session.commit()
-        logger.info(f"Attached embedding to brick ID: {brick.id}")
+        if brick.embedding_id is not None:
+            session.add(brick)
+            session.commit()
+            logger.info(f"Attached embedding to brick ID: {brick.id}")
+        else:
+            logger.warning(
+                f"Skipped embedding attachment for brick ID {brick.id}."
+            )
     except Exception as e:
         logger.error(
             f"Failed to attach embedding for brick ID {brick.id}: {e}",

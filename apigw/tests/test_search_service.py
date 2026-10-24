@@ -6,11 +6,14 @@ concurrent creation, independent brick edits, semantic search, and access contro
 import hashlib
 from unittest.mock import MagicMock, patch
 
+import httpx
 import numpy as np
+import pytest
 from sqlalchemy.exc import IntegrityError
 
 import services.search_service as search_service
 from schemas import BrickContextSearch
+from utils import text_utils
 
 # ---------------------------------------------------------------------------
 # Fixtures & helpers
@@ -131,7 +134,41 @@ class TestEmbeddingReuse:
 
     def test_canonical_text_format(self):
         brick = _make_brick(target_text="dog", native_text="con chó")
-        assert search_service._canonical_text(brick) == "dog con chó"
+        assert search_service._canonical_text(brick) == "dog"
+
+    def test_empty_canonical_text_returns_none(self):
+        session = MagicMock()
+        result = search_service.get_or_create_embedding(session, "   ", "en")
+        assert result is None
+        session.add.assert_not_called()
+
+    def test_server_invalid_result_returns_none_and_skips(self):
+        session = MagicMock()
+        session.exec.return_value.first.return_value = None
+        with patch.object(
+            search_service,
+            "_embed_document",
+            return_value=(None, search_service._EN_MODEL_NAME),
+        ):
+            result = search_service.get_or_create_embedding(
+                session, "text without valid vector", "en"
+            )
+            assert result is None
+        session.add.assert_not_called()
+
+    def test_server_error_returns_none_and_skips(self):
+        session = MagicMock()
+        session.exec.return_value.first.return_value = None
+        with patch.object(
+            search_service,
+            "_embed_document",
+            side_effect=RuntimeError("Embedding server unavailable"),
+        ):
+            result = search_service.get_or_create_embedding(
+                session, "text that fails", "en"
+            )
+            assert result is None
+        session.add.assert_not_called()
 
 
 # ---------------------------------------------------------------------------
@@ -210,6 +247,15 @@ class TestIndependentEdits:
         assert brick1.embedding_id is None
         assert brick2.embedding_id == 42
         session.add.assert_called_once_with(brick1)
+
+    def test_attach_embedding_skips_when_embedding_is_none(self):
+        brick = _make_brick(id_=5, target_text="test", embedding_id=None)
+        with patch.object(
+            search_service, "get_or_create_embedding", return_value=None
+        ):
+            session = MagicMock()
+            search_service.attach_embedding(session, brick)
+        assert brick.embedding_id is None
 
 
 # ---------------------------------------------------------------------------
@@ -294,6 +340,26 @@ class TestSemanticSearch:
         assert isinstance(result[0], BrickContextSearch)
         assert result[0].brick_id == 99
 
+    def test_semantic_search_skips_when_query_fails(self):
+        session = MagicMock()
+        with patch.object(
+            search_service,
+            "_embed_query",
+            side_effect=RuntimeError("Embedding server error"),
+        ):
+            result = search_service.search_bricks_semantic(session, "query")
+        assert result == []
+
+    def test_semantic_search_skips_when_query_vec_is_none(self):
+        session = MagicMock()
+        with patch.object(
+            search_service,
+            "_embed_query",
+            return_value=None,
+        ):
+            result = search_service.search_bricks_semantic(session, "query")
+        assert result == []
+
 
 # ---------------------------------------------------------------------------
 # 6. Maximal Marginal Relevance (MMR)
@@ -347,3 +413,33 @@ class TestRelevantBricks:
         )
         assert 101 in result
         assert len(result) <= 2
+
+
+# ---------------------------------------------------------------------------
+# 8. Text utils embedding error handling
+# ---------------------------------------------------------------------------
+
+
+class TestTextUtilsEmbedding:
+    def test_get_embedding_skips_when_empty_embeddings(self):
+        with patch(
+            "utils.text_utils.get_embeddings",
+            return_value=([], "sentence-transformers/all-MiniLM-L6-v2"),
+        ):
+            vec, model = text_utils.get_embedding("sample text")
+            assert vec is None
+            assert model == "sentence-transformers/all-MiniLM-L6-v2"
+
+    def test_get_embeddings_raises_for_status_on_server_error(self):
+        mock_response = MagicMock()
+        mock_response.raise_for_status.side_effect = httpx.HTTPStatusError(
+            "500 Internal Server Error",
+            request=MagicMock(),
+            response=mock_response,
+        )
+        mock_client = MagicMock()
+        mock_client.post.return_value = mock_response
+
+        with patch("http_client.get_client", return_value=mock_client):
+            with pytest.raises(httpx.HTTPStatusError):
+                text_utils.get_embeddings(["sample text"])
