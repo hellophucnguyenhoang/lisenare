@@ -52,7 +52,7 @@ class TranscriptionService:
         self.torch_dtype = (
             torch.float16 if torch.cuda.is_available() else torch.float32
         )
-        self.model_id = "distil-whisper/distil-small.en"
+        self.model_id = "./models/distil-whisper-small.en"
 
         # Load model and processor once
         self.model = AutoModelForSpeechSeq2Seq.from_pretrained(
@@ -60,6 +60,7 @@ class TranscriptionService:
             dtype=self.torch_dtype,
             low_cpu_mem_usage=True,
             use_safetensors=True,
+            local_files_only=True,
         ).to(self.device)
         logger.info(f"{self.model_id} loaded with {self.device}")
 

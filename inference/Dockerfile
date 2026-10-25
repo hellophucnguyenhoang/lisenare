@@ -36,14 +36,19 @@ RUN uv sync \
     # --extra cu128 \
     && rm -rf /root/.cache/uv
 
-# Copy the inference source code
+# Copy the source code except .dockerignore
 COPY . .
+
+# Copy the model to the cache so pytorch does not download online
+RUN mkdir -p /root/.cache/torch/hub/checkpoints \
+    && cp models/wav2vec2_fairseq_base_ls960_asr_ls960.pth \
+    /root/.cache/torch/hub/checkpoints/
 
 # Background bake your local models during the build process
 RUN ollama serve & \
     OLLAMA_PID=$! && \
     sleep 3 && \
-    ollama pull gemma3:270m-it-qat && \
+    # ollama pull gemma3:270m-it-qat && \
     kill $OLLAMA_PID && \
     sleep 3
 

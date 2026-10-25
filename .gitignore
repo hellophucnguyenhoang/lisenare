@@ -20,6 +20,9 @@ lisenare-assets/
 *.wav
 *.mp3
 
+# Models
+inference/models
+
 # Cache
 .cache/
 

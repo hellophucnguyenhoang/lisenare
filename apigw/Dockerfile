@@ -16,7 +16,7 @@ COPY pyproject.toml uv.lock ./
 # Install project dependencies securely
 RUN uv sync --frozen --no-dev && rm -rf /root/.cache/uv
 
-# Copy the apigw source code
+# Copy the source code except .dockerignore
 COPY . .
 
 ENV PATH="/app/.venv/bin:$PATH"

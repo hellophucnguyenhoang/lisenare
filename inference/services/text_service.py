@@ -9,7 +9,7 @@ import pykakasi
 import soundfile as sf
 import spacy
 import torch
-from kokoro import KPipeline
+from kokoro import KModel, KPipeline
 from nltk.stem import LancasterStemmer
 from phonemizer import phonemize
 from phonemizer.separator import Separator
@@ -27,23 +27,30 @@ class TextService:
 
         # 1. Load Similarity Models
         self.similarity_model_en = SentenceTransformer(
-            "sentence-transformers/all-MiniLM-L6-v2",  # (384 dim)
+            "./models/all-MiniLM-L6-v2",  # (384 dim)
             device=self.device,
+            local_files_only=True,
         )
         self.similarity_model_ja = SentenceTransformer(
-            "cl-nagoya/ruri-v3-70m",  # (384 dim)
+            "./models/ruri-v3-70m",  # (384 dim)
             device=self.device,
+            local_files_only=True,
         )
 
         # 2. Load text to speech model
+        model_dir = "./models/Kokoro-82M"
+        kokoro_model = KModel(
+            config=f"{model_dir}/config.json",
+            model=f"{model_dir}/kokoro-v1_0.pth",
+        )
         self.tts_pipeline_en = KPipeline(
             lang_code="a",
-            repo_id="hexgrad/Kokoro-82M",
+            model=kokoro_model,
             device=self.device,
         )
         self.tts_pipeline_jp = KPipeline(
             lang_code="ja",
-            repo_id="hexgrad/Kokoro-82M",
+            model=kokoro_model,
             device=self.device,
         )
         logger.info(f"Running TextService inference on: {self.device}")

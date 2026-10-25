@@ -1,6 +1,6 @@
 # Environment & Dependencies
 .venv
-.env
+.env*
 
 # IDEs & Tools
 .vscode
@@ -20,6 +20,6 @@
 .git
 .gitignore
 
-# Docker logs
-Dockerfile
-.dockerignore
+# audio files
+*.wav
+*.mp3
