@@ -6,7 +6,7 @@ ollama serve &
 
 echo "⏳ Waiting for Ollama to initialize..."
 until curl -sf http://127.0.0.1:11434/api/tags > /dev/null; do
-    sleep 1
+    sleep 3
 done
 echo "✅ Ollama is ready!"
 

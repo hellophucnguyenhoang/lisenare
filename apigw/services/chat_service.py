@@ -30,7 +30,7 @@ def generate_chat_stream(session_id: str, user_message: str):
     messages.append({"role": "user", "content": user_message})
 
     # 3. Stream from Ollama
-    stream = chat(model="gemma3:1b", messages=messages, stream=True)
+    stream = chat(model="gemma3:270m-it-qat", messages=messages, stream=True)
 
     full_response = ""
     for chunk in stream:

@@ -220,7 +220,7 @@ def generate_vocab_item_for_learner(
     session: Session,
     learner_id: int,
     target_term: str,
-    model: str = "gemma3:1b",
+    model: str = "gemma3:270m-it-qat",
     max_simplification_rounds: int = 2,
 ) -> tuple[ExplanationResponse, ExplanationEvaluationMetric]:
     """

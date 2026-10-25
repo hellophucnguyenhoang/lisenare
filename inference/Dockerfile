@@ -25,6 +25,9 @@ WORKDIR /app
 # Copy ONLY inference package definitions
 COPY pyproject.toml uv.lock ./
 
+# Packages have to be installed from source
+COPY ReazonSpeech/pkg/k2-asr ./ReazonSpeech/pkg/k2-asr
+
 # Install ML weights and requirements 
 RUN uv sync \
     --frozen \
@@ -40,10 +43,9 @@ COPY . .
 RUN ollama serve & \
     OLLAMA_PID=$! && \
     sleep 3 && \
-    ollama pull mahonzhan/all-MiniLM-L6-v2 && \
-    ollama pull gemma3:1b && \
+    ollama pull gemma3:270m-it-qat && \
     kill $OLLAMA_PID && \
-    sleep 2
+    sleep 3
 
 # Add the environment targets for your text-to-phoneme synthesizer 
 ENV PATH="/app/.venv/bin:$PATH"

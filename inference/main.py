@@ -1,9 +1,9 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from routers import audio_router, text_router
+from routers import audio_router, fsrs_router, text_router
 
-app = FastAPI(title="Lisenare API")
+app = FastAPI(title="Lisenare Inference API")
 
 origins = ["http://127.0.0.1:8000"]
 
@@ -17,3 +17,4 @@ app.add_middleware(
 
 app.include_router(audio_router.router)
 app.include_router(text_router.router)
+app.include_router(fsrs_router.router)

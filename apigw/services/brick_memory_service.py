@@ -6,9 +6,10 @@ from typing import Literal
 from zoneinfo import ZoneInfo
 
 from fastapi import status
-from fsrs import Card, Optimizer, ReviewLog, Scheduler
+from fsrs import Card, ReviewLog, Scheduler
 from sqlmodel import Session, case, func, select
 
+import http_client
 from config import logger
 from database import (
     Brick,
@@ -19,6 +20,7 @@ from database import (
 )
 from exceptions import RequestException
 from schemas import TimeSeriesPoint
+from shared_schemas.fsrs import FSRSOptimizeRequest, FSRSOptimizeResponse
 from utils.db_utils import apply_time_filter
 from utils.text_utils import (
     calculate_batch_rarity,
@@ -42,46 +44,33 @@ def optimize_learner_scheduler(learner_id: int):
         )
         reviews = session.exec(statement).all()
 
-        fsrs_logs = [
-            ReviewLog.from_dict(r.fsrs_log_dict)
-            for r in reviews
-            if r.fsrs_log_dict
+        valid_review_logs = [
+            r.fsrs_log_dict for r in reviews if r.fsrs_log_dict
         ]
-        log_count = len(fsrs_logs)
+        log_count = len(valid_review_logs)
         logger.info(f"Found {log_count} valid FSRS logs")
 
         if log_count < 100:
             logger.warning(
-                f"Optimization aborted: Not enough logs ({len(fsrs_logs)} < 100)"
+                f"Optimization aborted: Not enough logs ({log_count} < 100)"
             )
             return
 
-        # 2. Run Optimizer
+        # 2. Run Optimizer via inference service
         try:
-            optimizer = Optimizer(fsrs_logs)
-            # Weights can usually be computed with ~100+ logs
-            optimal_params = optimizer.compute_optimal_parameters()
-            logger.info(f"Done computing optimal params for {learner_id = }")
-
-            # Retention requires 512. Check count before calling.
-            optimal_retention = 0.9  # Default
-            if log_count >= 512:
-                try:
-                    optimal_retention = optimizer.compute_optimal_retention(
-                        optimal_params
-                    )
-                    logger.info(
-                        f"Done computing optimal retention for {learner_id = }"
-                    )
-                except ValueError as e:
-                    logger.warning(
-                        f"Retention optimization failed, using 0.9: {e}"
-                    )
-            else:
-                logger.info(
-                    f"Skipping retention optimization for learner {learner_id} "
-                    f"(Need at least 512, have {log_count})"
-                )
+            response = http_client.get_client().post(
+                "/fsrs/optimize",
+                json=FSRSOptimizeRequest(
+                    review_logs=valid_review_logs
+                ).model_dump(mode="json"),
+            )
+            response.raise_for_status()
+            data = FSRSOptimizeResponse.model_validate(response.json())
+            optimal_params = data.optimal_params
+            optimal_retention = data.optimal_retention
+            logger.info(
+                f"Done computing optimal params and retention for {learner_id = }"
+            )
 
             # 3. Save Settings
             settings = session.get(
