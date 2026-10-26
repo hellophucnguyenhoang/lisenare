@@ -70,6 +70,15 @@ def init_db():
             )
         else:
             logger.info("Database already initialized, skipping.")
+            cols = [c["name"] for c in inspector.get_columns("brick")]
+            if "is_skipped" not in cols:
+                with Session(engine) as session:
+                    session.exec(
+                        text(
+                            "ALTER TABLE brick ADD COLUMN IF NOT EXISTS is_skipped BOOLEAN DEFAULT FALSE NOT NULL;"
+                        )
+                    )
+                    session.commit()
     except Exception as e:
         logger.critical(
             f"Database connection or initialization failed: {e}",

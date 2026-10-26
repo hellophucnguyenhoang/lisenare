@@ -17,6 +17,7 @@ class BrickUpdate(SQLModel):
     context: str | None = None
     kind: str | None = None
     is_private: bool | None = None
+    is_skipped: bool | None = None
     island_id: int | None = None
     tags: list[str] | None = None
 
@@ -105,6 +106,7 @@ class BrickBase(SQLModel):
     context: str | None = None
     kind: str = "sentence"
     is_private: bool = True
+    is_skipped: bool = False
     tags: list[str] = []
     island_id: int
 
@@ -165,6 +167,15 @@ class BrickListeningPage(SQLModel):
 class BrickStatus(str, Enum):
     LEARNED = "LEARNED"
     NOT_LEARNED = "NOT_LEARNED"
+    SKIPPED = "SKIPPED"
+
+    @classmethod
+    def _missing_(cls, value: object):
+        if isinstance(value, str):
+            for member in cls:
+                if member.value.lower() == value.lower():
+                    return member
+        return None
 
 
 class BrickSort(str, Enum):

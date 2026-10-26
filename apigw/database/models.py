@@ -55,6 +55,7 @@ class Brick(SQLModel, table=True):
     context: str | None = Field(default=None, max_length=CONTEXT_MAX_CHARS)
     kind: str  # 'word' or 'sentence'
     is_private: bool = True
+    is_skipped: bool = False
 
     last_edit_at: datetime = Field(
         default_factory=lambda: datetime.now(timezone.utc),

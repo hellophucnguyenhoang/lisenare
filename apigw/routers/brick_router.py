@@ -261,6 +261,22 @@ def forget_brick(
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
+@router.post("/{brick_id}/skip", status_code=status.HTTP_204_NO_CONTENT)
+def skip_brick(
+    session: Annotated[Session, Depends(get_session)],
+    learner: Annotated[
+        Learner, Depends(auth_service.decode_token_get_learner)
+    ],
+    brick_id: int,
+) -> Response:
+    brick_service.skip_brick(
+        session=session,
+        brick_id=brick_id,
+        learner_id=learner.id,
+    )
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
 @router.post(
     "/add-from-island/{island_id}",
     response_model=AddIslandResult,

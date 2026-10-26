@@ -35,8 +35,7 @@ from schemas import (
     BrickUpdate,
 )
 
-from . import audio_cache_service
-from . import search_service
+from . import audio_cache_service, search_service
 from .brick_reaction_service import get_reaction_map
 from .tag_service import (
     clean_tags,
@@ -74,9 +73,13 @@ def get_bricks(
 
     if status is not None:
         if status == BrickStatus.LEARNED:
-            conditions.append(exists_stmt)
+            conditions.append(and_(exists_stmt, Brick.is_skipped.is_(False)))
         elif status == BrickStatus.NOT_LEARNED:
-            conditions.append(not_(exists_stmt))
+            conditions.append(
+                and_(not_(exists_stmt), Brick.is_skipped.is_(False))
+            )
+        elif status == BrickStatus.SKIPPED:
+            conditions.append(Brick.is_skipped.is_(True))
 
     if kind is not None:
         conditions.append(Brick.kind == kind)
@@ -248,10 +251,15 @@ def count_bricks(
 
     if status is not None:
         if status == BrickStatus.LEARNED:
-            conditions.append(exists_stmt)
+            conditions.append(and_(exists_stmt, Brick.is_skipped == False))  # noqa: E712
 
         elif status == BrickStatus.NOT_LEARNED:
-            conditions.append(not_(exists_stmt))
+            conditions.append(
+                and_(not_(exists_stmt), Brick.is_skipped == False)  # noqa: E712
+            )
+
+        elif status == BrickStatus.SKIPPED:
+            conditions.append(Brick.is_skipped == True)  # noqa: E712
 
     if kind is not None:
         conditions.append(Brick.kind == kind)
@@ -345,6 +353,8 @@ def get_next_brick(
 ) -> BrickRead | None:
     if brick_id is not None:
         brick = get_brick(session, brick_id, creator_id)
+        if brick.is_skipped:
+            return None
         tags = fetch_tags_for_entity(session, brick.id, "Brick")
         return BrickRead.model_validate(brick, update={"tags": tags})
 
@@ -361,6 +371,7 @@ def get_next_brick(
     ).all()
 
     def apply_filters(stmt):
+        stmt = stmt.where(Brick.is_skipped == False)  # noqa: E712
         if island_ids:
             stmt = stmt.where(Brick.island_id.in_(island_ids))
         if broken_brick_ids:
@@ -908,3 +919,42 @@ def forget_brick(
     logger.info(
         f"Reset memory and review history for brick ID: {brick_id} and learner_id: {learner_id}"
     )
+
+
+def skip_brick(
+    session: Session,
+    brick_id: int,
+    learner_id: int,
+) -> None:
+    brick = session.get(Brick, brick_id)
+    if not brick:
+        logger.warning(f"Skip brick failed: brick_id: {brick_id} not found")
+        raise RequestException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            debug_message=f"Brick with id {brick_id} not found",
+        )
+
+    if brick.creator_id != learner_id:
+        logger.warning(
+            f"Skip brick forbidden: learner_id: {learner_id} is not owner of brick_id: {brick_id}"
+        )
+        raise RequestException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            debug_message=f"{learner_id=} is not the creator to skip {brick_id=}",
+        )
+
+    brick.is_skipped = True
+    session.add(brick)
+
+    memory = session.exec(
+        select(BrickMemory).where(
+            BrickMemory.brick_id == brick_id,
+            BrickMemory.learner_id == learner_id,
+        )
+    ).first()
+    if memory:
+        memory.is_skipped = True
+        session.add(memory)
+
+    session.commit()
+    logger.info(f"Skipped brick ID: {brick_id} for learner_id: {learner_id}")

@@ -865,6 +865,169 @@ def test_forget_brick_not_found(client: TestClient):
         app.dependency_overrides.clear()
 
 
+def test_skip_brick_success(client: TestClient):
+    fake_learner = Learner(id=2, name="test_learner", setting=LearnerSetting())
+    app.dependency_overrides[auth_service.decode_token_get_learner] = lambda: (
+        fake_learner
+    )
+
+    with Session(engine) as session:
+        brick = session.exec(
+            select(Brick).where(
+                Brick.creator_id == 2,
+                Brick.is_skipped == False,  # noqa: E712
+            )
+        ).first()
+        assert brick is not None
+        brick_id = brick.id
+
+    try:
+        response = client.post(f"/api/bricks/{brick_id}/skip")
+        assert response.status_code == 204
+
+        with Session(engine) as session:
+            refreshed = session.get(Brick, brick_id)
+            assert refreshed.is_skipped is True
+
+        # Check get_bricks with status=SKIPPED
+        skipped_resp = client.get("/api/bricks?status=SKIPPED")
+        assert skipped_resp.status_code == 200
+        data = skipped_resp.json()
+        matching_ids = [item["id"] for item in data["items"]]
+        assert brick_id in matching_ids
+
+        # Check lowercase status=skipped also works
+        skipped_lower_resp = client.get("/api/bricks?status=skipped")
+        assert skipped_lower_resp.status_code == 200
+
+        # Check get_bricks with status=NOT_LEARNED does not include skipped brick
+        not_learned_resp = client.get("/api/bricks?status=NOT_LEARNED")
+        assert not_learned_resp.status_code == 200
+        not_learned_ids = [
+            item["id"] for item in not_learned_resp.json()["items"]
+        ]
+        assert brick_id not in not_learned_ids
+
+        # Check get_next_brick with explicit brick_id returns None for skipped brick
+        next_resp = client.get(f"/api/bricks/next?brick_id={brick_id}")
+        assert next_resp.status_code == 200
+        assert next_resp.json() is None
+    finally:
+        app.dependency_overrides.clear()
+        with Session(engine) as session:
+            b = session.get(Brick, brick_id)
+            if b:
+                b.is_skipped = False
+                session.add(b)
+                session.commit()
+
+
+def test_skip_brick_forbidden(client: TestClient):
+    other_learner = Learner(id=99999, setting=LearnerSetting())
+    app.dependency_overrides[auth_service.decode_token_get_learner] = lambda: (
+        other_learner
+    )
+
+    with Session(engine) as session:
+        brick = session.exec(
+            select(Brick).where(Brick.creator_id == 2)
+        ).first()
+        assert brick is not None
+        brick_id = brick.id
+
+    try:
+        response = client.post(f"/api/bricks/{brick_id}/skip")
+        assert response.status_code == 403
+    finally:
+        app.dependency_overrides.clear()
+
+
+def test_skip_brick_not_found(client: TestClient):
+    fake_learner = Learner(id=2, name="test_learner", setting=LearnerSetting())
+    app.dependency_overrides[auth_service.decode_token_get_learner] = lambda: (
+        fake_learner
+    )
+
+    try:
+        response = client.post("/api/bricks/99999999/skip")
+        assert response.status_code == 404
+    finally:
+        app.dependency_overrides.clear()
+
+
+def test_get_next_brick_skips_skipped_bricks(client: TestClient):
+    learner_id = 555
+    created_brick_ids = []
+    island_id = None
+    with Session(engine) as session:
+        learner = session.get(Learner, learner_id)
+        if not learner:
+            learner = Learner(
+                id=learner_id,
+                name="SkipTestLearner",
+                setting=LearnerSetting(retrieval_lang="en"),
+            )
+            session.add(learner)
+
+        island = Island(name="SkipTestIsland", creator_id=learner_id)
+        session.add(island)
+        session.flush()
+        island_id = island.id
+
+        b_skipped = Brick(
+            native_text="N_skipped",
+            target_text="A",  # Shorter, would normally be chosen first
+            target_audio_path="p1",
+            target_lang="en",
+            kind="word",
+            is_private=True,
+            is_skipped=True,
+            creator_id=learner_id,
+            island_id=island.id,
+        )
+        b_normal = Brick(
+            native_text="N_normal",
+            target_text="Normal Target",
+            target_audio_path="p2",
+            target_lang="en",
+            kind="word",
+            is_private=True,
+            is_skipped=False,
+            creator_id=learner_id,
+            island_id=island.id,
+        )
+        session.add(b_skipped)
+        session.add(b_normal)
+        session.commit()
+        created_brick_ids = [b_skipped.id, b_normal.id]
+
+    app.dependency_overrides[auth_service.decode_token_get_learner] = lambda: (
+        Learner(id=learner_id, setting=LearnerSetting(retrieval_lang="en"))
+    )
+    try:
+        response = client.get(f"/api/bricks/next?island_ids={island_id}")
+        assert response.status_code == 200
+        data = response.json()
+        assert data is not None
+        assert data["id"] == b_normal.id
+        assert data["target_text"] == "Normal Target"
+    finally:
+        app.dependency_overrides.clear()
+        with Session(engine) as session:
+            for bid in created_brick_ids:
+                b = session.get(Brick, bid)
+                if b:
+                    session.delete(b)
+            if island_id:
+                isl = session.get(Island, island_id)
+                if isl:
+                    session.delete(isl)
+            lrn = session.get(Learner, learner_id)
+            if lrn:
+                session.delete(lrn)
+            session.commit()
+
+
 def test_get_listening_bricks_returns_full_audio_url(client: TestClient):
     fake_learner = Learner(id=2, name="test_learner", setting=LearnerSetting())
     app.dependency_overrides[auth_service.decode_token_get_learner] = lambda: (
