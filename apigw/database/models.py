@@ -151,6 +151,7 @@ class BrickMemory(SQLModel, table=True):
 
     fsrs_card_dict: dict = Field(default={}, sa_type=JSONB)
     due: datetime = Field(sa_type=DateTime(timezone=True), index=True)
+    is_skipped: bool = False
 
     created_at: datetime = Field(
         default_factory=lambda: datetime.now(timezone.utc),

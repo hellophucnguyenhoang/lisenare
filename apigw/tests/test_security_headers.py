@@ -18,7 +18,7 @@ def test_security_headers_present_on_success_response(client: TestClient):
     )
     assert (
         response.headers.get("Permissions-Policy")
-        == "geolocation=(), microphone=(), camera=()"
+        == "geolocation=(), microphone=(self), camera=()"
     )
 
 
@@ -39,7 +39,7 @@ def test_security_headers_present_on_api_response(client: TestClient):
     )
     assert (
         response.headers.get("Permissions-Policy")
-        == "geolocation=(), microphone=(), camera=()"
+        == "geolocation=(), microphone=(self), camera=()"
     )
 
 
@@ -60,5 +60,5 @@ def test_security_headers_present_on_error_response(client: TestClient):
     )
     assert (
         response.headers.get("Permissions-Policy")
-        == "geolocation=(), microphone=(), camera=()"
+        == "geolocation=(), microphone=(self), camera=()"
     )

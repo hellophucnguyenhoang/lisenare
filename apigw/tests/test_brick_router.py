@@ -31,7 +31,9 @@ def test_create_brick_with_tags_success(client: TestClient):
 
     with Session(engine) as session:
         col = session.exec(
-            select(Island).where(Island.creator_id == 2)
+            select(Island).where(
+                Island.creator_id == 2, Island.name == "Island 10"
+            )
         ).first()
         assert col is not None
         col_id = col.id
@@ -126,7 +128,9 @@ def test_create_brick_with_custom_target_lang(client: TestClient):
 
     with Session(engine) as session:
         col = session.exec(
-            select(Island).where(Island.creator_id == 2)
+            select(Island).where(
+                Island.creator_id == 2, Island.name == "Island 10"
+            )
         ).first()
         assert col is not None
         col_id = col.id
@@ -203,7 +207,9 @@ def test_create_brick_island_forbidden(client: TestClient):
 
     with Session(engine) as session:
         col = session.exec(
-            select(Island).where(Island.creator_id == 2)
+            select(Island).where(
+                Island.creator_id == 2, Island.name == "Island 10"
+            )
         ).first()
         assert col is not None
         col_id = col.id

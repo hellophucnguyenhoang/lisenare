@@ -73,7 +73,9 @@ def test_create_and_query_brick_with_uncleaned_tags(client: TestClient):
 
     with Session(engine) as session:
         col = session.exec(
-            select(Island).where(Island.creator_id == 2)
+            select(Island).where(
+                Island.creator_id == 2, Island.name == "Island 10"
+            )
         ).first()
         assert col is not None
         col_id = col.id

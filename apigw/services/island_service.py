@@ -5,6 +5,7 @@ from fastapi import status
 from sqlmodel import Session, col, func, select
 
 from config import logger
+from constants import MAX_BRICKS_PER_ISLAND
 from database import Brick, BrickMemory, BrickReview, Island
 from exceptions import ErrorCode, RequestException
 from schemas import (
@@ -16,7 +17,7 @@ from schemas import (
     IslandUpdate,
 )
 
-from .brick_service import check_brick_exists
+from .brick_service import check_brick_exists, count_bricks_in_island
 from .tag_service import (
     delete_tags_for_entity,
     fetch_tags_for_entities,
@@ -418,7 +419,18 @@ def import_island(
             debug_message=f"{learner_id=} is not the creator of island {island_id}",
         )
 
-    added = 0
+    current_count = count_bricks_in_island(session, island_id)
+    if current_count >= MAX_BRICKS_PER_ISLAND:
+        logger.warning(
+            f"Island import failed: island {island_id} has reached maximum limit of {MAX_BRICKS_PER_ISLAND} bricks"
+        )
+        raise RequestException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            debug_message=f"Island {island_id} has reached the maximum limit of {MAX_BRICKS_PER_ISLAND} bricks",
+            error_code=ErrorCode.ISLAND_BRICK_LIMIT_EXCEEDED,
+        )
+
+    valid_items = []
     skipped = 0
     seen_in_batch: set[str] = set()
 
@@ -433,6 +445,20 @@ def import_island(
             continue
 
         seen_in_batch.add(norm_text)
+        valid_items.append(item)
+
+    if current_count + len(valid_items) > MAX_BRICKS_PER_ISLAND:
+        logger.warning(
+            f"Island import failed: importing {len(valid_items)} bricks to island {island_id} "
+            f"with {current_count} bricks would exceed maximum limit of {MAX_BRICKS_PER_ISLAND}"
+        )
+        raise RequestException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            debug_message=f"Island {island_id} cannot exceed the maximum limit of {MAX_BRICKS_PER_ISLAND} bricks",
+            error_code=ErrorCode.ISLAND_BRICK_LIMIT_EXCEEDED,
+        )
+
+    for item in valid_items:
         brick = Brick(
             native_text=item.native_text,
             target_text=item.target_text,
@@ -483,10 +509,8 @@ def import_island(
                 )
                 session.add(db_review)
 
-        added += 1
-
     session.commit()
     logger.info(
-        f"Imported island ID: {island_id} for learner_id: {learner_id} (added: {added}, skipped: {skipped})"
+        f"Imported island ID: {island_id} for learner_id: {learner_id} (added: {len(valid_items)}, skipped: {skipped})"
     )
-    return AddIslandResult(added=added, skipped=skipped)
+    return AddIslandResult(added=len(valid_items), skipped=skipped)

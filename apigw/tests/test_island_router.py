@@ -74,8 +74,8 @@ def test_create_island_duplicate_name(client: TestClient):
     response = client.post(
         "/api/islands",
         json={
-            "name": "Odd Island",
-            "description": "Trying to duplicate Odd Island",
+            "name": "Island 1",
+            "description": "Trying to duplicate Island 1",
         },
     )
 

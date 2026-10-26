@@ -1,6 +1,6 @@
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.openapi.utils import get_openapi
 from fastapi.responses import JSONResponse
@@ -136,15 +136,21 @@ async def http_exception_handler(
 
 
 # The exception structure stays consistent
-# @app.exception_handler(Exception)
-# async def unexpected_exception_handler(request, exc: Exception):
-#     return JSONResponse(
-#         status_code=500,
-#         content={
-#             "debug_message": "Internal server error",
-#             "error_code": "INTERNAL_SERVER_ERROR",
-#         },
-#     )
+@app.exception_handler(Exception)
+async def unexpected_exception_handler(request, exc: Exception):
+    # Use exception to record ERROR traceback
+    logger.exception(
+        "Unhandled exception on %s %s",
+        request.method,
+        request.url.path,
+    )
+    return JSONResponse(
+        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        content={
+            "debug_message": "Internal server error",
+            "error_code": "INTERNAL_SERVER_ERROR",
+        },
+    )
 
 
 # Allow requests from the frontend

@@ -134,76 +134,34 @@ def init_bricks(session: Session):
         session.flush()  # Populates IDs without closing transaction
         return account
 
+    # Create initial accounts
+    system_account_create = LearnerAccountCreate(
+        name="The Avid Learner",
+        username="qwerwert",
+        password="12345678",
+    )
+    create_learner_account(session, system_account_create)
+
     me_account_create = LearnerAccountCreate(
+        name="Phúc",
         username="hoangphuc",
         password="12345678",
         email="hellophucnh@gmail.com",
     )
     me_account = create_learner_account(session, me_account_create)
 
-    odd_island = Island(
-        name="Odd Island",
-        creator=me_account.learner,
-    )
-    odd_col_tags = [
-        Tag(
-            name="oddenglish",
-            creator=me_account.learner,
-        ),
-        Tag(
-            name="odd",
-            creator=me_account.learner,
-        ),
+    islands = [
+        Island(name=f"Island {i + 1}", creator=me_account.learner)
+        for i in range(10)
     ]
-
-    even_island = Island(
-        name="Even Island",
-        creator=me_account.learner,
-    )
-    even_col_tags = [
-        Tag(
-            name="evenenglish",
-            creator=me_account.learner,
-        ),
-        Tag(
-            name="even",
-            creator=me_account.learner,
-        ),
-    ]
-
-    session.add_all([odd_island, even_island])
-
-    for tag in odd_col_tags:
-        session.add(tag)
-    for tag in even_col_tags:
-        session.add(tag)
-
+    session.add_all(islands)
     session.flush()
 
-    for tag in odd_col_tags:
-        session.add(
-            Taggable(
-                tag_id=tag.id,
-                taggable_id=odd_island.id,
-                taggable_type="Island",
-            )
-        )
-
-    for tag in even_col_tags:
-        session.add(
-            Taggable(
-                tag_id=tag.id,
-                taggable_id=even_island.id,
-                taggable_type="Island",
-            )
-        )
-
-    session.flush()
-
-    # Read and parse data with Pandas efficiently
+    island_brick_counts = [0] * len(islands)
+    lesson_islands: dict[int, Island] = {}
     lesson_tags: dict[int, Tag] = {}
-    brick_metadata_df = pd.read_csv("bricks-metadata.csv")
 
+    brick_metadata_df = pd.read_csv("bricks-metadata.csv")
     brick_metadata_df["lesson_id"] = (
         brick_metadata_df["lesson_id"]
         .astype(str)
@@ -215,7 +173,29 @@ def init_bricks(session: Session):
     for _, row in brick_metadata_df.iterrows():
         lesson_id = int(row["lesson_id"])
 
-        island = odd_island if lesson_id % 2 == 1 else even_island
+        if lesson_id not in lesson_islands:
+            lesson_size = (brick_metadata_df["lesson_id"] == lesson_id).sum()
+
+            # Find the first island with enough remaining capacity.
+            island_index = next(
+                (
+                    i
+                    for i, count in enumerate(island_brick_counts)
+                    if count + lesson_size <= 1111
+                ),
+                None,
+            )
+
+            if island_index is None:
+                raise ValueError(
+                    f"Cannot assign lesson {lesson_id}: "
+                    "no island has enough capacity."
+                )
+
+            lesson_islands[lesson_id] = islands[island_index]
+            island_brick_counts[island_index] += lesson_size
+
+        island = lesson_islands[lesson_id]
 
         brick = Brick(
             native_text=row["vi_translation"],
@@ -234,7 +214,6 @@ def init_bricks(session: Session):
         session.flush()  # obtain brick.id
 
         tag = lesson_tags.get(lesson_id)
-
         if tag is None:
             tag = Tag(
                 name=f"lesson{lesson_id}",

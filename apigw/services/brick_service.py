@@ -8,6 +8,7 @@ from sqlalchemy.orm import selectinload
 from sqlmodel import Session, and_, exists, func, not_, select
 
 from config import logger
+from constants import MAX_BRICKS_PER_ISLAND
 from database import (
     Brick,
     BrickInteraction,
@@ -21,7 +22,7 @@ from database import (
     Tag,
     Taggable,
 )
-from exceptions import RequestException
+from exceptions import ErrorCode, RequestException
 from redis_client import get_redis_client
 from schemas import (
     BrickCreate,
@@ -447,6 +448,15 @@ def check_brick_exists(
     return result is not None
 
 
+def count_bricks_in_island(session: Session, island_id: int) -> int:
+    return (
+        session.exec(
+            select(func.count(Brick.id)).where(Brick.island_id == island_id)
+        ).one()
+        or 0
+    )
+
+
 def create_brick(
     session: Session,
     request_data: BrickCreateRequest,
@@ -470,6 +480,16 @@ def create_brick(
         raise RequestException(
             status_code=status.HTTP_403_FORBIDDEN,
             debug_message=f"{creator_id=} is not the creator of island {request_data.island_id}",
+        )
+
+    if count_bricks_in_island(session, island.id) >= MAX_BRICKS_PER_ISLAND:
+        logger.warning(
+            f"Brick creation failed: Island ID {island.id} has reached maximum limit of {MAX_BRICKS_PER_ISLAND} bricks"
+        )
+        raise RequestException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            debug_message=f"Island {island.id} has reached the maximum limit of {MAX_BRICKS_PER_ISLAND} bricks",
+            error_code=ErrorCode.ISLAND_BRICK_LIMIT_EXCEEDED,
         )
 
     brick_create = BrickCreate(
@@ -536,6 +556,35 @@ def update_brick(
             status_code=status.HTTP_403_FORBIDDEN,
             debug_message=f"{creator_id=} is not the creator to update {brick_id=}",
         )
+
+    new_island_id = update_data.get("island_id")
+    if new_island_id is not None and new_island_id != brick.island_id:
+        new_island = session.get(Island, new_island_id)
+        if not new_island:
+            logger.warning(
+                f"Brick update failed: new island {new_island_id} not found"
+            )
+            raise RequestException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                debug_message=f"Island with id {new_island_id} not found",
+            )
+        if new_island.creator_id != creator_id:
+            logger.warning(
+                f"Brick update forbidden: creator_id {creator_id} is not owner of island {new_island_id}"
+            )
+            raise RequestException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                debug_message=f"{creator_id=} is not the creator of island {new_island_id}",
+            )
+        if count_bricks_in_island(session, new_island_id) >= MAX_BRICKS_PER_ISLAND:
+            logger.warning(
+                f"Brick update failed: Island ID {new_island_id} has reached maximum limit of {MAX_BRICKS_PER_ISLAND} bricks"
+            )
+            raise RequestException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                debug_message=f"Island {new_island_id} has reached the maximum limit of {MAX_BRICKS_PER_ISLAND} bricks",
+                error_code=ErrorCode.ISLAND_BRICK_LIMIT_EXCEEDED,
+            )
 
     tags_to_update = update_data.pop("tags", None)
 
@@ -644,6 +693,16 @@ def add_brick_from(
             debug_message=f"Island {island_id} not found",
         )
 
+    if count_bricks_in_island(session, island_id) >= MAX_BRICKS_PER_ISLAND:
+        logger.warning(
+            f"Add brick failed: target island {island_id} has reached maximum limit of {MAX_BRICKS_PER_ISLAND} bricks"
+        )
+        raise RequestException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            debug_message=f"Island {island_id} has reached the maximum limit of {MAX_BRICKS_PER_ISLAND} bricks",
+            error_code=ErrorCode.ISLAND_BRICK_LIMIT_EXCEEDED,
+        )
+
     # Check for duplicate
     if check_brick_exists(session, learner_id, source.target_text):
         logger.warning(
@@ -706,6 +765,17 @@ def add_bricks_from_island(
             debug_message=f"Target island {target_island_id} not found",
         )
 
+    current_count = count_bricks_in_island(session, target_island_id)
+    if current_count >= MAX_BRICKS_PER_ISLAND:
+        logger.warning(
+            f"Add bricks from island failed: target island {target_island_id} has reached maximum limit of {MAX_BRICKS_PER_ISLAND} bricks"
+        )
+        raise RequestException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            debug_message=f"Island {target_island_id} has reached the maximum limit of {MAX_BRICKS_PER_ISLAND} bricks",
+            error_code=ErrorCode.ISLAND_BRICK_LIMIT_EXCEEDED,
+        )
+
     # Get all bricks from the source island that are public
     # (or owned by the learner, if they're adding from their own island)
     stmt = select(Brick).where(Brick.island_id == source_island_id)
@@ -713,14 +783,27 @@ def add_bricks_from_island(
         stmt = stmt.where(Brick.is_private == False)  # noqa: E712
     source_bricks = session.exec(stmt).all()
 
-    added = 0
+    to_add = []
     skipped = 0
 
     for source in source_bricks:
         if check_brick_exists(session, learner_id, source.target_text):
             skipped += 1
             continue
+        to_add.append(source)
 
+    if current_count + len(to_add) > MAX_BRICKS_PER_ISLAND:
+        logger.warning(
+            f"Add bricks from island failed: adding {len(to_add)} bricks to island {target_island_id} "
+            f"with {current_count} bricks would exceed maximum limit of {MAX_BRICKS_PER_ISLAND}"
+        )
+        raise RequestException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            debug_message=f"Island {target_island_id} cannot exceed the maximum limit of {MAX_BRICKS_PER_ISLAND} bricks",
+            error_code=ErrorCode.ISLAND_BRICK_LIMIT_EXCEEDED,
+        )
+
+    for source in to_add:
         brick = Brick(
             native_text=source.native_text,
             target_text=source.target_text,
@@ -735,14 +818,13 @@ def add_bricks_from_island(
             embedding_id=source.embedding_id,
         )
         session.add(brick)
-        added += 1
 
     session.commit()
     logger.info(
         f"Copied bricks from island ID: {source_island_id} to island ID: {target_island_id} "
-        f"for learner_id: {learner_id} (added: {added}, skipped: {skipped})"
+        f"for learner_id: {learner_id} (added: {len(to_add)}, skipped: {skipped})"
     )
-    return {"added": added, "skipped": skipped}
+    return {"added": len(to_add), "skipped": skipped}
 
 
 def report_brick(
