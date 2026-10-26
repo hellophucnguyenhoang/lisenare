@@ -576,7 +576,10 @@ def update_brick(
                 status_code=status.HTTP_403_FORBIDDEN,
                 debug_message=f"{creator_id=} is not the creator of island {new_island_id}",
             )
-        if count_bricks_in_island(session, new_island_id) >= MAX_BRICKS_PER_ISLAND:
+        if (
+            count_bricks_in_island(session, new_island_id)
+            >= MAX_BRICKS_PER_ISLAND
+        ):
             logger.warning(
                 f"Brick update failed: Island ID {new_island_id} has reached maximum limit of {MAX_BRICKS_PER_ISLAND} bricks"
             )

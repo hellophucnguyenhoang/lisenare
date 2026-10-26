@@ -27,7 +27,9 @@ def test_count_bricks_in_island_helper():
 
 def test_create_brick_fails_when_island_full(client: TestClient):
     learner = Learner(id=2, setting=LearnerSetting())
-    app.dependency_overrides[auth_service.decode_token_get_learner] = lambda: learner
+    app.dependency_overrides[auth_service.decode_token_get_learner] = lambda: (
+        learner
+    )
 
     with Session(engine) as session:
         full_island = session.exec(
@@ -57,7 +59,9 @@ def test_create_brick_fails_when_island_full(client: TestClient):
             response = client.post(
                 "/api/bricks",
                 data={"json_data": json.dumps(brick_payload)},
-                files={"target_audio_file": ("audio.wav", audio_file, "audio/wav")},
+                files={
+                    "target_audio_file": ("audio.wav", audio_file, "audio/wav")
+                },
             )
 
         assert response.status_code == 400
@@ -71,7 +75,9 @@ def test_create_brick_fails_when_island_full(client: TestClient):
 
 def test_update_brick_move_to_full_island_fails(client: TestClient):
     learner = Learner(id=2, setting=LearnerSetting())
-    app.dependency_overrides[auth_service.decode_token_get_learner] = lambda: learner
+    app.dependency_overrides[auth_service.decode_token_get_learner] = lambda: (
+        learner
+    )
 
     with Session(engine) as session:
         avail_island = session.exec(
@@ -109,7 +115,9 @@ def test_update_brick_move_to_full_island_fails(client: TestClient):
             response = client.post(
                 "/api/bricks",
                 data={"json_data": json.dumps(brick_payload)},
-                files={"target_audio_file": ("audio.wav", audio_file, "audio/wav")},
+                files={
+                    "target_audio_file": ("audio.wav", audio_file, "audio/wav")
+                },
             )
             assert response.status_code == 200
             brick_id = response.json()["id"]
@@ -128,7 +136,14 @@ def test_update_brick_move_to_full_island_fails(client: TestClient):
             # Update same brick without changing island_id succeeds
             update_same_res = client.patch(
                 f"/api/bricks/{brick_id}",
-                data={"json_data": json.dumps({"island_id": avail_island_id, "native_text": "Updated VN"})},
+                data={
+                    "json_data": json.dumps(
+                        {
+                            "island_id": avail_island_id,
+                            "native_text": "Updated VN",
+                        }
+                    )
+                },
             )
             assert update_same_res.status_code == 200
     finally:
@@ -140,7 +155,9 @@ def test_update_brick_move_to_full_island_fails(client: TestClient):
 
 def test_add_brick_from_fails_when_target_island_full(client: TestClient):
     learner = Learner(id=2, setting=LearnerSetting())
-    app.dependency_overrides[auth_service.decode_token_get_learner] = lambda: learner
+    app.dependency_overrides[auth_service.decode_token_get_learner] = lambda: (
+        learner
+    )
 
     with Session(engine) as session:
         full_island = session.exec(
@@ -148,7 +165,6 @@ def test_add_brick_from_fails_when_target_island_full(client: TestClient):
                 Island.creator_id == 2, Island.name == "Island 1"
             )
         ).first()
-        # Find a public brick not owned by learner 2 or owned by learner 2
         source_brick = session.exec(
             select(Brick).where(Brick.is_private == False)  # noqa: E712
         ).first()
@@ -159,7 +175,7 @@ def test_add_brick_from_fails_when_target_island_full(client: TestClient):
 
     try:
         response = client.post(
-            f"/api/bricks/{source_brick_id}/add-from",
+            f"/api/bricks/add-from/{source_brick_id}",
             json={"island_id": full_island_id},
         )
         assert response.status_code == 400
@@ -171,9 +187,13 @@ def test_add_brick_from_fails_when_target_island_full(client: TestClient):
         app.dependency_overrides.clear()
 
 
-def test_add_bricks_from_island_fails_when_target_island_full(client: TestClient):
+def test_add_bricks_from_island_fails_when_target_island_full(
+    client: TestClient,
+):
     learner = Learner(id=2, setting=LearnerSetting())
-    app.dependency_overrides[auth_service.decode_token_get_learner] = lambda: learner
+    app.dependency_overrides[auth_service.decode_token_get_learner] = lambda: (
+        learner
+    )
 
     with Session(engine) as session:
         full_island = session.exec(
@@ -193,7 +213,7 @@ def test_add_bricks_from_island_fails_when_target_island_full(client: TestClient
 
     try:
         response = client.post(
-            f"/api/islands/{source_island_id}/add-from-island",
+            f"/api/bricks/add-from-island/{source_island_id}",
             json={"target_island_id": full_island_id},
         )
         assert response.status_code == 400
@@ -205,41 +225,83 @@ def test_add_bricks_from_island_fails_when_target_island_full(client: TestClient
         app.dependency_overrides.clear()
 
 
-def test_add_bricks_from_island_fails_when_exceeding_capacity(client: TestClient):
-    learner = Learner(id=2, setting=LearnerSetting())
-    app.dependency_overrides[auth_service.decode_token_get_learner] = lambda: learner
+def test_add_bricks_from_island_fails_when_exceeding_capacity():
+    from services.brick_service import add_bricks_from_island
+    import pytest
+    from exceptions import RequestException
 
     with Session(engine) as session:
-        source_island = session.exec(
-            select(Island).where(
-                Island.creator_id == 2, Island.name == "Island 10"
-            )
-        ).first()
-        assert source_island is not None
-        source_island_id = source_island.id
+        # Create a temporary learner, source island with 2 bricks, and target island
+        src_learner = Learner(
+            id=881, name="SrcLearner", setting=LearnerSetting()
+        )
+        tgt_learner = Learner(
+            id=882, name="TgtLearner", setting=LearnerSetting()
+        )
+        session.add(src_learner)
+        session.add(tgt_learner)
+        session.flush()
 
-    # Mock count_bricks_in_island for target to return 1110
-    with patch(
-        "services.brick_service.count_bricks_in_island",
-        return_value=1110,
-    ):
+        src_island = Island(name="SrcIsland", creator_id=src_learner.id)
+        tgt_island = Island(name="TgtIsland", creator_id=tgt_learner.id)
+        session.add(src_island)
+        session.add(tgt_island)
+        session.flush()
+
+        b1 = Brick(
+            native_text="N1",
+            target_text="Unique_Cap_1",
+            target_audio_path="test1.wav",
+            kind="word",
+            is_private=False,
+            creator_id=src_learner.id,
+            island_id=src_island.id,
+        )
+        b2 = Brick(
+            native_text="N2",
+            target_text="Unique_Cap_2",
+            target_audio_path="test2.wav",
+            kind="word",
+            is_private=False,
+            creator_id=src_learner.id,
+            island_id=src_island.id,
+        )
+        session.add(b1)
+        session.add(b2)
+        session.commit()
+
         try:
-            response = client.post(
-                f"/api/islands/{source_island_id}/add-from-island",
-                json={"target_island_id": source_island_id},
-            )
-            assert response.status_code == 400
-            assert (
-                response.json()["error_code"]
-                == ErrorCode.ISLAND_BRICK_LIMIT_EXCEEDED.value
-            )
+            with patch(
+                "services.brick_service.count_bricks_in_island",
+                return_value=1110,
+            ):
+                with pytest.raises(RequestException) as exc_info:
+                    add_bricks_from_island(
+                        session=session,
+                        source_island_id=src_island.id,
+                        target_island_id=tgt_island.id,
+                        learner_id=tgt_learner.id,
+                    )
+                assert exc_info.value.status_code == 400
+                assert (
+                    exc_info.value.detail["error_code"]
+                    == ErrorCode.ISLAND_BRICK_LIMIT_EXCEEDED.value
+                )
         finally:
-            app.dependency_overrides.clear()
+            session.delete(b1)
+            session.delete(b2)
+            session.delete(src_island)
+            session.delete(tgt_island)
+            session.delete(src_learner)
+            session.delete(tgt_learner)
+            session.commit()
 
 
 def test_import_island_fails_when_island_full(client: TestClient):
     learner = Learner(id=2, setting=LearnerSetting())
-    app.dependency_overrides[auth_service.decode_token_get_learner] = lambda: learner
+    app.dependency_overrides[auth_service.decode_token_get_learner] = lambda: (
+        learner
+    )
 
     with Session(engine) as session:
         full_island = session.exec(
@@ -254,6 +316,7 @@ def test_import_island_fails_when_island_full(client: TestClient):
         {
             "native_text": "VN import",
             "target_text": "EN import unique 99",
+            "target_audio_path": "system-brick-audios/test.wav",
             "kind": "sentence",
             "is_private": True,
             "target_lang": "en",
@@ -263,7 +326,13 @@ def test_import_island_fails_when_island_full(client: TestClient):
     try:
         response = client.post(
             f"/api/islands/{full_island_id}/import",
-            json=import_payload,
+            files={
+                "file": (
+                    "import.json",
+                    json.dumps(import_payload).encode("utf-8"),
+                    "application/json",
+                )
+            },
         )
         assert response.status_code == 400
         assert (
@@ -284,11 +353,13 @@ def test_import_island_fails_when_exceeding_capacity():
                 BrickExport(
                     native_text="N1",
                     target_text="T_unique_limit_1",
+                    target_audio_path="test1.wav",
                     kind="word",
                 ),
                 BrickExport(
                     native_text="N2",
                     target_text="T_unique_limit_2",
+                    target_audio_path="test2.wav",
                     kind="word",
                 ),
             ]
