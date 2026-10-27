@@ -925,6 +925,7 @@ def skip_brick(
     session: Session,
     brick_id: int,
     learner_id: int,
+    is_skipped: bool = True,
 ) -> None:
     brick = session.get(Brick, brick_id)
     if not brick:
@@ -943,7 +944,7 @@ def skip_brick(
             debug_message=f"{learner_id=} is not the creator to skip {brick_id=}",
         )
 
-    brick.is_skipped = True
+    brick.is_skipped = is_skipped
     session.add(brick)
 
     memory = session.exec(
@@ -953,8 +954,9 @@ def skip_brick(
         )
     ).first()
     if memory:
-        memory.is_skipped = True
+        memory.is_skipped = is_skipped
         session.add(memory)
 
     session.commit()
-    logger.info(f"Skipped brick ID: {brick_id} for learner_id: {learner_id}")
+    action = "Skipped" if is_skipped else "Unskipped"
+    logger.info(f"{action} brick ID: {brick_id} for learner_id: {learner_id}")

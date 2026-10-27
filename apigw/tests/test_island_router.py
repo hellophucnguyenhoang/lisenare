@@ -82,7 +82,7 @@ def test_create_island_duplicate_name(client: TestClient):
     app.dependency_overrides.clear()
 
     assert response.status_code == 409
-    assert response.json()["error_code"] == "COLLECTION_ALREADY_EXISTS"
+    assert response.json()["error_code"] == "ISLAND_ALREADY_EXISTS"
 
 
 def test_create_island_empty_name(client: TestClient):
@@ -212,15 +212,15 @@ def test_update_island_duplicate_name(client: TestClient):
     assert create_res.status_code == 201
     col_id = create_res.json()["id"]
 
-    # Try to update to existing name "Odd Island"
+    # Try to update to existing name "Island 1"
     update_res = client.patch(
         f"/api/islands/{col_id}",
         json={
-            "name": "Odd Island",
+            "name": "Island 1",
         },
     )
     assert update_res.status_code == 409
-    assert update_res.json()["error_code"] == "COLLECTION_ALREADY_EXISTS"
+    assert update_res.json()["error_code"] == "ISLAND_ALREADY_EXISTS"
 
     # Clean up
     client.delete(f"/api/islands/{col_id}")

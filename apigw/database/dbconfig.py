@@ -147,14 +147,14 @@ def init_bricks(session: Session):
     system_account_create = LearnerAccountCreate(
         name="The Avid Learner",
         username="qwerwert",
-        password="12345678",
+        password="icandoit",
     )
     create_learner_account(session, system_account_create)
 
     me_account_create = LearnerAccountCreate(
         name="Phúc",
         username="hoangphuc",
-        password="12345678",
+        password="icandoit",
         email="hellophucnh@gmail.com",
     )
     me_account = create_learner_account(session, me_account_create)

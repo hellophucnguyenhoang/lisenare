@@ -912,6 +912,23 @@ def test_skip_brick_success(client: TestClient):
         next_resp = client.get(f"/api/bricks/next?brick_id={brick_id}")
         assert next_resp.status_code == 200
         assert next_resp.json() is None
+
+        # Reverse operation: unskip the brick
+        unskip_resp = client.post(
+            f"/api/bricks/{brick_id}/skip?is_skipped=false"
+        )
+        assert unskip_resp.status_code == 204
+
+        with Session(engine) as session:
+            refreshed_after_unskip = session.get(Brick, brick_id)
+            assert refreshed_after_unskip.is_skipped is False
+
+        # Verify it is no longer in SKIPPED
+        skipped_after_unskip = client.get("/api/bricks?status=SKIPPED")
+        assert skipped_after_unskip.status_code == 200
+        assert brick_id not in [
+            item["id"] for item in skipped_after_unskip.json()["items"]
+        ]
     finally:
         app.dependency_overrides.clear()
         with Session(engine) as session:

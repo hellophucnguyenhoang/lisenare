@@ -52,7 +52,7 @@ def create_island(
         raise RequestException(
             status_code=status.HTTP_409_CONFLICT,
             debug_message=f"Island named '{cleaned_name}' already exists for this learner",
-            error_code=ErrorCode.COLLECTION_ALREADY_EXISTS,
+            error_code=ErrorCode.ISLAND_ALREADY_EXISTS,
         )
 
     island = Island(
@@ -231,7 +231,7 @@ def update_island(
             raise RequestException(
                 status_code=status.HTTP_409_CONFLICT,
                 debug_message=f"Island named '{cleaned_name}' already exists for this learner",
-                error_code=ErrorCode.COLLECTION_ALREADY_EXISTS,
+                error_code=ErrorCode.ISLAND_ALREADY_EXISTS,
             )
         island.name = cleaned_name
 
