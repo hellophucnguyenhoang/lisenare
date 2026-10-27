@@ -212,11 +212,11 @@ def test_update_island_duplicate_name(client: TestClient):
     assert create_res.status_code == 201
     col_id = create_res.json()["id"]
 
-    # Try to update to existing name "Odd Island"
+    # Try to update to existing name "Island 1"
     update_res = client.patch(
         f"/api/islands/{col_id}",
         json={
-            "name": "Odd Island",
+            "name": "Island 1",
         },
     )
     assert update_res.status_code == 409

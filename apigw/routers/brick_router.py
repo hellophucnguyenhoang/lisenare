@@ -268,11 +268,13 @@ def skip_brick(
         Learner, Depends(auth_service.decode_token_get_learner)
     ],
     brick_id: int,
+    is_skipped: bool = True,
 ) -> Response:
     brick_service.skip_brick(
         session=session,
         brick_id=brick_id,
         learner_id=learner.id,
+        is_skipped=is_skipped,
     )
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
