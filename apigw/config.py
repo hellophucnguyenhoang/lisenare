@@ -65,6 +65,7 @@ class Settings(BaseSettings):
     aws_access_key_id: str
     aws_secret_access_key: str
     aws_endpoint_url: str
+    aws_region_name: str
     bucket_name: str
 
     # load value from the .env file

@@ -19,6 +19,7 @@ wheels/
 lisenare-assets/
 *.wav
 *.mp3
+*.m4a
 
 # Models
 inference/models

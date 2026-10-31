@@ -1,4 +1,5 @@
 from pathlib import Path
+
 import boto3
 
 from config import logger, settings
@@ -17,6 +18,9 @@ def init_s3_client():
             kwargs["aws_access_key_id"] = settings.aws_access_key_id
         if settings.aws_secret_access_key:
             kwargs["aws_secret_access_key"] = settings.aws_secret_access_key
+        if settings.aws_region_name:
+            kwargs["region_name"] = settings.aws_region_name
+
         s3_client = boto3.client(**kwargs)
         logger.info("Initialized S3 cloud storage client")
     return s3_client
@@ -34,7 +38,10 @@ def download_file(s3_key: str, local_path: Path):
     """Download a file from cloud storage to local_path."""
     try:
         s3 = get_s3_client()
+        print(f"{s3=}")
         local_path.parent.mkdir(parents=True, exist_ok=True)
+        print(f"{settings.bucket_name=}")
+        print(f"{s3_key=}")
         s3.download_file(settings.bucket_name, s3_key, str(local_path))
         logger.info(f"Downloaded '{s3_key}' to '{local_path}'")
     except Exception as e:
