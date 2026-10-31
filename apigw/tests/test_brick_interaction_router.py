@@ -21,7 +21,7 @@ def test_create_brick_interaction_unauthenticated_fails():
     assert response.status_code == 401
 
 
-def test_create_brick_interaction_authenticated_like():
+def test_create_brick_interaction_authenticated_add():
     client = TestClient(app)
     fake_learner = Learner(id=2, name="test_learner")
     app.dependency_overrides[auth_service.decode_token_get_learner] = lambda: (
@@ -36,7 +36,7 @@ def test_create_brick_interaction_authenticated_like():
             json={
                 "session_id": "test_sess_123",
                 "brick_id": 1,
-                "interaction_type": InteractionType.LIKE.value,
+                "interaction_type": InteractionType.ADD.value,
             },
         )
         assert response.status_code == 201

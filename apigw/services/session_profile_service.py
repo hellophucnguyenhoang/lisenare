@@ -4,8 +4,8 @@ import numpy as np
 from numpy.typing import NDArray
 from sqlmodel import Session
 
-from constants import SEMANTIC_EMB_DIM
 from config import logger
+from constants import SEMANTIC_EMB_DIM
 from database import SessionProfile
 from schemas import InteractionType
 from utils import np_utils
@@ -30,27 +30,15 @@ def calculate_interaction_rating(interaction_type: InteractionType) -> float:
     - 0 = neutral / unknown
 
     Suggested mapping:
-    - LIKE: strong positive
-    - ADD: positive
-    - LISTEN: weak-to-medium positive
-    - REMOVE_REACTION: unlike
-
-    So:
-    - very short time -> negative
-    - around 3 seconds -> near 0
-    - longer time -> positive
+    - ADD: positive (0.8)
+    - LISTEN: weak-to-medium positive (0.5)
     """
-    if interaction_type == InteractionType.LIKE:
-        return 1.0
 
     if interaction_type == InteractionType.ADD:
         return 0.8
 
     if interaction_type == InteractionType.LISTEN:
         return 0.5
-
-    if interaction_type == InteractionType.REMOVE_REACTION:
-        return -1.0
 
     return 0.0
 

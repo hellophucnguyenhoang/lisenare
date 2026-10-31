@@ -33,7 +33,6 @@ from schemas import (
 from services import (
     audio_cache_service,
     auth_service,
-    brick_reaction_service,
     brick_service,
 )
 from utils import file_utils
@@ -202,11 +201,6 @@ def get_recommended_bricks(
             redis.expire(cache_key, 3600)
             bricks.extend(additional_bricks)
 
-    bricks = brick_reaction_service.attach_reactions(
-        session,
-        bricks,
-        learner.id,
-    )
     return BrickPage(items=bricks, total=len(bricks))
 
 

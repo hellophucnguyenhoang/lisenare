@@ -87,22 +87,6 @@ def init_db():
         raise
 
 
-def delete_db():
-    with Session(engine) as session:
-        # Keep legacy LangChain tables cleanup for environments that may still have them
-        session.exec(
-            text("DROP TABLE IF EXISTS langchain_pg_embedding CASCADE;")
-        )
-        session.exec(
-            text("DROP TABLE IF EXISTS langchain_pg_collection CASCADE;")
-        )
-        session.commit()
-
-    # Drop SQLModel tables
-    SQLModel.metadata.drop_all(engine)
-    logger.info("Dropped all tables in the database.")
-
-
 def delete_db_force():
     with Session(engine) as session:
         # Drop the entire public schema and all its contents
@@ -143,21 +127,13 @@ def init_bricks(session: Session):
         session.flush()  # Populates IDs without closing transaction
         return account
 
-    # Create initial accounts
     system_account_create = LearnerAccountCreate(
         name="The Avid Learner",
-        username="qwerwert",
-        password="icandoit",
-    )
-    create_learner_account(session, system_account_create)
-
-    me_account_create = LearnerAccountCreate(
-        name="Phúc",
         username="hoangphuc",
         password="icandoit",
         email="hellophucnh@gmail.com",
     )
-    me_account = create_learner_account(session, me_account_create)
+    me_account = create_learner_account(session, system_account_create)
 
     islands = [
         Island(name=f"Island {i + 1}", creator=me_account.learner)

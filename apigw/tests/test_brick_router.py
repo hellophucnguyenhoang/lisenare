@@ -1,6 +1,6 @@
-from datetime import datetime, timedelta, timezone
 import io
 import json
+from datetime import datetime, timedelta, timezone
 from unittest.mock import MagicMock, patch
 
 from fastapi.testclient import TestClient
@@ -10,7 +10,6 @@ from database import (
     Brick,
     BrickInteraction,
     BrickMemory,
-    BrickReaction,
     BrickReport,
     BrickReview,
     Island,
@@ -768,7 +767,7 @@ def test_forget_brick_success(client: TestClient):
         assert brick is not None
         brick_id = brick.id
 
-        # Seed memory, review, reaction, and interaction for this brick
+        # Seed memory, review, and interaction for this brick
         memory = session.exec(
             select(BrickMemory).where(
                 BrickMemory.brick_id == brick_id,
@@ -790,15 +789,6 @@ def test_forget_brick_success(client: TestClient):
             fsrs_rating=3,
         )
         session.add(review)
-
-        reaction = session.get(BrickReaction, (2, brick_id))
-        if not reaction:
-            reaction = BrickReaction(
-                learner_id=2,
-                brick_id=brick_id,
-                reaction="LIKE",
-            )
-            session.add(reaction)
 
         interaction = BrickInteraction(
             brick_id=brick_id,
@@ -835,10 +825,6 @@ def test_forget_brick_success(client: TestClient):
                 )
             ).all()
             assert len(revs) == 0
-
-            # Reaction is removed
-            react = session.get(BrickReaction, (2, brick_id))
-            assert react is None
 
             # Interactions are removed
             ints = session.exec(

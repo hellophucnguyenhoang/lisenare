@@ -1,11 +1,10 @@
-from .dbconfig import delete_db, delete_db_force, engine, get_session, init_db
+from .dbconfig import delete_db_force, engine, get_session, init_db
 from .models import (
     OTP,
     Account,
     Brick,
     BrickInteraction,
     BrickMemory,
-    BrickReaction,
     BrickReport,
     BrickReview,
     Island,
@@ -18,7 +17,6 @@ from .models import (
 )
 
 __all__ = [
-    "delete_db",
     "delete_db_force",
     "engine",
     "get_session",
@@ -28,7 +26,6 @@ __all__ = [
     "Brick",
     "BrickInteraction",
     "BrickMemory",
-    "BrickReaction",
     "BrickReport",
     "Island",
     "Learner",

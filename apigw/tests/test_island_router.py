@@ -280,9 +280,7 @@ def test_delete_island_forbidden(client: TestClient):
     from database import Island, get_session
 
     session = next(get_session())
-    col = session.exec(
-        select(Island).where(Island.name == "Odd Island")
-    ).first()
+    col = session.exec(select(Island).where(Island.name == "Island 1")).first()
     assert col is not None
 
     response = client.delete(f"/api/islands/{col.id}")

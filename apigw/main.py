@@ -51,7 +51,7 @@ async def lifespan(app: FastAPI):
     logger.info("Shutting down Lisenare API services...")
     audio_cache_service.stop_audio_cleanup_scheduler(audio_scheduler)
     redis_client.close_redis_client()
-    # database.delete_db_force()
+    database.delete_db_force()
     http_client.close_client()
     await http_client.close_async_client()
     logger.info("Lisenare API services shut down successfully.")

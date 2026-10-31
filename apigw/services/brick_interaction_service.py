@@ -1,9 +1,7 @@
-from datetime import datetime, timezone
-
 from sqlmodel import Session
 
 from config import logger
-from database import BrickInteraction, BrickReaction
+from database import BrickInteraction
 from schemas import BrickInteractionCreate, InteractionType
 
 from . import search_service, session_profile_service
@@ -24,32 +22,6 @@ def create_interaction(
         learner_id=learner_id,
     )
     session.add(interaction)
-
-    existing = session.get(
-        BrickReaction,
-        (learner_id, brick_id),
-    )
-
-    match interaction_type:
-        case InteractionType.REMOVE_REACTION:
-            if existing:
-                session.delete(existing)
-
-        case InteractionType.LIKE:
-            if existing:
-                existing.reaction = interaction_type.value
-                existing.updated_at = datetime.now(timezone.utc)
-            else:
-                session.add(
-                    BrickReaction(
-                        learner_id=learner_id,
-                        brick_id=brick_id,
-                        reaction=interaction_type.value,
-                    )
-                )
-
-        case _:
-            pass
 
     if commit:
         session.commit()

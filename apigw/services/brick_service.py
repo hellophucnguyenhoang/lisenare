@@ -13,7 +13,6 @@ from database import (
     Brick,
     BrickInteraction,
     BrickMemory,
-    BrickReaction,
     BrickReport,
     BrickReview,
     Island,
@@ -36,7 +35,6 @@ from schemas import (
 )
 
 from . import audio_cache_service, search_service
-from .brick_reaction_service import get_reaction_map
 from .tag_service import (
     clean_tags,
     delete_tags_for_entity,
@@ -319,7 +317,6 @@ def get_brick_detail(
         )
 
     tags = fetch_tags_for_entity(session, brick.id, "Brick")
-    reaction_map = get_reaction_map(session, [brick.id], learner_id)
     island = session.get(Island, brick.island_id)
     island_name = island.name if island else ""
 
@@ -327,7 +324,6 @@ def get_brick_detail(
         brick,
         update={
             "tags": tags,
-            "reaction": reaction_map.get(brick.id),
             "island_name": island_name,
         },
     )
@@ -899,11 +895,6 @@ def forget_brick(
     ).all()
     for review in reviews:
         session.delete(review)
-
-    # Delete BrickReaction
-    reaction = session.get(BrickReaction, (learner_id, brick_id))
-    if reaction:
-        session.delete(reaction)
 
     # Delete BrickInteraction rows
     interactions = session.exec(
