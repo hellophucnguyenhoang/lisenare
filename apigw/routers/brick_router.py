@@ -12,7 +12,6 @@ from fastapi import (
 )
 from sqlmodel import Session
 
-from config import logger
 from constants import BRICK_IMAGES_DIR, LEARNER_AUDIOS_DIR
 from database import Learner, get_session
 from schemas import (
@@ -34,6 +33,7 @@ from services import (
     audio_cache_service,
     auth_service,
     brick_service,
+    image_cache_service,
 )
 from utils import file_utils
 from utils.form_utils import JsonFormBody
@@ -113,7 +113,6 @@ def get_listening_bricks(
     limit: Annotated[int, Query(ge=0, le=100)] = 10,
     shuffle_page: Annotated[bool, Query()] = False,
 ) -> BrickListeningPage:
-    logger.info(f"{island_ids = }")
     bricks = brick_service.get_bricks(
         session=session,
         creator_id=creator.id,
@@ -333,7 +332,7 @@ def get_brick_image(
     ],
     brick_id: int,
 ) -> str:
-    return brick_service.get_brick_image_url(
+    return image_cache_service.get_brick_image_url(
         session=session,
         brick_id=brick_id,
         learner_id=learner.id,

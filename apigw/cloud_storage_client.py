@@ -38,10 +38,7 @@ def download_file(s3_key: str, local_path: Path):
     """Download a file from cloud storage to local_path."""
     try:
         s3 = get_s3_client()
-        print(f"{s3=}")
         local_path.parent.mkdir(parents=True, exist_ok=True)
-        print(f"{settings.bucket_name=}")
-        print(f"{s3_key=}")
         s3.download_file(settings.bucket_name, s3_key, str(local_path))
         logger.info(f"Downloaded '{s3_key}' to '{local_path}'")
     except Exception as e:
