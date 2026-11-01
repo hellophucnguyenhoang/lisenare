@@ -15,6 +15,7 @@ class BrickUpdate(SQLModel):
     target_lang: str | None = None
     target_pron: str | None = None
     context: str | None = None
+    image_path: str | None = None
     kind: str | None = None
     is_private: bool | None = None
     is_skipped: bool | None = None
@@ -76,6 +77,7 @@ class BrickExport(SQLModel):
     target_lang: str = "en"
     target_pron: str | None = None
     context: str | None = None
+    image_path: str | None = None
     kind: str = "sentence"
     tags: list[str] = []
     is_private: bool = True
@@ -104,6 +106,7 @@ class BrickBase(SQLModel):
     target_lang: str = "en"
     target_pron: str | None = None
     context: str | None = None
+    image_path: str | None = None
     kind: str = "sentence"
     is_private: bool = True
     is_skipped: bool = False
@@ -154,6 +157,7 @@ class BrickListeningData(SQLModel):
     native_text: str
     target_pron: str | None = None
     context: str | None = None
+    image_path: str | None = None
 
 
 class BrickListeningPage(SQLModel):

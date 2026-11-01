@@ -16,6 +16,7 @@ ASSETS_DIR = Path("lisenare-assets")
 LEARNER_AUDIOS_DIR = Path("learner-audios")
 GENERATED_AUDIOS_DIR = Path("generated-audios")
 LEARNER_AVATARS_DIR = Path("learner-avatars")
+BRICK_IMAGES_DIR = Path("brick-images")
 
 AUDIO_CACHE_TTL_SECONDS = 86400  # 24 hours in seconds
 BRICK_CACHE_PREFIX = "brick_audio:"

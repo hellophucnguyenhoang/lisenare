@@ -7,8 +7,9 @@ from sqlalchemy import case
 from sqlalchemy.orm import selectinload
 from sqlmodel import Session, and_, exists, func, not_, select
 
-from config import logger
-from constants import MAX_BRICKS_PER_ISLAND
+from cloud_storage_client import download_file
+from config import logger, settings
+from constants import ASSETS_DIR, MAX_BRICKS_PER_ISLAND
 from database import (
     Brick,
     BrickInteraction,
@@ -469,6 +470,7 @@ def create_brick(
     request_data: BrickCreateRequest,
     creator_id: int,
     target_audio_path: str,
+    image_path: str | None = None,
 ) -> BrickRead:
     island = session.get(Island, request_data.island_id)
     if not island:
@@ -505,6 +507,7 @@ def create_brick(
         target_lang=request_data.target_lang,
         target_pron=request_data.target_pron,
         context=request_data.context,
+        image_path=image_path or request_data.image_path,
         kind=request_data.kind,
         target_audio_path=target_audio_path,
         is_private=request_data.is_private,
@@ -541,6 +544,7 @@ def update_brick(
     brick_update: BrickUpdate,
     creator_id: int,
     target_audio_path: str | None = None,
+    image_path: str | None = None,
 ) -> BrickRead:
     stmt = select(Brick).where(Brick.id == brick_id)
     brick = session.exec(stmt).first()
@@ -606,6 +610,10 @@ def update_brick(
     if target_audio_path:
         brick.target_audio_path = target_audio_path
 
+    # Update image if a new file was uploaded
+    if image_path:
+        brick.image_path = image_path
+
     brick.last_edit_at = datetime.now(timezone.utc)
     session.add(brick)
 
@@ -633,6 +641,36 @@ def update_brick(
         search_service.add_brick_embedding(session, brick)
 
     return BrickRead.model_validate(brick, update={"tags": tags})
+
+
+def get_brick_image_url(
+    session: Session,
+    brick_id: int,
+    learner_id: int,
+) -> str:
+    """
+    Ensure the brick's image file exists locally at lisenare-assets/<image_path>,
+    downloading from cloud storage if needed, and return the full public URL.
+    """
+    brick = session.get(Brick, brick_id)
+    if not brick or (brick.is_private and brick.creator_id != learner_id):
+        raise RequestException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            debug_message=f"Brick {brick_id} not found",
+        )
+
+    if not brick.image_path:
+        raise RequestException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            debug_message=f"Brick {brick_id} has no image",
+        )
+
+    local_file = ASSETS_DIR / brick.image_path
+    if not local_file.is_file():
+        download_file(brick.image_path, local_file)
+
+    base_url = settings.asset_base_url.rstrip("/")
+    return f"{base_url}/{brick.image_path.lstrip('/')}"
 
 
 def delete_brick(session: Session, creator_id: int, brick_id: int) -> str:
@@ -730,6 +768,7 @@ def add_brick_from(
         target_lang=source.target_lang,
         target_pron=source.target_pron,
         context=source.context,
+        image_path=source.image_path,
         kind=source.kind,
         is_private=True,
         creator_id=learner_id,
@@ -821,6 +860,7 @@ def add_bricks_from_island(
             target_lang=source.target_lang,
             target_pron=source.target_pron,
             context=source.context,
+            image_path=source.image_path,
             kind=source.kind,
             is_private=True,
             creator_id=learner_id,

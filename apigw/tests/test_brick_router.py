@@ -4,8 +4,10 @@ from datetime import datetime, timedelta, timezone
 from unittest.mock import MagicMock, patch
 
 from fastapi.testclient import TestClient
+from PIL import Image
 from sqlmodel import Session, select
 
+from config import settings
 from database import (
     Brick,
     BrickInteraction,
@@ -1232,3 +1234,228 @@ def test_get_next_brick_prefers_shorter_target_text_when_no_shared_tags(
             if lrn:
                 session.delete(lrn)
             session.commit()
+
+
+def _create_sample_brick_image_bytes() -> bytes:
+    img = Image.new("RGBA", (100, 100), color=(10, 120, 200, 255))
+    buf = io.BytesIO()
+    img.save(buf, format="PNG")
+    return buf.getvalue()
+
+
+def test_create_brick_with_image_file(client: TestClient):
+    learner = Learner(id=2, setting=LearnerSetting())
+    app.dependency_overrides[auth_service.decode_token_get_learner] = lambda: (
+        learner
+    )
+
+    with Session(engine) as session:
+        island = session.exec(
+            select(Island).where(
+                Island.creator_id == 2, Island.name == "Island 10"
+            )
+        ).first()
+        assert island is not None
+        island_id = island.id
+
+    payload = {
+        "native_text": "Bức tranh",
+        "target_text": "A picture with image test",
+        "island_id": island_id,
+        "tags": ["art"],
+    }
+    audio_file = io.BytesIO(b"fake audio data")
+    img_bytes = _create_sample_brick_image_bytes()
+    created_brick_id = None
+
+    with (
+        patch("cloud_storage_client.upload_bytes"),
+        patch(
+            "utils.file_utils.save_upload_file_to_cloud",
+            return_value=(
+                "learner-audios/learner-2/brick.wav",
+                b"fake audio data",
+            ),
+        ),
+    ):
+        response = client.post(
+            "/api/bricks",
+            data={"json_data": json.dumps(payload)},
+            files={
+                "target_audio_file": ("audio.wav", audio_file, "audio/wav"),
+                "image_file": (
+                    "picture.png",
+                    io.BytesIO(img_bytes),
+                    "image/png",
+                ),
+            },
+        )
+
+    try:
+        assert response.status_code == 200
+        data = response.json()
+        created_brick_id = data["id"]
+        assert data["image_path"] is not None
+        assert data["image_path"].startswith("brick-images/learner-2/")
+        assert data["image_path"].endswith(".webp")
+    finally:
+        app.dependency_overrides.clear()
+        if created_brick_id:
+            with Session(engine) as session:
+                b = session.get(Brick, created_brick_id)
+                if b:
+                    session.delete(b)
+                    session.commit()
+
+
+def test_update_brick_with_image_file(client: TestClient):
+    learner = Learner(id=2, setting=LearnerSetting())
+    app.dependency_overrides[auth_service.decode_token_get_learner] = lambda: (
+        learner
+    )
+
+    with Session(engine) as session:
+        island = session.exec(
+            select(Island).where(
+                Island.creator_id == 2, Island.name == "Island 10"
+            )
+        ).first()
+        brick = Brick(
+            native_text="Gốc",
+            target_text="Original text for update image",
+            target_audio_path="learner-audios/learner-2/brick.wav",
+            target_lang="en",
+            kind="word",
+            is_private=True,
+            creator_id=2,
+            island_id=island.id,
+        )
+        session.add(brick)
+        session.commit()
+        session.refresh(brick)
+        brick_id = brick.id
+
+    img_bytes = _create_sample_brick_image_bytes()
+
+    try:
+        with patch("cloud_storage_client.upload_bytes"):
+            response = client.patch(
+                f"/api/bricks/{brick_id}",
+                data={"json_data": json.dumps({"native_text": "Cập nhật"})},
+                files={
+                    "image_file": (
+                        "new_pic.png",
+                        io.BytesIO(img_bytes),
+                        "image/png",
+                    )
+                },
+            )
+            assert response.status_code == 200
+            data = response.json()
+            assert data["image_path"] is not None
+            assert data["image_path"].startswith("brick-images/learner-2/")
+            assert data["image_path"].endswith(".webp")
+            assert data["native_text"] == "Cập nhật"
+    finally:
+        app.dependency_overrides.clear()
+        with Session(engine) as session:
+            b = session.get(Brick, brick_id)
+            if b:
+                session.delete(b)
+                session.commit()
+
+
+def test_get_brick_image_success(client: TestClient, tmp_path):
+    learner = Learner(id=2, setting=LearnerSetting())
+    app.dependency_overrides[auth_service.decode_token_get_learner] = lambda: (
+        learner
+    )
+
+    with Session(engine) as session:
+        island = session.exec(
+            select(Island).where(
+                Island.creator_id == 2, Island.name == "Island 10"
+            )
+        ).first()
+        brick = Brick(
+            native_text="Tải ảnh",
+            target_text="Download image test brick",
+            target_audio_path="learner-audios/learner-2/brick.wav",
+            image_path="brick-images/learner-2/brick-test.webp",
+            target_lang="en",
+            kind="word",
+            is_private=True,
+            creator_id=2,
+            island_id=island.id,
+        )
+        session.add(brick)
+        session.commit()
+        session.refresh(brick)
+        brick_id = brick.id
+
+    mock_download = MagicMock()
+
+    def fake_download(s3_key, local_path):
+        local_path.parent.mkdir(parents=True, exist_ok=True)
+        local_path.write_bytes(b"WEBP_IMAGE_CONTENT")
+
+    mock_download.side_effect = fake_download
+
+    try:
+        with (
+            patch("services.brick_service.download_file", mock_download),
+            patch("services.brick_service.ASSETS_DIR", tmp_path),
+        ):
+            response = client.get(f"/api/bricks/{brick_id}/image")
+            assert response.status_code == 200
+            expected_url = f"{settings.asset_base_url.rstrip('/')}/brick-images/learner-2/brick-test.webp"
+            assert response.json() == expected_url
+            assert mock_download.call_count == 1
+    finally:
+        app.dependency_overrides.clear()
+        with Session(engine) as session:
+            b = session.get(Brick, brick_id)
+            if b:
+                session.delete(b)
+                session.commit()
+
+
+def test_get_brick_image_no_image_returns_404(client: TestClient):
+    learner = Learner(id=2, setting=LearnerSetting())
+    app.dependency_overrides[auth_service.decode_token_get_learner] = lambda: (
+        learner
+    )
+
+    with Session(engine) as session:
+        island = session.exec(
+            select(Island).where(
+                Island.creator_id == 2, Island.name == "Island 10"
+            )
+        ).first()
+        brick = Brick(
+            native_text="Không ảnh",
+            target_text="No image test brick",
+            target_audio_path="learner-audios/learner-2/brick.wav",
+            image_path=None,
+            target_lang="en",
+            kind="word",
+            is_private=True,
+            creator_id=2,
+            island_id=island.id,
+        )
+        session.add(brick)
+        session.commit()
+        session.refresh(brick)
+        brick_id = brick.id
+
+    try:
+        response = client.get(f"/api/bricks/{brick_id}/image")
+        assert response.status_code == 404
+        assert "has no image" in response.json()["debug_message"]
+    finally:
+        app.dependency_overrides.clear()
+        with Session(engine) as session:
+            b = session.get(Brick, brick_id)
+            if b:
+                session.delete(b)
+                session.commit()

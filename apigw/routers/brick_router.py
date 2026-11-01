@@ -13,7 +13,7 @@ from fastapi import (
 from sqlmodel import Session
 
 from config import logger
-from constants import LEARNER_AUDIOS_DIR
+from constants import BRICK_IMAGES_DIR, LEARNER_AUDIOS_DIR
 from database import Learner, get_session
 from schemas import (
     AddBrickRequest,
@@ -141,6 +141,7 @@ def get_listening_bricks(
                 native_text=brick.native_text,
                 target_pron=brick.target_pron,
                 context=brick.context,
+                image_path=brick.image_path,
             )
             for brick in bricks
         ],
@@ -324,6 +325,21 @@ def get_brick_audio(
     )
 
 
+@router.get("/{brick_id}/image")
+def get_brick_image(
+    session: Annotated[Session, Depends(get_session)],
+    learner: Annotated[
+        Learner, Depends(auth_service.decode_token_get_learner)
+    ],
+    brick_id: int,
+) -> str:
+    return brick_service.get_brick_image_url(
+        session=session,
+        brick_id=brick_id,
+        learner_id=learner.id,
+    )
+
+
 @router.post("", response_model=BrickRead)
 async def create_brick(
     session: Annotated[Session, Depends(get_session)],
@@ -334,6 +350,7 @@ async def create_brick(
     request_data: Annotated[
         BrickCreateRequest, Depends(JsonFormBody(BrickCreateRequest))
     ],
+    image_file: Annotated[UploadFile | None, File()] = None,
 ):
     creator_id = learner.id
     target_audio_path, _ = await file_utils.save_upload_file_to_cloud(
@@ -341,11 +358,20 @@ async def create_brick(
         relative_path=LEARNER_AUDIOS_DIR / f"learner-{creator_id}",
         filename_prefix="brick",
     )
+    image_path = None
+    if image_file:
+        image_path = await file_utils.process_and_save_image(
+            file=image_file,
+            relative_path=BRICK_IMAGES_DIR / f"learner-{creator_id}",
+            filename_prefix="brick",
+        )
+
     return brick_service.create_brick(
         session=session,
         request_data=request_data,
         creator_id=creator_id,
         target_audio_path=target_audio_path,
+        image_path=image_path,
     )
 
 
@@ -358,6 +384,7 @@ async def update_brick(
     brick_id: int,
     brick_update: Annotated[BrickUpdate, Depends(JsonFormBody(BrickUpdate))],
     target_audio_file: Annotated[UploadFile | None, File()] = None,
+    image_file: Annotated[UploadFile | None, File()] = None,
 ):
     target_audio_path = None
     if target_audio_file:
@@ -367,12 +394,21 @@ async def update_brick(
             filename_prefix="brick",
         )
 
+    image_path = None
+    if image_file:
+        image_path = await file_utils.process_and_save_image(
+            file=image_file,
+            relative_path=BRICK_IMAGES_DIR / f"learner-{learner.id}",
+            filename_prefix="brick",
+        )
+
     return brick_service.update_brick(
         session=session,
         brick_id=brick_id,
         brick_update=brick_update,
         creator_id=learner.id,
         target_audio_path=target_audio_path,
+        image_path=image_path,
     )
 
 

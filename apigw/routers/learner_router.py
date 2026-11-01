@@ -1,12 +1,10 @@
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, File, UploadFile, status
+from fastapi import APIRouter, Depends, File, UploadFile
 from sqlmodel import Session
 
-from config import logger
 from constants import LEARNER_AVATARS_DIR
 from database import Learner, get_session
-from exceptions import RequestException
 from schemas import (
     LearnerDetailRead,
     LearnerRead,
@@ -60,28 +58,10 @@ async def update_learner_avatar(
     ],
     avatar_file: Annotated[UploadFile, File()],
 ):
-    raw_bytes = await avatar_file.read()
-    if not raw_bytes:
-        raise RequestException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            debug_message="Uploaded avatar file is empty",
-        )
-
-    try:
-        compressed_bytes = file_utils.compress_image(raw_bytes)
-    except Exception as e:
-        logger.warning(f"Failed to compress avatar image: {e}")
-        raise RequestException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            debug_message="Invalid image file format",
-        ) from e
-
-    avatar_path = file_utils.save_file_bytes_to_cloud(
-        content=compressed_bytes,
+    avatar_path = await file_utils.process_and_save_image(
+        file=avatar_file,
         relative_path=LEARNER_AVATARS_DIR / f"learner-{learner.id}",
         filename_prefix="avatar",
-        extension=".webp",
-        content_type="image/webp",
     )
 
     return learner_service.update_learner_avatar(

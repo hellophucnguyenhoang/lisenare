@@ -292,19 +292,17 @@ def test_update_avatar_path_via_patch_me(client: TestClient):
 
 
 def test_get_learner_avatar_unauthenticated(client: TestClient):
-    response = client.post("/api/learners/avatar", json={"learner_id": 2})
+    response = client.post("/api/learners/avatar")
     assert response.status_code == 401
 
 
 def test_get_learner_avatar_not_found(client: TestClient):
-    with Session(engine) as session:
-        learner_in_db = _get_or_create_learner_2(session)
-
+    fake_learner = Learner(id=999999)
     app.dependency_overrides[auth_service.decode_token_get_learner] = lambda: (
-        learner_in_db
+        fake_learner
     )
 
-    response = client.post("/api/learners/avatar", json={"learner_id": 999999})
+    response = client.post("/api/learners/avatar")
     assert response.status_code == 404
 
     app.dependency_overrides.clear()
@@ -335,9 +333,7 @@ def test_get_learner_avatar_downloads_if_missing(client: TestClient, tmp_path):
             patch("services.learner_service.download_file", mock_download),
             patch("services.learner_service.ASSETS_DIR", tmp_path),
         ):
-            response = client.post(
-                "/api/learners/avatar", json={"learner_id": 2}
-            )
+            response = client.post("/api/learners/avatar")
             assert response.status_code == 200
             full_url = response.json()
 
@@ -385,9 +381,7 @@ def test_get_learner_avatar_already_on_disk_returns_immediately(
             patch("services.learner_service.download_file", mock_download),
             patch("services.learner_service.ASSETS_DIR", tmp_path),
         ):
-            response = client.post(
-                "/api/learners/avatar", json={"learner_id": 2}
-            )
+            response = client.post("/api/learners/avatar")
             assert response.status_code == 200
             expected_url = (
                 f"{settings.asset_base_url.rstrip('/')}/{avatar_path}"

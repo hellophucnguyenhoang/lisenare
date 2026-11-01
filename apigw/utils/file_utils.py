@@ -2,7 +2,7 @@ from datetime import datetime, timezone
 from io import BytesIO
 from pathlib import Path
 
-from fastapi import UploadFile
+from fastapi import UploadFile, status
 from PIL import Image, ImageOps, ImageSequence
 
 import cloud_storage_client
@@ -13,6 +13,7 @@ from constants import (
     WEBP_METHOD,
     WEBP_QUALITY,
 )
+from exceptions import RequestException
 
 
 def compress_image(data: bytes) -> bytes:
@@ -228,3 +229,37 @@ async def save_upload_file_to_cloud(
         content_type=content_type,
     )
     return s3_key, file_bytes
+
+
+async def process_and_save_image(
+    file: UploadFile,
+    relative_path: str | Path = "",
+    filename_prefix: str = "image",
+) -> str:
+    """
+    Validate, compress to WebP, and save an uploaded image file to cloud storage.
+
+    Args:
+        file: FastAPI UploadFile containing image bytes.
+        relative_path: Directory/prefix relative to bucket root / cloud storage.
+        filename_prefix: Prefix for the generated file name (default: "image").
+
+    Returns:
+        The relative cloud key / path of the saved WebP image.
+    """
+    raw_bytes = await file.read()
+    if not raw_bytes:
+        raise RequestException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            debug_message="Uploaded image file is empty",
+        )
+
+    compressed_bytes = compress_image(raw_bytes)
+
+    return save_file_bytes_to_cloud(
+        content=compressed_bytes,
+        relative_path=relative_path,
+        filename_prefix=filename_prefix,
+        extension=".webp",
+        content_type="image/webp",
+    )

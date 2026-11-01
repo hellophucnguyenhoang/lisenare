@@ -16,6 +16,7 @@ from constants import (
 )
 from utils.file_utils import (
     compress_image,
+    process_and_save_image,
     save_file_bytes,
     save_file_bytes_to_cloud,
     save_upload_file,
@@ -191,3 +192,70 @@ def test_compress_image_invalid():
 
     with pytest.raises(Exception):
         compress_image(b"not a valid image")
+
+
+def test_process_and_save_image_success():
+    async def _test():
+        img = Image.new("RGBA", (200, 200), color="green")
+        buf = io.BytesIO()
+        img.save(buf, format="PNG")
+        png_bytes = buf.getvalue()
+
+        upload = UploadFile(
+            file=io.BytesIO(png_bytes),
+            filename="test_image.png",
+            headers={"content-type": "image/png"},
+        )
+
+        mock_upload = MagicMock()
+        with patch("cloud_storage_client.upload_bytes", mock_upload):
+            s3_key = await process_and_save_image(
+                file=upload,
+                relative_path="test-images/user-1",
+                filename_prefix="avatar",
+            )
+            assert s3_key.startswith("test-images/user-1/avatar-")
+            assert s3_key.endswith(".webp")
+            assert mock_upload.call_count == 1
+            call_kwargs = mock_upload.call_args.kwargs
+            assert call_kwargs["s3_key"] == s3_key
+            assert call_kwargs["content_type"] == "image/webp"
+
+    asyncio.run(_test())
+
+
+def test_process_and_save_image_empty():
+    async def _test():
+        import pytest
+        from exceptions import RequestException
+
+        upload = UploadFile(
+            file=io.BytesIO(b""),
+            filename="empty.png",
+        )
+        with pytest.raises(RequestException) as exc_info:
+            await process_and_save_image(file=upload)
+        assert exc_info.value.status_code == 400
+        assert "empty" in exc_info.value.detail["debug_message"]
+
+    asyncio.run(_test())
+
+
+def test_process_and_save_image_invalid_format():
+    async def _test():
+        import pytest
+        from exceptions import RequestException
+
+        upload = UploadFile(
+            file=io.BytesIO(b"garbage not an image"),
+            filename="corrupt.png",
+        )
+        with pytest.raises(RequestException) as exc_info:
+            await process_and_save_image(file=upload)
+        assert exc_info.value.status_code == 400
+        assert (
+            "Invalid image file format"
+            in exc_info.value.detail["debug_message"]
+        )
+
+    asyncio.run(_test())
