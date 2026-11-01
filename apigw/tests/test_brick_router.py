@@ -1403,8 +1403,8 @@ def test_get_brick_image_success(client: TestClient, tmp_path):
 
     try:
         with (
-            patch("services.brick_service.download_file", mock_download),
-            patch("services.brick_service.ASSETS_DIR", tmp_path),
+            patch("services.image_cache_service.download_file", mock_download),
+            patch("services.image_cache_service.ASSETS_DIR", tmp_path),
         ):
             response = client.get(f"/api/bricks/{brick_id}/image")
             assert response.status_code == 200

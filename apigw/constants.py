@@ -21,3 +21,8 @@ BRICK_IMAGES_DIR = Path("brick-images")
 AUDIO_CACHE_TTL_SECONDS = 86400  # 24 hours in seconds
 BRICK_CACHE_PREFIX = "brick_audio:"
 AUDIO_CATCH_PREFIX = "cached_audio:"
+
+IMAGE_CACHE_TTL_SECONDS = 86400  # 24 hours in seconds
+BRICK_IMAGE_CACHE_PREFIX = "brick_image:"
+IMAGE_CATCH_PREFIX = "cached_image:"
+IMAGE_CACHE_PREFIX = "cached_image:"

@@ -31,7 +31,7 @@ from routers import (
     text_router,
 )
 from schemas import BrickCreateRequest, BrickUpdate
-from services import audio_cache_service
+from services import audio_cache_service, image_cache_service
 from utils.form_utils import get_model_example_string
 
 
@@ -45,10 +45,12 @@ async def lifespan(app: FastAPI):
     redis_client.init_redis_client()
     cloud_storage_client.init_s3_client()
     audio_scheduler = audio_cache_service.start_audio_cleanup_scheduler()
+    image_scheduler = image_cache_service.start_image_cleanup_scheduler()
     logger.info("Lisenare API services initialized successfully.")
     yield
     # Shutdown code
     logger.info("Shutting down Lisenare API services...")
+    image_cache_service.stop_image_cleanup_scheduler(image_scheduler)
     audio_cache_service.stop_audio_cleanup_scheduler(audio_scheduler)
     redis_client.close_redis_client()
     # database.delete_db_force()

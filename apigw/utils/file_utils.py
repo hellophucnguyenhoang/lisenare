@@ -6,6 +6,7 @@ from fastapi import UploadFile, status
 from PIL import Image, ImageOps, ImageSequence
 
 import cloud_storage_client
+from config import logger
 from constants import (
     ANIMATED_IMAGE_MAX_SIZE,
     ASSETS_DIR,
@@ -254,7 +255,14 @@ async def process_and_save_image(
             debug_message="Uploaded image file is empty",
         )
 
-    compressed_bytes = compress_image(raw_bytes)
+    try:
+        compressed_bytes = compress_image(raw_bytes)
+    except Exception as e:
+        logger.warning(f"Failed to compress image: {e}")
+        raise RequestException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            debug_message="Invalid image file format",
+        ) from e
 
     return save_file_bytes_to_cloud(
         content=compressed_bytes,

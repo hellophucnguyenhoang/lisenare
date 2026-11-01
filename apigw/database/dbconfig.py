@@ -75,7 +75,9 @@ def init_db():
                 with Session(engine) as session:
                     session.exec(
                         text(
-                            "ALTER TABLE brick ADD COLUMN IF NOT EXISTS is_skipped BOOLEAN DEFAULT FALSE NOT NULL;"
+                            "ALTER TABLE brick ADD COLUMN "
+                            "IF NOT EXISTS is_skipped BOOLEAN "
+                            "DEFAULT FALSE NOT NULL;"
                         )
                     )
                     session.commit()

@@ -7,9 +7,8 @@ from sqlalchemy import case
 from sqlalchemy.orm import selectinload
 from sqlmodel import Session, and_, exists, func, not_, select
 
-from cloud_storage_client import download_file
-from config import logger, settings
-from constants import ASSETS_DIR, MAX_BRICKS_PER_ISLAND
+from config import logger
+from constants import MAX_BRICKS_PER_ISLAND
 from database import (
     Brick,
     BrickInteraction,
@@ -35,7 +34,7 @@ from schemas import (
     BrickUpdate,
 )
 
-from . import audio_cache_service, search_service
+from . import audio_cache_service, image_cache_service, search_service
 from .tag_service import (
     clean_tags,
     delete_tags_for_entity,
@@ -635,9 +634,10 @@ def update_brick(
     if target_audio_path:
         audio_cache_service.clear_brick_audio_cache(brick_id)
 
-    if any(
-        k in update_data for k in ("target_text", "native_text", "target_lang")
-    ):
+    if image_path or "image_path" in update_data:
+        image_cache_service.clear_brick_image_cache(brick_id)
+
+    if any(k in update_data for k in ("target_text", "target_lang")):
         search_service.add_brick_embedding(session, brick)
 
     return BrickRead.model_validate(brick, update={"tags": tags})
@@ -648,29 +648,11 @@ def get_brick_image_url(
     brick_id: int,
     learner_id: int,
 ) -> str:
-    """
-    Ensure the brick's image file exists locally at lisenare-assets/<image_path>,
-    downloading from cloud storage if needed, and return the full public URL.
-    """
-    brick = session.get(Brick, brick_id)
-    if not brick or (brick.is_private and brick.creator_id != learner_id):
-        raise RequestException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            debug_message=f"Brick {brick_id} not found",
-        )
-
-    if not brick.image_path:
-        raise RequestException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            debug_message=f"Brick {brick_id} has no image",
-        )
-
-    local_file = ASSETS_DIR / brick.image_path
-    if not local_file.is_file():
-        download_file(brick.image_path, local_file)
-
-    base_url = settings.asset_base_url.rstrip("/")
-    return f"{base_url}/{brick.image_path.lstrip('/')}"
+    return image_cache_service.get_brick_image_url(
+        session=session,
+        brick_id=brick_id,
+        learner_id=learner_id,
+    )
 
 
 def delete_brick(session: Session, creator_id: int, brick_id: int) -> str:
@@ -699,6 +681,7 @@ def delete_brick(session: Session, creator_id: int, brick_id: int) -> str:
     logger.info(f"Deleted brick ID: {brick_id} for creator_id: {creator_id}")
 
     audio_cache_service.clear_brick_audio_cache(brick_id)
+    image_cache_service.clear_brick_image_cache(brick_id)
 
     return "BRICK_DELETED"
 
