@@ -1,10 +1,74 @@
 from datetime import datetime, timezone
+from io import BytesIO
 from pathlib import Path
 
 from fastapi import UploadFile
+from PIL import Image, ImageOps, ImageSequence
 
 import cloud_storage_client
-from constants import ASSETS_DIR
+from constants import (
+    ANIMATED_IMAGE_MAX_SIZE,
+    ASSETS_DIR,
+    STATIC_IMAGE_MAX_SIZE,
+    WEBP_METHOD,
+    WEBP_QUALITY,
+)
+
+
+def compress_image(data: bytes) -> bytes:
+    """Convert an image to optimized WebP."""
+    with Image.open(BytesIO(data)) as image:
+        is_animated = getattr(image, "is_animated", False)
+
+        if is_animated:
+            frames = []
+            durations = []
+
+            for frame in ImageSequence.Iterator(image):
+                frame = frame.convert("RGBA")
+                frame.thumbnail(
+                    (ANIMATED_IMAGE_MAX_SIZE, ANIMATED_IMAGE_MAX_SIZE),
+                    Image.Resampling.LANCZOS,
+                )
+
+                frames.append(frame.copy())
+                durations.append(frame.info.get("duration", 100))
+
+            output = BytesIO()
+
+            frames[0].save(
+                output,
+                format="WEBP",
+                save_all=True,
+                append_images=frames[1:],
+                duration=durations,
+                loop=0,
+                quality=WEBP_QUALITY,
+                method=WEBP_METHOD,
+            )
+
+        else:
+            image = ImageOps.exif_transpose(image)
+            image.thumbnail(
+                (STATIC_IMAGE_MAX_SIZE, STATIC_IMAGE_MAX_SIZE),
+                Image.Resampling.LANCZOS,
+            )
+
+            if image.mode not in ("RGB", "RGBA"):
+                image = image.convert(
+                    "RGBA" if "transparency" in image.info else "RGB"
+                )
+
+            output = BytesIO()
+
+            image.save(
+                output,
+                format="WEBP",
+                quality=WEBP_QUALITY,
+                method=WEBP_METHOD,
+            )
+
+        return output.getvalue()
 
 
 def save_file_bytes(
@@ -80,6 +144,11 @@ def _get_content_type(extension: str) -> str:
         "ogg": "audio/ogg",
         "webm": "audio/webm",
         "flac": "audio/flac",
+        "webp": "image/webp",
+        "png": "image/png",
+        "jpg": "image/jpeg",
+        "jpeg": "image/jpeg",
+        "gif": "image/gif",
     }
     return mapping.get(ext, "application/octet-stream")
 

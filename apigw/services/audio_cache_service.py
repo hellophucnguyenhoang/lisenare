@@ -103,6 +103,15 @@ def cleanup_expired_audio_files(
         if not file_path.is_file():
             continue
 
+        if file_path.suffix.lower() in [
+            ".webp",
+            ".png",
+            ".jpg",
+            ".jpeg",
+            ".gif",
+        ]:
+            continue
+
         # get the relative path after ASSETS_DIR and force / slashes
         relative_path = file_path.relative_to(ASSETS_DIR).as_posix()
         if not redis.exists(f"{AUDIO_CATCH_PREFIX}{relative_path}"):

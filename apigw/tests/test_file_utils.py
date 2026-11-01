@@ -5,12 +5,17 @@ from unittest.mock import MagicMock, patch
 
 from fastapi import UploadFile
 
+from PIL import Image
+
 from constants import (
     ASSETS_DIR,
     GENERATED_AUDIOS_DIR,
     LEARNER_AUDIOS_DIR,
+    LEARNER_AVATARS_DIR,
+    STATIC_IMAGE_MAX_SIZE,
 )
 from utils.file_utils import (
+    compress_image,
     save_file_bytes,
     save_file_bytes_to_cloud,
     save_upload_file,
@@ -22,6 +27,7 @@ def test_constants():
     assert ASSETS_DIR == Path("lisenare-assets")
     assert LEARNER_AUDIOS_DIR == Path("learner-audios")
     assert GENERATED_AUDIOS_DIR == Path("generated-audios")
+    assert LEARNER_AVATARS_DIR == Path("learner-avatars")
 
 
 def test_save_file_bytes(tmp_path):
@@ -138,3 +144,50 @@ def test_save_upload_file_to_cloud():
             )
 
     asyncio.run(_test())
+
+
+def test_compress_image_static():
+    # Create a 600x600 test image in memory
+    img = Image.new("RGBA", (600, 600), color=(255, 0, 0, 128))
+    img_byte_arr = io.BytesIO()
+    img.save(img_byte_arr, format="PNG")
+    raw_data = img_byte_arr.getvalue()
+
+    compressed = compress_image(raw_data)
+    assert len(compressed) > 0
+
+    # Verify that compressed output is readable WebP and dimensions are within STATIC_IMAGE_MAX_SIZE
+    with Image.open(io.BytesIO(compressed)) as res_img:
+        assert res_img.format == "WEBP"
+        assert res_img.width <= STATIC_IMAGE_MAX_SIZE
+        assert res_img.height <= STATIC_IMAGE_MAX_SIZE
+
+
+def test_compress_image_animated():
+    # Create animated GIF with 2 frames
+    frame1 = Image.new("RGBA", (400, 400), color="blue")
+    frame2 = Image.new("RGBA", (400, 400), color="yellow")
+    gif_byte_arr = io.BytesIO()
+    frame1.save(
+        gif_byte_arr,
+        format="GIF",
+        save_all=True,
+        append_images=[frame2],
+        duration=100,
+        loop=0,
+    )
+    raw_data = gif_byte_arr.getvalue()
+
+    compressed = compress_image(raw_data)
+    assert len(compressed) > 0
+
+    with Image.open(io.BytesIO(compressed)) as res_img:
+        assert res_img.format == "WEBP"
+        assert getattr(res_img, "is_animated", False)
+
+
+def test_compress_image_invalid():
+    import pytest
+
+    with pytest.raises(Exception):
+        compress_image(b"not a valid image")

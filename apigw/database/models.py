@@ -46,13 +46,17 @@ class Brick(SQLModel, table=True):
     native_text: str = Field(max_length=BRICK_MAX_WORDS * BRICK_AVG_WORD_LEN)
     target_text: str = Field(max_length=BRICK_MAX_WORDS * BRICK_AVG_WORD_LEN)
     target_audio_path: str = Field(max_length=MAX_PATH_LEN)
+
     target_lang: str = Field(
         default="en",
         max_length=2,
         index=True,
     )  # ISO 639-1 code, 'en', 'ja'
     target_pron: str | None = Field(default=None, max_length=CONTEXT_MAX_CHARS)
+
     context: str | None = Field(default=None, max_length=CONTEXT_MAX_CHARS)
+    image_path: str | None = Field(default=None, max_length=MAX_PATH_LEN)
+
     kind: str  # 'word' or 'sentence'
     is_private: bool = True
     is_skipped: bool = False
@@ -246,6 +250,10 @@ class Island(SQLModel, table=True):
 class Learner(SQLModel, table=True):
     id: int | None = Field(default=None, primary_key=True)
     name: str = Field(max_length=100)
+    avatar_path: str | None = Field(
+        default="default-images/meo.webp",
+        max_length=MAX_PATH_LEN,
+    )
 
     account: Account | None = Relationship(
         back_populates="learner",
