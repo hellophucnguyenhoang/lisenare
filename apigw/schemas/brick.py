@@ -3,13 +3,13 @@ from enum import Enum
 from typing import Any
 
 from pydantic import field_validator, model_validator
-from sqlmodel import SQLModel
 
+from schemas.base import Schema
 from schemas.learner import LearnerRead
 from utils.tag_utils import clean_tags
 
 
-class BrickUpdate(SQLModel):
+class BrickUpdate(Schema):
     native_text: str | None = None
     target_text: str | None = None
     target_lang: str | None = None
@@ -30,37 +30,37 @@ class BrickUpdate(SQLModel):
         return clean_tags(v)
 
 
-class BrickContextSearch(SQLModel):
+class BrickContextSearch(Schema):
     brick_id: int
     native_text: str
     target_text: str
     is_own: bool = False
 
 
-class AddBrickRequest(SQLModel):
+class AddBrickRequest(Schema):
     island_id: int
 
 
-class BrickReportCreate(SQLModel):
+class BrickReportCreate(Schema):
     reason: str = "Not provided"
 
 
-class AddIslandRequest(SQLModel):
+class AddIslandRequest(Schema):
     target_island_id: int
 
 
-class AddIslandResult(SQLModel):
+class AddIslandResult(Schema):
     added: int
     skipped: int
 
 
-class BrickMemoryExport(SQLModel):
+class BrickMemoryExport(Schema):
     fsrs_card_dict: dict = {}
     due: datetime
     created_at: datetime | None = None
 
 
-class BrickReviewExport(SQLModel):
+class BrickReviewExport(Schema):
     reviewed_at: datetime
     first_score: float
     is_answer_revealed: bool = False
@@ -70,7 +70,7 @@ class BrickReviewExport(SQLModel):
     learner_target_audio_path: str | None = None
 
 
-class BrickExport(SQLModel):
+class BrickExport(Schema):
     native_text: str
     target_text: str
     target_audio_path: str
@@ -100,7 +100,7 @@ class BrickExport(SQLModel):
         return clean_tags(v)
 
 
-class BrickBase(SQLModel):
+class BrickBase(Schema):
     native_text: str
     target_text: str
     target_lang: str = "en"
@@ -146,12 +146,12 @@ class BrickCreateRequest(BrickBase):
     pass
 
 
-class BrickPage(SQLModel):
+class BrickPage(Schema):
     items: list[BrickLearnRead | BrickRead]
     total: int
 
 
-class BrickListeningData(SQLModel):
+class BrickListeningData(Schema):
     audio_path: str
     target_text: str
     native_text: str
@@ -160,7 +160,7 @@ class BrickListeningData(SQLModel):
     image_path: str | None = None
 
 
-class BrickListeningPage(SQLModel):
+class BrickListeningPage(Schema):
     items: list[BrickListeningData]
     offset: int
     limit: int

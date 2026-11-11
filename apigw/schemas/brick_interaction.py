@@ -1,6 +1,6 @@
 from enum import Enum
 
-from sqlmodel import SQLModel
+from schemas.base import Schema
 
 
 class InteractionType(str, Enum):
@@ -8,7 +8,7 @@ class InteractionType(str, Enum):
     ADD = "ADD"
 
 
-class BrickInteractionCreate(SQLModel):
+class BrickInteractionCreate(Schema):
     session_id: str
     brick_id: int
     interaction_type: InteractionType

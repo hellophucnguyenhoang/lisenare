@@ -1,11 +1,17 @@
 from datetime import datetime, timedelta, timezone
-from typing import Optional
+from typing import Any, Optional
 
 from pgvector.sqlalchemy import Vector
-from pydantic import EmailStr
-from sqlalchemy import Column, DateTime, LargeBinary, UniqueConstraint
+from sqlalchemy import (
+    CheckConstraint,
+    DateTime,
+    ForeignKey,
+    LargeBinary,
+    String,
+    UniqueConstraint,
+)
 from sqlalchemy.dialects.postgresql import JSONB
-from sqlmodel import Field, Relationship, SQLModel
+from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
 from constants import (
     CONTEXT_MAX_CHARS,
@@ -16,353 +22,426 @@ from constants import (
 from shared_constants import BRICK_AVG_WORD_LEN, BRICK_MAX_WORDS
 
 
-class Account(SQLModel, table=True):
-    id: int | None = Field(default=None, primary_key=True)
-    username: str = Field(index=True, unique=True, min_length=3, max_length=20)
-    hashed_password: str = Field(max_length=100)
-    email: EmailStr | None = Field(
-        default=None,
+class Base(DeclarativeBase):
+    pass
+
+
+class Account(Base):
+    __tablename__ = "account"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    username: Mapped[str] = mapped_column(String(20), unique=True, index=True)
+    hashed_password: Mapped[str] = mapped_column(String(100))
+    email: Mapped[str | None] = mapped_column(
+        String(254),
+        unique=True,
         index=True,
+    )
+    last_login_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+    )
+
+    learner_id: Mapped[int] = mapped_column(
+        ForeignKey("learner.id", ondelete="CASCADE"),
         unique=True,
-        max_length=254,
-    )
-    last_login_at: datetime = Field(
-        default_factory=lambda: datetime.now(timezone.utc),
-        sa_type=DateTime(timezone=True),
     )
 
-    learner_id: int = Field(
-        foreign_key="learner.id",
-        unique=True,
-        ondelete="CASCADE",
+    learner: Mapped["Learner"] = relationship(back_populates="account")
+
+
+class Brick(Base):
+    __tablename__ = "brick"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    native_text: Mapped[str] = mapped_column(
+        String(BRICK_MAX_WORDS * BRICK_AVG_WORD_LEN)
     )
+    target_text: Mapped[str] = mapped_column(
+        String(BRICK_MAX_WORDS * BRICK_AVG_WORD_LEN)
+    )
+    target_audio_path: Mapped[str] = mapped_column(String(MAX_PATH_LEN))
 
-    # Have to use `Optional` instead of `"Learner" | None` here
-    learner: Optional["Learner"] = Relationship(back_populates="account")
-
-
-class Brick(SQLModel, table=True):
-    id: int | None = Field(default=None, primary_key=True)
-    native_text: str = Field(max_length=BRICK_MAX_WORDS * BRICK_AVG_WORD_LEN)
-    target_text: str = Field(max_length=BRICK_MAX_WORDS * BRICK_AVG_WORD_LEN)
-    target_audio_path: str = Field(max_length=MAX_PATH_LEN)
-
-    target_lang: str = Field(
+    # ISO 639-1 code, 'en', 'ja'.
+    target_lang: Mapped[str] = mapped_column(
+        String(2),
         default="en",
-        max_length=2,
-        index=True,
-    )  # ISO 639-1 code, 'en', 'ja'
-    target_pron: str | None = Field(default=None, max_length=CONTEXT_MAX_CHARS)
-
-    context: str | None = Field(default=None, max_length=CONTEXT_MAX_CHARS)
-    image_path: str | None = Field(default=None, max_length=MAX_PATH_LEN)
-
-    kind: str  # 'word' or 'sentence'
-    is_private: bool = True
-    is_skipped: bool = False
-
-    last_edit_at: datetime = Field(
-        default_factory=lambda: datetime.now(timezone.utc),
-        sa_type=DateTime(timezone=True),
-    )
-
-    island_id: int = Field(
-        foreign_key="island.id",
-        ondelete="CASCADE",
         index=True,
     )
-    island: "Island" = Relationship(back_populates="bricks")
+    target_pron: Mapped[str | None] = mapped_column(String(CONTEXT_MAX_CHARS))
 
-    creator_id: int = Field(
-        foreign_key="learner.id",
-        ondelete="CASCADE",
+    context: Mapped[str | None] = mapped_column(String(CONTEXT_MAX_CHARS))
+    image_path: Mapped[str | None] = mapped_column(String(MAX_PATH_LEN))
+
+    kind: Mapped[str] = mapped_column(String)  # 'word' or 'sentence'
+    is_private: Mapped[bool] = mapped_column(default=True)
+    is_skipped: Mapped[bool] = mapped_column(default=False)
+
+    last_edit_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+    )
+
+    island_id: Mapped[int] = mapped_column(
+        ForeignKey("island.id", ondelete="CASCADE"),
         index=True,
     )
-    creator: "Learner" = Relationship(back_populates="bricks")
+    island: Mapped["Island"] = relationship(back_populates="bricks")
 
-    embedding_id: int | None = Field(
-        default=None,
-        foreign_key="text_embedding.id",
-        ondelete="RESTRICT",
+    creator_id: Mapped[int] = mapped_column(
+        ForeignKey("learner.id", ondelete="CASCADE"),
         index=True,
     )
-    embedding: Optional["TextEmbedding"] = Relationship(
+    creator: Mapped["Learner"] = relationship(back_populates="bricks")
+
+    embedding_id: Mapped[int | None] = mapped_column(
+        ForeignKey("text_embedding.id", ondelete="RESTRICT"),
+        index=True,
+    )
+    embedding: Mapped[Optional["TextEmbedding"]] = relationship(
         back_populates="bricks"
     )
 
-    interactions: list["BrickInteraction"] = Relationship(
+    interactions: Mapped[list["BrickInteraction"]] = relationship(
         back_populates="brick",
-        cascade_delete=True,
+        cascade="all, delete-orphan",
+        passive_deletes=True,
     )
-    memories: list["BrickMemory"] | None = Relationship(
+    memories: Mapped[list["BrickMemory"]] = relationship(
         back_populates="brick",
-        cascade_delete=True,
+        cascade="all, delete-orphan",
+        passive_deletes=True,
     )
-    reports: list["BrickReport"] = Relationship(
+    reports: Mapped[list["BrickReport"]] = relationship(
         back_populates="brick",
-        cascade_delete=True,
+        cascade="all, delete-orphan",
+        passive_deletes=True,
     )
-    reviews: list["BrickReview"] | None = Relationship(
+    reviews: Mapped[list["BrickReview"]] = relationship(
         back_populates="brick",
-        cascade_delete=True,
+        cascade="all, delete-orphan",
+        passive_deletes=True,
     )
 
 
-class BrickInteraction(SQLModel, table=True):
-    id: int | None = Field(default=None, primary_key=True)
+class BrickInteraction(Base):
+    __tablename__ = "brickinteraction"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
 
     # LISTEN, ADD
-    type: str = Field(max_length=20)
+    type: Mapped[str] = mapped_column(String(20))
 
-    created_at: datetime = Field(
-        default_factory=lambda: datetime.now(timezone.utc),
-        sa_type=DateTime(timezone=True),
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
     )
 
-    session_id: str
+    session_id: Mapped[str] = mapped_column(String)
 
-    brick_id: int = Field(foreign_key="brick.id", ondelete="CASCADE")
-    brick: Brick = Relationship(back_populates="interactions")
-
-    learner_id: int | None = Field(
-        default=None,
-        foreign_key="learner.id",
-        ondelete="CASCADE",
+    brick_id: Mapped[int] = mapped_column(
+        ForeignKey("brick.id", ondelete="CASCADE")
     )
-    learner: "Learner" = Relationship(back_populates="brick_interactions")
+    brick: Mapped[Brick] = relationship(back_populates="interactions")
+
+    learner_id: Mapped[int | None] = mapped_column(
+        ForeignKey("learner.id", ondelete="CASCADE")
+    )
+    learner: Mapped[Optional["Learner"]] = relationship(
+        back_populates="brick_interactions"
+    )
 
 
-class BrickMemory(SQLModel, table=True):
+class BrickMemory(Base):
     """
     Stores the LATEST algorithmic memory state for a brick.
     Exactly ONE row exists per learner-brick pair. Updated on every review.
     """
 
-    id: int | None = Field(default=None, primary_key=True)
+    __tablename__ = "brickmemory"
+    __table_args__ = (
+        UniqueConstraint(
+            "learner_id",
+            "brick_id",
+            name="uq_brickmemory_learner_brick",
+        ),
+    )
 
-    learner_id: int = Field(
-        foreign_key="learner.id",
-        ondelete="CASCADE",
+    id: Mapped[int] = mapped_column(primary_key=True)
+
+    fsrs_card_dict: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict)
+    due: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
+    is_skipped: Mapped[bool] = mapped_column(default=False)
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+    )
+
+    learner_id: Mapped[int] = mapped_column(
+        ForeignKey("learner.id", ondelete="CASCADE"),
         index=True,
     )
-    learner: "Learner" = Relationship(back_populates="memories")
+    learner: Mapped["Learner"] = relationship(back_populates="memories")
 
-    brick_id: int = Field(
-        foreign_key="brick.id",
-        ondelete="CASCADE",
+    brick_id: Mapped[int] = mapped_column(
+        ForeignKey("brick.id", ondelete="CASCADE"),
         index=True,
     )
-    brick: Brick = Relationship(back_populates="memories")
+    brick: Mapped[Brick] = relationship(back_populates="memories")
 
-    fsrs_card_dict: dict = Field(default={}, sa_type=JSONB)
-    due: datetime = Field(sa_type=DateTime(timezone=True), index=True)
-    is_skipped: bool = False
 
-    created_at: datetime = Field(
-        default_factory=lambda: datetime.now(timezone.utc),
-        sa_type=DateTime(timezone=True),
+class BrickReport(Base):
+    __tablename__ = "brickreport"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    reason: Mapped[str] = mapped_column(String(1000), default="Not provided")
+
+    # open, resolved, dismissed
+    status: Mapped[str] = mapped_column(String, default="open")
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
     )
 
-
-class BrickReport(SQLModel, table=True):
-    id: int | None = Field(default=None, primary_key=True)
-    reason: str = Field(default="Not provided", max_length=1000)
-    status: str = Field(default="open")  # open, resolved, dismissed
-    created_at: datetime = Field(
-        default_factory=lambda: datetime.now(timezone.utc),
-        sa_type=DateTime(timezone=True),
+    brick_id: Mapped[int] = mapped_column(
+        ForeignKey("brick.id", ondelete="CASCADE")
     )
 
-    brick_id: int = Field(foreign_key="brick.id", ondelete="CASCADE")
-    brick: Brick = Relationship(back_populates="reports")
+    brick: Mapped[Brick] = relationship(back_populates="reports")
 
-    learner_id: int = Field(foreign_key="learner.id", ondelete="CASCADE")
-    learner: "Learner" = Relationship(back_populates="brick_reports")
+    learner_id: Mapped[int] = mapped_column(
+        ForeignKey("learner.id", ondelete="CASCADE")
+    )
+    learner: Mapped["Learner"] = relationship(back_populates="brick_reports")
 
 
-class BrickReview(SQLModel, table=True):
+class BrickReview(Base):
     """
     Stores the immutable historical log of an individual review attempt.
     Appends a new row every time a learner answers.
     """
 
-    id: int | None = Field(default=None, primary_key=True)
-    reviewed_at: datetime = Field(
-        default_factory=lambda: datetime.now(timezone.utc),
-        sa_type=DateTime(timezone=True),
+    __tablename__ = "brickreview"
+    __table_args__ = (
+        CheckConstraint(
+            "fsrs_rating >= 1 AND fsrs_rating <= 4",
+            name="ck_brickreview_fsrs_rating",
+        ),
+    )
+    id: Mapped[int] = mapped_column(primary_key=True)
+    reviewed_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
     )
 
-    learner_id: int = Field(
-        foreign_key="learner.id",
-        ondelete="CASCADE",
+    learner_id: Mapped[int] = mapped_column(
+        ForeignKey("learner.id", ondelete="CASCADE"),
         index=True,
     )
-    learner: "Learner" = Relationship(back_populates="reviews")
+    learner: Mapped["Learner"] = relationship(back_populates="reviews")
 
-    brick_id: int = Field(
-        foreign_key="brick.id",
-        ondelete="CASCADE",
+    brick_id: Mapped[int] = mapped_column(
+        ForeignKey("brick.id", ondelete="CASCADE"),
         index=True,
     )
-    brick: Brick = Relationship(back_populates="reviews")
+    brick: Mapped[Brick] = relationship(back_populates="reviews")
 
     # Performance metrics for this specific attempt
-    first_score: float
-    is_answer_revealed: bool = False
+    first_score: Mapped[float] = mapped_column()
+    is_answer_revealed: Mapped[bool] = mapped_column(default=False)
 
     # Again = 1, Hard = 2, Good = 3, Easy = 4
-    fsrs_rating: int = Field(ge=1, le=4)
-    fsrs_log_dict: dict = Field(default={}, sa_type=JSONB)
+    fsrs_rating: Mapped[int] = mapped_column()
+    fsrs_log_dict: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict)
 
     # Learner's actual typed/spoken response payload for this attempt
-    learner_target_text: str | None = Field(
-        default=None,
-        max_length=BRICK_MAX_WORDS * BRICK_AVG_WORD_LEN,
+    learner_target_text: Mapped[str | None] = mapped_column(
+        String(BRICK_MAX_WORDS * BRICK_AVG_WORD_LEN)
     )
-    learner_target_audio_path: str | None = Field(
-        default=None,
-        max_length=MAX_PATH_LEN,
+    learner_target_audio_path: Mapped[str | None] = mapped_column(
+        String(MAX_PATH_LEN)
     )
 
 
-class Island(SQLModel, table=True):
+class Island(Base):
+    __tablename__ = "island"
+
     __table_args__ = (
-        UniqueConstraint("creator_id", "name", name="uq_creator_island_name"),
+        UniqueConstraint(
+            "creator_id",
+            "name",
+            name="uq_creator_island_name",
+        ),
     )
 
-    id: int | None = Field(default=None, primary_key=True)
-    name: str = Field(max_length=50)
-    description: str | None = Field(default=None, max_length=100)
-    created_at: datetime = Field(
-        default_factory=lambda: datetime.now(timezone.utc),
-        sa_type=DateTime(timezone=True),
+    id: Mapped[int] = mapped_column(primary_key=True)
+    name: Mapped[str] = mapped_column(String(50))
+    description: Mapped[str | None] = mapped_column(String(100))
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
     )
 
-    creator_id: int = Field(foreign_key="learner.id", ondelete="CASCADE")
-    creator: "Learner" = Relationship(back_populates="islands")
+    creator_id: Mapped[int] = mapped_column(
+        ForeignKey("learner.id", ondelete="CASCADE")
+    )
+    creator: Mapped["Learner"] = relationship(back_populates="islands")
 
-    bricks: list[Brick] | None = Relationship(
+    # passive_deletes=True is for if the parent (island) is unloaded,
+    # SQLAlchemy doesn't issue a SELECT to emit the DELETE statements to the children (bricks).
+    bricks: Mapped[list[Brick]] = relationship(
         back_populates="island",
-        cascade_delete=True,
+        cascade="all, delete-orphan",
+        passive_deletes=True,
     )
 
 
-class Learner(SQLModel, table=True):
-    id: int | None = Field(default=None, primary_key=True)
-    name: str = Field(max_length=100)
-    avatar_path: str | None = Field(
+class Learner(Base):
+    __tablename__ = "learner"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    name: Mapped[str] = mapped_column(String(100))
+    avatar_path: Mapped[str | None] = mapped_column(
+        String(MAX_PATH_LEN),
         default="default-images/meo.webp",
-        max_length=MAX_PATH_LEN,
     )
 
-    account: Account | None = Relationship(
+    account: Mapped[Account | None] = relationship(
         back_populates="learner",
-        cascade_delete=True,
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+        single_parent=True,
     )
-    islands: list[Island] | None = Relationship(
+    islands: Mapped[list[Island]] = relationship(
         back_populates="creator",
-        cascade_delete=True,
+        cascade="all, delete-orphan",
+        passive_deletes=True,
     )
-    bricks: list[Brick] | None = Relationship(
+    bricks: Mapped[list[Brick]] = relationship(
         back_populates="creator",
-        cascade_delete=True,
+        cascade="all, delete-orphan",
+        passive_deletes=True,
     )
-    brick_interactions: list[BrickInteraction] | None = Relationship(
+    brick_interactions: Mapped[list[BrickInteraction]] = relationship(
         back_populates="learner",
-        cascade_delete=True,
+        cascade="all, delete-orphan",
+        passive_deletes=True,
     )
-    brick_reports: list["BrickReport"] | None = Relationship(
+    brick_reports: Mapped[list[BrickReport]] = relationship(
         back_populates="learner",
-        cascade_delete=True,
+        cascade="all, delete-orphan",
+        passive_deletes=True,
     )
-    memories: list[BrickMemory] | None = Relationship(
+    memories: Mapped[list[BrickMemory]] = relationship(
         back_populates="learner",
-        cascade_delete=True,
+        cascade="all, delete-orphan",
+        passive_deletes=True,
     )
-    reviews: list["BrickReview"] | None = Relationship(
+    reviews: Mapped[list[BrickReview]] = relationship(
         back_populates="learner",
-        cascade_delete=True,
+        cascade="all, delete-orphan",
+        passive_deletes=True,
     )
-    setting: "LearnerSetting" = Relationship(
+    setting: Mapped["LearnerSetting"] = relationship(
         back_populates="learner",
-        cascade_delete=True,
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+        single_parent=True,
     )
-    tags: list["Tag"] | None = Relationship(
+    tags: Mapped[list["Tag"]] = relationship(
         back_populates="creator",
-        cascade_delete=True,
+        cascade="all, delete-orphan",
+        passive_deletes=True,
     )
 
     @property
     def retrieval_lang(self) -> str:
-        try:
-            return self.setting.retrieval_lang if self.setting else "en"
-        except Exception:
-            return "en"
+        return self.setting.retrieval_lang if self.setting else "en"
 
 
-class LearnerSetting(SQLModel, table=True):
-    learner_id: int = Field(
-        foreign_key="learner.id", primary_key=True, ondelete="CASCADE"
+class LearnerSetting(Base):
+    __tablename__ = "learnersetting"
+
+    learner_id: Mapped[int] = mapped_column(
+        ForeignKey("learner.id", ondelete="CASCADE"),
+        primary_key=True,
     )
-    fsrs_weights: list[float] | None = Field(default=None, sa_type=JSONB)
-    target_retention: float = Field(default=0.9)
-    retrieval_lang: str = Field(
-        default="en",
-        max_length=2,
-    )  # ISO 639-1 code, 'en', 'ja'
-    learner: "Learner" = Relationship(back_populates="setting")
+
+    fsrs_weights: Mapped[list[float] | None] = mapped_column(
+        JSONB, default=None
+    )
+    target_retention: Mapped[float] = mapped_column(default=0.9)
+    retrieval_lang: Mapped[str] = mapped_column(String(2), default="en")
+
+    learner: Mapped[Learner] = relationship(back_populates="setting")
 
 
-class OTP(SQLModel, table=True):
-    id: int | None = Field(default=None, primary_key=True)
-    email: str
-    hashed_code: str
-    expires_at: datetime = Field(
-        default_factory=lambda: (
+class OTP(Base):
+    __tablename__ = "otp"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    email: Mapped[str] = mapped_column(String)
+    hashed_code: Mapped[str] = mapped_column(String)
+
+    expires_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: (
             datetime.now(timezone.utc) + timedelta(minutes=OTP_EXPIRE_MINUTES)
         ),
-        sa_type=DateTime(timezone=True),
     )
-    used: bool = False
+    used: Mapped[bool] = mapped_column(default=False)
 
 
-class SessionProfile(SQLModel, table=True):
-    session_id: str = Field(primary_key=True)
-    profile_vector: bytes
-    interaction_count: int = Field(default=0)
-    updated_at: datetime = Field(
-        default_factory=lambda: datetime.now(timezone.utc),
-        sa_type=DateTime(timezone=True),
+class SessionProfile(Base):
+    __tablename__ = "sessionprofile"
+
+    session_id: Mapped[str] = mapped_column(String, primary_key=True)
+    profile_vector: Mapped[bytes] = mapped_column(LargeBinary)
+    interaction_count: Mapped[int] = mapped_column(default=0)
+
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
     )
 
 
-class Tag(SQLModel, table=True):
-    id: int | None = Field(default=None, primary_key=True)
-    name: str = Field(max_length=20)
+class Tag(Base):
+    __tablename__ = "tag"
 
-    creator_id: int = Field(foreign_key="learner.id", ondelete="CASCADE")
-    creator: Learner | None = Relationship(back_populates="tags")
+    id: Mapped[int] = mapped_column(primary_key=True)
+    name: Mapped[str] = mapped_column(String(20))
+
+    creator_id: Mapped[int] = mapped_column(
+        ForeignKey("learner.id", ondelete="CASCADE")
+    )
+    creator: Mapped[Learner] = relationship(back_populates="tags")
 
 
-class Taggable(SQLModel, table=True):
-    tag_id: int = Field(
-        foreign_key="tag.id",
+class Taggable(Base):
+    __tablename__ = "taggable"
+    tag_id: Mapped[int] = mapped_column(
+        ForeignKey("tag.id", ondelete="CASCADE"),
         primary_key=True,
-        ondelete="CASCADE",
     )
-    tag: "Tag" = Relationship()
-    taggable_id: int = Field(primary_key=True, index=True)
+    tag: Mapped[Tag] = relationship()
+
+    taggable_id: Mapped[int] = mapped_column(primary_key=True, index=True)
 
     # 'Brick', 'Island',...
-    taggable_type: str = Field(primary_key=True, max_length=20, index=True)
+    taggable_type: Mapped[str] = mapped_column(
+        String(20),
+        primary_key=True,
+        index=True,
+    )
 
-    created_at: datetime = Field(
-        default_factory=lambda: datetime.now(timezone.utc),
-        sa_type=DateTime(timezone=True),
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
     )
 
 
-class TextEmbedding(SQLModel, table=True):
+class TextEmbedding(Base):
     __tablename__ = "text_embedding"
 
     __table_args__ = (
@@ -374,28 +453,30 @@ class TextEmbedding(SQLModel, table=True):
         ),
     )
 
-    id: int | None = Field(default=None, primary_key=True)
+    id: Mapped[int] = mapped_column(primary_key=True)
 
-    target_lang: str = Field(max_length=2)
-    model_version: str = Field(max_length=100)
+    target_lang: Mapped[str] = mapped_column(String(2))
+    model_version: Mapped[str] = mapped_column(String(100))
 
     # SHA-256 digest of the canonical text.
-    content_hash: bytes = Field(
-        sa_column=Column(LargeBinary(32), nullable=False)
+    content_hash: Mapped[bytes] = mapped_column(
+        LargeBinary(32), nullable=False
     )
 
     # Canonical text used to generate the embedding.
-    source_text: str
+    source_text: Mapped[str] = mapped_column(String)
 
-    embedding: list[float] = Field(
-        sa_column=Column(Vector(SEMANTIC_EMB_DIM), nullable=False)
+    embedding: Mapped[list[float]] = mapped_column(
+        Vector(SEMANTIC_EMB_DIM), nullable=False
     )
 
-    created_at: datetime = Field(
-        default_factory=lambda: datetime.now(timezone.utc),
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
     )
 
-    bricks: list[Brick] = Relationship(
+    # passive_deletes="all" stops SQLAlchemy from setting the child records (bricks) foreign keys to NULL
+    bricks: Mapped[list[Brick]] = relationship(
         back_populates="embedding",
-        passive_deletes="all",  # disable setting the child records (bricks) foreign keys to NULL
+        passive_deletes="all",
     )

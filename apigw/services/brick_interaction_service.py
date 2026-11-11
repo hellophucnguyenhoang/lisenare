@@ -1,4 +1,4 @@
-from sqlmodel import Session
+from sqlalchemy.orm import Session
 
 from config import logger
 from database import BrickInteraction

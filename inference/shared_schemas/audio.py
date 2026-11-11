@@ -1,5 +1,5 @@
-from sqlmodel import SQLModel
+from pydantic import BaseModel
 
 
-class STTResponse(SQLModel):
+class STTResponse(BaseModel):
     transcript: str

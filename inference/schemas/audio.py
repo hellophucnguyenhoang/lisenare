@@ -1,7 +1,7 @@
-from sqlmodel import SQLModel
+from pydantic import BaseModel
 
 
-class WordSegment(SQLModel):
+class WordSegment(BaseModel):
     word: str
     start_frame: int
     end_frame: int
@@ -18,12 +18,12 @@ class WordSegment(SQLModel):
         return start_sec, end_sec
 
 
-class AlignmentRequest(SQLModel):
+class AlignmentRequest(BaseModel):
     audio_url: str
     transcript: str
 
 
-class WordSegmentResponse(SQLModel):
+class WordSegmentResponse(BaseModel):
     word: str
     start_frame: int
     end_frame: int
@@ -32,6 +32,6 @@ class WordSegmentResponse(SQLModel):
     end_sec: float
 
 
-class AlignmentResponse(SQLModel):
+class AlignmentResponse(BaseModel):
     segments: list[WordSegmentResponse]
     frames_per_second: float

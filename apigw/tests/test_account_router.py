@@ -3,7 +3,7 @@ from unittest.mock import AsyncMock, patch
 import pytest
 from fastapi.testclient import TestClient
 from fastapi_mail import MessageType
-from sqlmodel import select
+from sqlalchemy import select
 
 from database import OTP, Account, get_session
 from exceptions import ErrorCode
@@ -21,15 +21,15 @@ def test_send_otp_by_username_success(client: TestClient):
 
     session_gen = get_session()
     session = next(session_gen)
-    account = session.exec(
+    account = session.scalar(
         select(Account).where(Account.username == username)
-    ).first()
+    )
     assert account is not None
-    otp_record = session.exec(
+    otp_record = session.scalar(
         select(OTP)
         .where(OTP.email == account.email)
         .order_by(OTP.expires_at.desc())
-    ).first()
+    )
     assert otp_record is not None
     assert not otp_record.used
 
@@ -46,9 +46,9 @@ def test_send_otp_account_no_email(client: TestClient):
     session_gen = get_session()
     session = next(session_gen)
 
-    account = session.exec(
+    account = session.scalar(
         select(Account).where(Account.username == "qwerwert")
-    ).first()
+    )
     if account:
         original_email = account.email
         account.email = None
@@ -73,9 +73,9 @@ def test_send_email_change_otp_success(client: TestClient):
     session_gen = get_session()
     session = next(session_gen)
 
-    account = session.exec(
+    account = session.scalar(
         select(Account).where(Account.username == "hoangphuc")
-    ).first()
+    )
     learner = account.learner
 
     app.dependency_overrides[auth_service.decode_token_get_learner] = lambda: (
@@ -95,11 +95,11 @@ def test_send_email_change_otp_success(client: TestClient):
 
     app.dependency_overrides.clear()
 
-    otp_record = session.exec(
+    otp_record = session.scalar(
         select(OTP)
         .where(OTP.email == new_email)
         .order_by(OTP.expires_at.desc())
-    ).first()
+    )
     assert otp_record is not None
     assert not otp_record.used
 
@@ -108,9 +108,9 @@ def test_send_email_change_otp_wrong_old_email(client: TestClient):
     session_gen = get_session()
     session = next(session_gen)
 
-    account = session.exec(
+    account = session.scalar(
         select(Account).where(Account.username == "hoangphuc")
-    ).first()
+    )
     learner = account.learner
 
     app.dependency_overrides[auth_service.decode_token_get_learner] = lambda: (
@@ -134,9 +134,9 @@ def test_reset_password_success(client: TestClient):
     session_gen = get_session()
     session = next(session_gen)
 
-    account = session.exec(
+    account = session.scalar(
         select(Account).where(Account.username == "hoangphuc")
-    ).first()
+    )
     assert account is not None
     assert account.email is not None
 
@@ -164,9 +164,9 @@ def test_reset_password_invalid_otp(client: TestClient):
     session_gen = get_session()
     session = next(session_gen)
 
-    account = session.exec(
+    account = session.scalar(
         select(Account).where(Account.username == "hoangphuc")
-    ).first()
+    )
     otp_service.create_otp(session, account.email)
 
     response = client.post(
@@ -198,9 +198,9 @@ def test_change_email_success(client: TestClient):
     session_gen = get_session()
     session = next(session_gen)
 
-    account = session.exec(
+    account = session.scalar(
         select(Account).where(Account.username == "hoangphuc")
-    ).first()
+    )
     learner = account.learner
 
     app.dependency_overrides[auth_service.decode_token_get_learner] = lambda: (
@@ -236,9 +236,9 @@ def test_change_email_wrong_old_email(client: TestClient):
     session_gen = get_session()
     session = next(session_gen)
 
-    account = session.exec(
+    account = session.scalar(
         select(Account).where(Account.username == "hoangphuc")
-    ).first()
+    )
     learner = account.learner
 
     app.dependency_overrides[auth_service.decode_token_get_learner] = lambda: (
@@ -267,18 +267,18 @@ def test_change_email_taken(client: TestClient):
     session_gen = get_session()
     session = next(session_gen)
 
-    account1 = session.exec(
+    account1 = session.scalar(
         select(Account).where(Account.username == "hoangphuc")
-    ).first()
+    )
     learner = account1.learner
 
     app.dependency_overrides[auth_service.decode_token_get_learner] = lambda: (
         learner
     )
 
-    other_account = session.exec(
+    other_account = session.scalar(
         select(Account).where(Account.username == "qwerwert")
-    ).first()
+    )
     if other_account:
         other_account.email = "other_taken_email@example.com"
         session.add(other_account)
@@ -306,9 +306,9 @@ def test_change_email_invalid_otp(client: TestClient):
     session_gen = get_session()
     session = next(session_gen)
 
-    account = session.exec(
+    account = session.scalar(
         select(Account).where(Account.username == "hoangphuc")
-    ).first()
+    )
     learner = account.learner
 
     app.dependency_overrides[auth_service.decode_token_get_learner] = lambda: (

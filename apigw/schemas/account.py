@@ -1,35 +1,36 @@
-from pydantic import EmailStr
-from sqlmodel import Field, SQLModel
+from pydantic import EmailStr, Field
+
+from schemas.base import Schema
 
 
-class LearnerAccountCreate(SQLModel):
+class LearnerAccountCreate(Schema):
     name: str = "The Avid Learner"
     username: str = Field(min_length=3)
     password: str = Field(min_length=8)
     email: EmailStr | None = Field(default=None)
 
 
-class PasswordChangeRequest(SQLModel):
+class PasswordChangeRequest(Schema):
     old_password: str
     new_password: str
 
 
-class PasswordResetRequest(SQLModel):
+class PasswordResetRequest(Schema):
     username: str
     new_password: str = Field(min_length=8)
     otp: str
 
 
-class SendOTPRequest(SQLModel):
+class SendOTPRequest(Schema):
     username: str
 
 
-class EmailChangeOTPRequest(SQLModel):
+class EmailChangeOTPRequest(Schema):
     old_email: EmailStr | None = None
     new_email: EmailStr
 
 
-class EmailChangeRequest(SQLModel):
+class EmailChangeRequest(Schema):
     old_email: EmailStr | None = None
     new_email: EmailStr
     otp: str

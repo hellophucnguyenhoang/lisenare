@@ -3,7 +3,7 @@ from unittest.mock import MagicMock, patch
 from fastapi.testclient import TestClient
 from fsrs import Rating
 
-from database import Learner
+from database import Learner, LearnerSetting
 from main import app
 from services import auth_service
 from shared_schemas.sentence import SentenceCompareResponse
@@ -109,7 +109,9 @@ def test_create_brick_review_missing_rating_fails():
 
 def test_sentence_comparison_does_not_save_review():
     client = TestClient(app)
-    fake_learner = Learner(id=2, name="test_learner", retrieval_lang="en")
+    fake_learner = Learner(
+        id=2, name="test_learner", setting=LearnerSetting(retrieval_lang="en")
+    )
     app.dependency_overrides[auth_service.decode_token_get_learner] = lambda: (
         fake_learner
     )

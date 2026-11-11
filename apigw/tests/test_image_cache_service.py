@@ -1,6 +1,7 @@
 from unittest.mock import MagicMock, patch
 
-from sqlmodel import Session, select
+from sqlalchemy import select
+from sqlalchemy.orm import Session
 
 from config import settings
 from constants import (
@@ -27,21 +28,24 @@ def _setup_test_brick_with_image(learner_id: int = 2) -> Brick:
             session.add(learner)
             session.commit()
 
-        island = session.exec(
-            select(Island).where(Island.creator_id == learner_id)
-        ).first()
+        island = session.scalar(
+            select(Island).where(
+                Island.creator_id == learner_id,
+                Island.name == "Test Image Island",
+            )
+        )
         if not island:
-            island = Island(name="Test Island", creator_id=learner_id)
+            island = Island(name="Test Image Island", creator_id=learner_id)
             session.add(island)
             session.commit()
             session.refresh(island)
 
-        brick = session.exec(
+        brick = session.scalar(
             select(Brick).where(
                 Brick.creator_id == learner_id,
                 Brick.image_path.is_not(None),
             )
-        ).first()
+        )
         if not brick:
             brick = Brick(
                 native_text="Bức ảnh",
@@ -86,9 +90,7 @@ def test_brick_image_not_belonging_to_learner_fails(client):
 
 def test_brick_image_no_image_fails(client):
     with Session(engine) as session:
-        island = session.exec(
-            select(Island).where(Island.creator_id == 2)
-        ).first()
+        island = session.scalar(select(Island).where(Island.creator_id == 2))
         no_img_brick = Brick(
             native_text="Không ảnh",
             target_text="No image here",
@@ -301,9 +303,7 @@ def test_brick_update_clears_image_cache():
 
 def test_brick_delete_clears_image_cache():
     with Session(engine) as session:
-        island = session.exec(
-            select(Island).where(Island.creator_id == 2)
-        ).first()
+        island = session.scalar(select(Island).where(Island.creator_id == 2))
         brick = Brick(
             native_text="Xoá ảnh",
             target_text="Delete image test",

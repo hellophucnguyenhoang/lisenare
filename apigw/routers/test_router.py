@@ -1,7 +1,7 @@
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, status
-from sqlmodel import Session
+from sqlalchemy.orm import Session
 
 from database import get_session
 from exceptions import ErrorCode, RequestException

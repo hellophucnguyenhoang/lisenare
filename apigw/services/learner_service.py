@@ -1,5 +1,6 @@
 from fastapi import status
-from sqlmodel import Session, select
+from sqlalchemy import select
+from sqlalchemy.orm import Session
 
 from cloud_storage_client import download_file
 from config import logger, settings
@@ -9,9 +10,9 @@ from exceptions import RequestException
 from schemas import LearnerUpdate
 
 
-def get_learner_by_id(session: Session, id: int) -> Learner:
+def get_learner_by_id(session: Session, id: int) -> Learner | None:
     statement = select(Learner).where(Learner.id == id)
-    return session.exec(statement).first()
+    return session.scalar(statement)
 
 
 def update_learner(

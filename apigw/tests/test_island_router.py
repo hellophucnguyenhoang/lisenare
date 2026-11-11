@@ -52,14 +52,12 @@ def test_create_island_success(client: TestClient):
     assert data["tags"] == []
 
     # Clean up test island
-    from sqlmodel import select
+    from sqlalchemy import select
 
     from database import Island, get_session
 
     session = next(get_session())
-    created = session.exec(
-        select(Island).where(Island.id == data["id"])
-    ).first()
+    created = session.scalar(select(Island).where(Island.id == data["id"]))
     if created:
         session.delete(created)
         session.commit()
@@ -132,17 +130,15 @@ def test_create_island_with_tags_success(client: TestClient):
     assert sorted(data["tags"]) == ["travel", "vocabulary"]
 
     # Verify Taggable in DB and cleanup
-    from sqlmodel import select
+    from sqlalchemy import select
 
     from database import Island, Taggable, get_session
 
     session = next(get_session())
-    created = session.exec(
-        select(Island).where(Island.id == data["id"])
-    ).first()
+    created = session.scalar(select(Island).where(Island.id == data["id"]))
     assert created is not None
 
-    taggables = session.exec(
+    taggables = session.scalars(
         select(Taggable).where(
             Taggable.taggable_id == data["id"],
             Taggable.taggable_type == "Island",
@@ -249,7 +245,7 @@ def test_delete_island_success(client: TestClient):
     assert del_res.status_code == 204
 
     # Verify island and taggable are deleted
-    from sqlmodel import select
+    from sqlalchemy import select
 
     from database import Island, Taggable, get_session
 
@@ -257,7 +253,7 @@ def test_delete_island_success(client: TestClient):
     col = session.get(Island, col_id)
     assert col is None
 
-    taggables = session.exec(
+    taggables = session.scalars(
         select(Taggable).where(
             Taggable.taggable_id == col_id,
             Taggable.taggable_type == "Island",
@@ -275,12 +271,12 @@ def test_delete_island_forbidden(client: TestClient):
     )
 
     # Try to delete island belonging to learner 2
-    from sqlmodel import select
+    from sqlalchemy import select
 
     from database import Island, get_session
 
     session = next(get_session())
-    col = session.exec(select(Island).where(Island.name == "Island 1")).first()
+    col = session.scalar(select(Island).where(Island.name == "Island 1"))
     assert col is not None
 
     response = client.delete(f"/api/islands/{col.id}")

@@ -2,7 +2,8 @@ from collections import defaultdict
 from datetime import datetime, timezone
 
 from fastapi import status
-from sqlmodel import Session, col, func, select
+from sqlalchemy import func, select
+from sqlalchemy.orm import Session
 
 from config import logger
 from constants import MAX_BRICKS_PER_ISLAND
@@ -45,7 +46,7 @@ def create_island(
         Island.creator_id == creator_id,
         Island.name == cleaned_name,
     )
-    if session.exec(existing_stmt).first():
+    if session.scalar(existing_stmt):
         logger.warning(
             f"Failed to create island: '{cleaned_name}' already exists for creator_id: {creator_id}"
         )
@@ -88,7 +89,7 @@ def get_or_create_island(
     stmt = select(Island).where(
         Island.name == island_name, Island.creator_id == creator_id
     )
-    island = session.exec(stmt).first()
+    island = session.scalar(stmt)
 
     if not island:
         island = Island(
@@ -106,7 +107,7 @@ def get_islands(
     session: Session, creator_id: int
 ) -> list[tuple[Island, int, int, list]]:
     # Get all islands for this creator
-    islands = session.exec(
+    islands = session.scalars(
         select(Island).where(Island.creator_id == creator_id)
     ).all()
 
@@ -117,7 +118,7 @@ def get_islands(
 
     # Get total brick counts per island
     brick_counts = dict(
-        session.exec(
+        session.execute(
             select(Brick.island_id, func.count(Brick.id))
             .where(Brick.island_id.in_(island_ids))
             .group_by(Brick.island_id)
@@ -126,7 +127,7 @@ def get_islands(
 
     # Get learned brick counts per island
     learned_counts = dict(
-        session.exec(
+        session.execute(
             select(Brick.island_id, func.count(Brick.id))
             .join(BrickReview, BrickReview.brick_id == Brick.id)
             .where(
@@ -224,7 +225,7 @@ def update_island(
             Island.name == cleaned_name,
             Island.id != island_id,
         )
-        if session.exec(existing_stmt).first():
+        if session.scalar(existing_stmt):
             logger.warning(
                 f"Island update conflict: name '{cleaned_name}' already exists for creator_id: {creator_id}"
             )
@@ -254,24 +255,18 @@ def update_island(
     session.commit()
     session.refresh(island)
 
-    brick_count = (
-        session.exec(
-            select(func.count(Brick.id)).where(Brick.island_id == island.id)
-        ).one()
-        or 0
-    )
+    brick_count = session.scalars(
+        select(func.count(Brick.id)).where(Brick.island_id == island.id)
+    ).one()
 
-    learned_count = (
-        session.exec(
-            select(func.count(Brick.id))
-            .join(BrickReview, BrickReview.brick_id == Brick.id)
-            .where(
-                Brick.island_id == island.id,
-                BrickReview.learner_id == creator_id,
-            )
-        ).one()
-        or 0
-    )
+    learned_count = session.scalars(
+        select(func.count(Brick.id))
+        .join(BrickReview, BrickReview.brick_id == Brick.id)
+        .where(
+            Brick.island_id == island.id,
+            BrickReview.learner_id == creator_id,
+        )
+    ).one()
 
     logger.info(f"Updated island ID: {island_id} for creator_id: {creator_id}")
     return island, brick_count, learned_count, tags
@@ -313,7 +308,7 @@ def export_island(
     if island.creator_id != learner_id:
         stmt = stmt.where(Brick.is_private == False)  # noqa: E712
 
-    bricks = session.exec(stmt).all()
+    bricks = session.scalars(stmt).all()
     if not bricks:
         logger.info(
             f"Exported empty island ID: {island_id} for learner_id: {learner_id}"
@@ -325,21 +320,21 @@ def export_island(
 
     memories_map: dict[int, BrickMemory] = {}
     if include_memory and brick_ids:
-        memories = session.exec(
+        memories = session.scalars(
             select(BrickMemory).where(
                 BrickMemory.learner_id == learner_id,
-                col(BrickMemory.brick_id).in_(brick_ids),
+                BrickMemory.brick_id.in_(brick_ids),
             )
         ).all()
         memories_map = {m.brick_id: m for m in memories}
 
     reviews_map: dict[int, list[BrickReview]] = defaultdict(list)
     if include_review_history and brick_ids:
-        reviews = session.exec(
+        reviews = session.scalars(
             select(BrickReview)
             .where(
                 BrickReview.learner_id == learner_id,
-                col(BrickReview.brick_id).in_(brick_ids),
+                BrickReview.brick_id.in_(brick_ids),
             )
             .order_by(BrickReview.reviewed_at.asc())
         ).all()
@@ -477,6 +472,7 @@ def import_island(
         session.flush()
 
         if item.tags:
+            # TODO: Avoid logs being flooded
             set_tags_for_entity(
                 session=session,
                 entity_id=brick.id,

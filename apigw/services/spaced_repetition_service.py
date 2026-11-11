@@ -1,5 +1,5 @@
 from fsrs import Scheduler
-from sqlmodel import Session
+from sqlalchemy.orm import Session
 
 from database import LearnerSetting
 

@@ -1,4 +1,5 @@
-from sqlmodel import Session, col, select
+from sqlalchemy import select
+from sqlalchemy.orm import Session
 
 from config import logger
 from database import Tag, Taggable
@@ -21,7 +22,7 @@ def fetch_tags_for_entities(
     if not entity_ids:
         return {}
 
-    tags_data = session.exec(
+    tags_data = session.execute(
         select(Taggable.taggable_id, Tag.name)
         .join(Tag, Taggable.tag_id == Tag.id)
         .where(
@@ -61,10 +62,10 @@ def set_tags_for_entity(
     if not cleaned_tags:
         return []
 
-    existing_tags = session.exec(
+    existing_tags = session.scalars(
         select(Tag).where(
             Tag.creator_id == creator_id,
-            col(Tag.name).in_(cleaned_tags),
+            Tag.name.in_(cleaned_tags),
         )
     ).all()
     tag_by_name = {t.name: t for t in existing_tags}
@@ -95,7 +96,7 @@ def delete_tags_for_entity(
     session: Session, entity_id: int, entity_type: str
 ) -> None:
     """Deletes all taggable entries for a specific entity."""
-    taggables = session.exec(
+    taggables = session.scalars(
         select(Taggable).where(
             Taggable.taggable_id == entity_id,
             Taggable.taggable_type == entity_type,

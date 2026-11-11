@@ -1,15 +1,16 @@
 from typing import Any
-from sqlmodel import Field, SQLModel
+
+from pydantic import BaseModel, Field
 
 
-class FSRSOptimizeRequest(SQLModel):
+class FSRSOptimizeRequest(BaseModel):
     review_logs: list[dict[str, Any]] = Field(
         default_factory=list,
         description="List of serialized FSRS review log dicts",
     )
 
 
-class FSRSOptimizeResponse(SQLModel):
+class FSRSOptimizeResponse(BaseModel):
     optimal_params: list[float] = Field(
         description="Optimized FSRS parameter weights",
     )

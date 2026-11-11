@@ -8,7 +8,7 @@ from shared_schemas.fsrs import FSRSOptimizeResponse
 def test_optimize_learner_scheduler_aborts_when_under_100_logs():
     session = MagicMock()
     # Mock only 50 reviews
-    session.exec.return_value.all.return_value = [
+    session.scalars.return_value.all.return_value = [
         MagicMock(fsrs_log_dict={"rating": 3}) for _ in range(50)
     ]
 
@@ -57,7 +57,7 @@ def test_optimize_learner_scheduler_success():
             mock_res.all.return_value = [db_card]
         return mock_res
 
-    session.exec.side_effect = fake_exec
+    session.scalars.side_effect = fake_exec
     setting = LearnerSetting(learner_id=1)
     session.get.return_value = setting
 

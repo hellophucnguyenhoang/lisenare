@@ -1,7 +1,7 @@
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, File, UploadFile
-from sqlmodel import Session
+from sqlalchemy.orm import Session
 
 import http_client as http_client
 from config import settings

@@ -8,7 +8,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, Response
 from fastapi.security import OAuth2PasswordRequestForm
-from sqlmodel import Session
+from sqlalchemy.orm import Session
 
 import security
 from config import logger, settings

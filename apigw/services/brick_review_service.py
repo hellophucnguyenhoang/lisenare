@@ -2,7 +2,8 @@ from collections import defaultdict
 from zoneinfo import ZoneInfo
 
 from fsrs import Card, Rating
-from sqlmodel import Session, case, func, select
+from sqlalchemy import case, func, select
+from sqlalchemy.orm import Session
 
 from config import logger
 from database import BrickMemory, BrickReview
@@ -24,7 +25,7 @@ def save_review(
         BrickMemory.learner_id == learner_id,
         BrickMemory.brick_id == review_create.brick_id,
     )
-    db_learning_card = session.exec(statement).first()
+    db_learning_card = session.scalar(statement)
     if db_learning_card is None:
         card = Card()
     else:
@@ -63,7 +64,7 @@ def save_review(
         BrickReview.fsrs_log_dict.is_not(None),
         BrickReview.fsrs_log_dict != {},
     )
-    total_learner_reviews = session.exec(statement).one()
+    total_learner_reviews = session.scalars(statement).one()
     logger.info(
         f"Saved review for brick ID: {review_create.brick_id} "
         f"by learner ID: {learner_id} (rating: {fsrs_rating}, "
@@ -77,7 +78,7 @@ def review_exists(session: Session, learner_id: int, brick_id: int) -> bool:
         BrickReview.learner_id == learner_id,
         BrickReview.brick_id == brick_id,
     )
-    review = session.exec(statement).first()
+    review = session.scalar(statement)
     return review is not None
 
 
@@ -104,7 +105,7 @@ def get_true_retention(
         days,
     )
 
-    result = session.exec(statement).one()
+    result = session.execute(statement).one()
     if result.total_reviews == 0:
         return 0.0
 
@@ -146,7 +147,7 @@ def get_daily_review_counts(
         days,
     )
 
-    rows = session.exec(statement).all()
+    rows = session.scalars(statement).all()
 
     # 2. Convert to local day + group
     tz = ZoneInfo(tz_name)

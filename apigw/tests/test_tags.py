@@ -2,7 +2,8 @@ import json
 from unittest.mock import patch
 
 from fastapi.testclient import TestClient
-from sqlmodel import Session, select
+from sqlalchemy import select
+from sqlalchemy.orm import Session
 
 from database import Island, Learner, LearnerSetting, engine
 from main import app
@@ -41,7 +42,7 @@ def test_clean_tags_list():
 
 def test_tag_service_set_and_delete():
     with Session(engine) as session:
-        learner = session.exec(select(Learner).where(Learner.id == 2)).first()
+        learner = session.scalar(select(Learner).where(Learner.id == 2))
         assert learner is not None
 
         # Set tags
@@ -72,11 +73,11 @@ def test_create_and_query_brick_with_uncleaned_tags(client: TestClient):
     )
 
     with Session(engine) as session:
-        col = session.exec(
+        col = session.scalar(
             select(Island).where(
                 Island.creator_id == 2, Island.name == "Island 10"
             )
-        ).first()
+        )
         assert col is not None
         col_id = col.id
 
@@ -90,7 +91,7 @@ def test_create_and_query_brick_with_uncleaned_tags(client: TestClient):
         }
         with (
             patch(
-                "utils.file_utils.save_upload_file",
+                "utils.file_utils.save_upload_file_to_cloud",
                 return_value=("fake/path.wav", None),
             ),
             patch("services.search_service.add_brick_embedding"),
@@ -115,7 +116,7 @@ def test_create_and_query_brick_with_uncleaned_tags(client: TestClient):
         # Update tags with dirty tags
         update_payload = {"tags": ["Updated_Tag #99"]}
         with patch(
-            "utils.file_utils.save_upload_file",
+            "utils.file_utils.save_upload_file_to_cloud",
             return_value=("fake/path.wav", None),
         ):
             update_res = client.patch(

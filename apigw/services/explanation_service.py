@@ -5,7 +5,7 @@ from typing import Literal
 from fastapi import status
 from ollama import generate
 from pydantic import BaseModel
-from sqlmodel import Session
+from sqlalchemy.orm import Session
 
 from config import logger
 from exceptions import ErrorCode, RequestException

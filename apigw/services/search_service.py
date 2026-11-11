@@ -2,9 +2,9 @@ import hashlib
 
 import numpy as np
 from numpy.typing import NDArray
-from sqlalchemy import text
+from sqlalchemy import or_, select, text
 from sqlalchemy.exc import IntegrityError
-from sqlmodel import Session, or_, select
+from sqlalchemy.orm import Session
 
 from config import logger
 from database import Brick, TextEmbedding
@@ -71,13 +71,13 @@ def get_or_create_embedding(
     model_version = _model_version_for(lang)
     chash = _content_hash(canonical)
 
-    existing = session.exec(
+    existing = session.scalar(
         select(TextEmbedding).where(
             TextEmbedding.target_lang == lang,
             TextEmbedding.model_version == model_version,
             TextEmbedding.content_hash == chash,
         )
-    ).first()
+    )
     if existing:
         return existing
 
@@ -110,13 +110,13 @@ def get_or_create_embedding(
         session.flush()
     except IntegrityError:
         session.rollback()
-        existing = session.exec(
+        existing = session.scalar(
             select(TextEmbedding).where(
                 TextEmbedding.target_lang == lang,
                 TextEmbedding.model_version == version_to_use,
                 TextEmbedding.content_hash == chash,
             )
-        ).first()
+        )
         if existing is None:
             raise
         return existing
@@ -155,7 +155,7 @@ def get_embedding(session: Session, brick_id: int) -> NDArray | None:
         .join(Brick, Brick.embedding_id == TextEmbedding.id)
         .where(Brick.id == brick_id)
     )
-    result = session.exec(stmt).first()
+    result = session.scalar(stmt)
     if result is None:
         return None
     return np.array(result, dtype=np.float32)
@@ -239,7 +239,7 @@ def search_bricks_semantic(
         .order_by(TextEmbedding.embedding.op("<->")(query_vec))
         .limit(fetch_k)
     )
-    rows = session.exec(nn_stmt).all()
+    rows = session.execute(nn_stmt).all()
     if not rows:
         return []
 
@@ -288,7 +288,7 @@ def get_relevant_bricks(
     if lang:
         stmt = stmt.where(Brick.target_lang == lang)
 
-    rows = session.exec(stmt).all()
+    rows = session.execute(stmt).all()
     if not rows:
         return []
 
@@ -333,7 +333,7 @@ def search_bricks_literal(
         WHERE (target_text || ' ' || native_text) &@ :val
         ORDER BY pgroonga_score(tableoid, ctid) DESC
     """)
-    results = session.exec(statement, params={"val": keyword})
+    results = session.execute(statement, params={"val": keyword})
     rows = results.mappings().all()
     return [BrickContextSearch.model_validate(row) for row in rows]
 
@@ -373,9 +373,7 @@ def search_bricks(
     if not candidate_ids:
         return []
 
-    from sqlmodel import select as sm_select
-
-    stmt = sm_select(Brick.id, Brick.creator_id).where(
+    stmt = select(Brick.id, Brick.creator_id).where(
         Brick.id.in_(candidate_ids),
         or_(*filters),
     )
@@ -384,7 +382,7 @@ def search_bricks(
     if retrieval_lang:
         stmt = stmt.where(Brick.target_lang == retrieval_lang)
 
-    visible_rows = session.exec(stmt).all()
+    visible_rows = session.execute(stmt).all()
     visible_brick_ids = {row[0] for row in visible_rows}
     own_brick_ids = (
         {row[0] for row in visible_rows if row[1] == searcher_id}
@@ -410,14 +408,14 @@ def search_bricks(
 
 def create_vector_indexes(session: Session) -> None:
     logger.info("Creating HNSW index on text_embedding(embedding)...")
-    session.exec(
+    session.execute(
         text("""
         CREATE INDEX IF NOT EXISTS idx_text_embedding_hnsw
         ON text_embedding USING hnsw (embedding vector_cosine_ops);
         """)
     )
     logger.info("Creating PGroonga index for literal text search...")
-    session.exec(
+    session.execute(
         text("""
         CREATE INDEX IF NOT EXISTS idx_brick_literal_search 
         ON brick USING pgroonga ((target_text || ' ' || native_text));
@@ -431,7 +429,7 @@ def initialize_embeddings(session: Session) -> None:
     create_vector_indexes(session)
 
     stmt = select(Brick).where(Brick.embedding_id.is_(None))
-    bricks = session.exec(stmt).all()
+    bricks = session.scalars(stmt).all()
     if not bricks:
         logger.info("No bricks without embeddings.")
         return

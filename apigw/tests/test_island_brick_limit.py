@@ -3,7 +3,8 @@ import json
 from unittest.mock import patch
 
 from fastapi.testclient import TestClient
-from sqlmodel import Session, select
+from sqlalchemy import select
+from sqlalchemy.orm import Session
 
 from database import Brick, Island, Learner, LearnerSetting, engine
 from exceptions import ErrorCode
@@ -16,11 +17,11 @@ from services.island_service import import_island
 
 def test_count_bricks_in_island_helper():
     with Session(engine) as session:
-        col = session.exec(
+        col = session.scalar(
             select(Island).where(
                 Island.creator_id == 2, Island.name == "Island 1"
             )
-        ).first()
+        )
         assert col is not None
         assert count_bricks_in_island(session, col.id) == 1111
 
@@ -32,11 +33,11 @@ def test_create_brick_fails_when_island_full(client: TestClient):
     )
 
     with Session(engine) as session:
-        full_island = session.exec(
+        full_island = session.scalar(
             select(Island).where(
                 Island.creator_id == 2, Island.name == "Island 1"
             )
-        ).first()
+        )
         assert full_island is not None
         full_island_id = full_island.id
 
@@ -51,7 +52,7 @@ def test_create_brick_fails_when_island_full(client: TestClient):
     try:
         with (
             patch(
-                "utils.file_utils.save_upload_file",
+                "utils.file_utils.save_upload_file_to_cloud",
                 return_value=("mock/path.wav", None),
             ),
             patch("services.search_service.add_brick_embedding"),
@@ -80,16 +81,16 @@ def test_update_brick_move_to_full_island_fails(client: TestClient):
     )
 
     with Session(engine) as session:
-        avail_island = session.exec(
+        avail_island = session.scalar(
             select(Island).where(
                 Island.creator_id == 2, Island.name == "Island 10"
             )
-        ).first()
-        full_island = session.exec(
+        )
+        full_island = session.scalar(
             select(Island).where(
                 Island.creator_id == 2, Island.name == "Island 1"
             )
-        ).first()
+        )
         assert avail_island is not None
         assert full_island is not None
         avail_island_id = avail_island.id
@@ -107,7 +108,7 @@ def test_update_brick_move_to_full_island_fails(client: TestClient):
     try:
         with (
             patch(
-                "utils.file_utils.save_upload_file",
+                "utils.file_utils.save_upload_file_to_cloud",
                 return_value=("mock/path.wav", None),
             ),
             patch("services.search_service.add_brick_embedding"),
@@ -160,14 +161,14 @@ def test_add_brick_from_fails_when_target_island_full(client: TestClient):
     )
 
     with Session(engine) as session:
-        full_island = session.exec(
+        full_island = session.scalar(
             select(Island).where(
                 Island.creator_id == 2, Island.name == "Island 1"
             )
-        ).first()
-        source_brick = session.exec(
+        )
+        source_brick = session.scalar(
             select(Brick).where(Brick.is_private == False)  # noqa: E712
-        ).first()
+        )
         assert full_island is not None
         assert source_brick is not None
         full_island_id = full_island.id
@@ -196,16 +197,16 @@ def test_add_bricks_from_island_fails_when_target_island_full(
     )
 
     with Session(engine) as session:
-        full_island = session.exec(
+        full_island = session.scalar(
             select(Island).where(
                 Island.creator_id == 2, Island.name == "Island 1"
             )
-        ).first()
-        source_island = session.exec(
+        )
+        source_island = session.scalar(
             select(Island).where(
                 Island.creator_id == 2, Island.name == "Island 10"
             )
-        ).first()
+        )
         assert full_island is not None
         assert source_island is not None
         full_island_id = full_island.id
@@ -226,9 +227,10 @@ def test_add_bricks_from_island_fails_when_target_island_full(
 
 
 def test_add_bricks_from_island_fails_when_exceeding_capacity():
-    from services.brick_service import add_bricks_from_island
     import pytest
+
     from exceptions import RequestException
+    from services.brick_service import add_bricks_from_island
 
     with Session(engine) as session:
         # Create a temporary learner, source island with 2 bricks, and target island
@@ -304,11 +306,11 @@ def test_import_island_fails_when_island_full(client: TestClient):
     )
 
     with Session(engine) as session:
-        full_island = session.exec(
+        full_island = session.scalar(
             select(Island).where(
                 Island.creator_id == 2, Island.name == "Island 1"
             )
-        ).first()
+        )
         assert full_island is not None
         full_island_id = full_island.id
 
@@ -364,6 +366,7 @@ def test_import_island_fails_when_exceeding_capacity():
                 ),
             ]
             import pytest
+
             from exceptions import RequestException
 
             with pytest.raises(RequestException) as exc_info:

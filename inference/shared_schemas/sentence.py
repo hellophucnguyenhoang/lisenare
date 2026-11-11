@@ -1,11 +1,11 @@
 from typing import Annotated
 
-from sqlmodel import Field, SQLModel
+from pydantic import BaseModel, Field
 
 from shared_constants import PASS_SCORE
 
 
-class SentenceCompareRequest(SQLModel):
+class SentenceCompareRequest(BaseModel):
     sentence1: Annotated[str, Field(description="The learner's sentence")] = (
         "How are you?"
     )
@@ -17,7 +17,7 @@ class SentenceCompareRequest(SQLModel):
     )
 
 
-class SentenceCompareResponse(SQLModel):
+class SentenceCompareResponse(BaseModel):
     score: float
     correct: bool | None = None
     threshold: float = PASS_SCORE

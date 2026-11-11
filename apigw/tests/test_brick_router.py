@@ -5,7 +5,8 @@ from unittest.mock import MagicMock, patch
 
 from fastapi.testclient import TestClient
 from PIL import Image
-from sqlmodel import Session, select
+from sqlalchemy import select
+from sqlalchemy.orm import Session
 
 from config import settings
 from database import (
@@ -31,11 +32,11 @@ def test_create_brick_with_tags_success(client: TestClient):
     )
 
     with Session(engine) as session:
-        col = session.exec(
+        col = session.scalar(
             select(Island).where(
                 Island.creator_id == 2, Island.name == "Island 10"
             )
-        ).first()
+        )
         assert col is not None
         col_id = col.id
 
@@ -49,7 +50,7 @@ def test_create_brick_with_tags_success(client: TestClient):
 
     with (
         patch(
-            "utils.file_utils.save_upload_file",
+            "utils.file_utils.save_upload_file_to_cloud",
             return_value=("mock/path.wav", None),
         ),
         patch("services.search_service.add_brick_embedding"),
@@ -75,7 +76,7 @@ def test_create_brick_with_tags_success(client: TestClient):
 
     # Verify Taggable records exist in DB
     with Session(engine) as session:
-        taggables = session.exec(
+        taggables = session.scalars(
             select(Taggable).where(
                 Taggable.taggable_id == brick_id,
                 Taggable.taggable_type == "Brick",
@@ -89,7 +90,7 @@ def test_create_brick_with_tags_success(client: TestClient):
     )
     update_payload = {"tags": ["advanced", "phrases"], "target_lang": "ja"}
     with patch(
-        "utils.file_utils.save_upload_file",
+        "utils.file_utils.save_upload_file_to_cloud",
         return_value=("mock/path.wav", None),
     ):
         patch_response = client.patch(
@@ -107,7 +108,7 @@ def test_create_brick_with_tags_success(client: TestClient):
     assert del_response.status_code == 204
 
     with Session(engine) as session:
-        taggables_after = session.exec(
+        taggables_after = session.scalars(
             select(Taggable).where(
                 Taggable.taggable_id == brick_id,
                 Taggable.taggable_type == "Brick",
@@ -128,11 +129,11 @@ def test_create_brick_with_custom_target_lang(client: TestClient):
     )
 
     with Session(engine) as session:
-        col = session.exec(
+        col = session.scalar(
             select(Island).where(
                 Island.creator_id == 2, Island.name == "Island 10"
             )
-        ).first()
+        )
         assert col is not None
         col_id = col.id
 
@@ -146,7 +147,7 @@ def test_create_brick_with_custom_target_lang(client: TestClient):
 
     with (
         patch(
-            "utils.file_utils.save_upload_file",
+            "utils.file_utils.save_upload_file_to_cloud",
             return_value=("mock/path_ja.wav", None),
         ),
         patch("services.search_service.add_brick_embedding"),
@@ -185,7 +186,7 @@ def test_create_brick_island_not_found(client: TestClient):
     audio_file = io.BytesIO(b"fake audio data")
 
     with patch(
-        "utils.file_utils.save_upload_file",
+        "utils.file_utils.save_upload_file_to_cloud",
         return_value=("mock/path.wav", None),
     ):
         response = client.post(
@@ -207,11 +208,11 @@ def test_create_brick_island_forbidden(client: TestClient):
     )
 
     with Session(engine) as session:
-        col = session.exec(
+        col = session.scalar(
             select(Island).where(
                 Island.creator_id == 2, Island.name == "Island 10"
             )
-        ).first()
+        )
         assert col is not None
         col_id = col.id
 
@@ -223,7 +224,7 @@ def test_create_brick_island_forbidden(client: TestClient):
     audio_file = io.BytesIO(b"fake audio data")
 
     with patch(
-        "utils.file_utils.save_upload_file",
+        "utils.file_utils.save_upload_file_to_cloud",
         return_value=("mock/path.wav", None),
     ):
         response = client.post(
@@ -240,7 +241,7 @@ def test_create_brick_island_forbidden(client: TestClient):
 
 def test_forced_align_with_brick_success(client: TestClient):
     with Session(engine) as session:
-        brick = session.exec(select(Brick)).first()
+        brick = session.scalar(select(Brick))
         assert brick is not None
         brick_id = brick.id
         creator_id = brick.creator_id
@@ -305,9 +306,7 @@ def test_save_review_integrated_learning_card(client: TestClient):
     from services import brick_review_service
 
     with Session(engine) as session:
-        brick = session.exec(
-            select(Brick).where(Brick.creator_id == 2)
-        ).first()
+        brick = session.scalar(select(Brick).where(Brick.creator_id == 2))
         assert brick is not None
 
         review_create = ReviewCreate(
@@ -328,24 +327,24 @@ def test_save_review_integrated_learning_card(client: TestClient):
         assert total_reviews >= 1
 
         # Verify BrickReview has fsrs_log_dict
-        review = session.exec(
+        review = session.scalar(
             select(BrickReview)
             .where(
                 BrickReview.learner_id == 2, BrickReview.brick_id == brick.id
             )
             .order_by(BrickReview.reviewed_at.desc())
-        ).first()
+        )
         assert review is not None
         assert review.fsrs_log_dict is not None
         assert "rating" in review.fsrs_log_dict
 
         # Verify BrickMemory was updated
-        memory = session.exec(
+        memory = session.scalar(
             select(BrickMemory).where(
                 BrickMemory.learner_id == 2,
                 BrickMemory.brick_id == brick.id,
             )
-        ).first()
+        )
         assert memory is not None
         assert memory.due is not None
         assert "stability" in memory.fsrs_card_dict
@@ -362,9 +361,7 @@ def test_get_next_brick_with_brick_id_success(client: TestClient):
     )
 
     with Session(engine) as session:
-        brick = session.exec(
-            select(Brick).where(Brick.creator_id == 2)
-        ).first()
+        brick = session.scalar(select(Brick).where(Brick.creator_id == 2))
         assert brick is not None
         brick_id = brick.id
         brick_target_text = brick.target_text
@@ -398,9 +395,7 @@ def test_get_next_brick_with_brick_id_forbidden(client: TestClient):
     )
 
     with Session(engine) as session:
-        brick = session.exec(
-            select(Brick).where(Brick.creator_id == 2)
-        ).first()
+        brick = session.scalar(select(Brick).where(Brick.creator_id == 2))
         assert brick is not None
         brick_id = brick.id
 
@@ -444,11 +439,11 @@ def test_get_next_brick_with_specific_id_ignores_retrieval_lang(
     client: TestClient,
 ):
     with Session(engine) as session:
-        brick_en = session.exec(
+        brick_en = session.scalar(
             select(Brick).where(
                 Brick.creator_id == 2, Brick.target_lang == "en"
             )
-        ).first()
+        )
         assert brick_en is not None
         brick_en_id = brick_en.id
 
@@ -475,9 +470,7 @@ def test_get_bricks_kind_and_tags_filter(client: TestClient):
     )
 
     with Session(engine) as session:
-        col = session.exec(
-            select(Island).where(Island.creator_id == 2)
-        ).first()
+        col = session.scalar(select(Island).where(Island.creator_id == 2))
         assert col is not None
 
         # Create 1 word brick with tag "test_tag_word"
@@ -673,7 +666,7 @@ def test_report_brick_success(client: TestClient):
     )
 
     with Session(engine) as session:
-        brick = session.exec(select(Brick)).first()
+        brick = session.scalar(select(Brick))
         assert brick is not None
         brick_id = brick.id
 
@@ -685,14 +678,14 @@ def test_report_brick_success(client: TestClient):
         assert response.status_code == 201
 
         with Session(engine) as session:
-            report = session.exec(
+            report = session.scalar(
                 select(BrickReport).where(
                     BrickReport.brick_id == brick_id,
                     BrickReport.learner_id == 2,
                     BrickReport.reason
                     == "Inaccurate translation or audio glitch",
                 )
-            ).first()
+            )
             assert report is not None
             assert report.status == "open"
     finally:
@@ -723,9 +716,7 @@ def test_get_next_brick_excludes_reported_brick(client: TestClient):
 
     with Session(engine) as session:
         # Create a report for a brick owned by learner 2
-        brick = session.exec(
-            select(Brick).where(Brick.creator_id == 2)
-        ).first()
+        brick = session.scalar(select(Brick).where(Brick.creator_id == 2))
         assert brick is not None
         brick_id = brick.id
 
@@ -763,19 +754,17 @@ def test_forget_brick_success(client: TestClient):
     )
 
     with Session(engine) as session:
-        brick = session.exec(
-            select(Brick).where(Brick.creator_id == 2)
-        ).first()
+        brick = session.scalar(select(Brick).where(Brick.creator_id == 2))
         assert brick is not None
         brick_id = brick.id
 
         # Seed memory, review, and interaction for this brick
-        memory = session.exec(
+        memory = session.scalar(
             select(BrickMemory).where(
                 BrickMemory.brick_id == brick_id,
                 BrickMemory.learner_id == 2,
             )
-        ).first()
+        )
         if not memory:
             memory = BrickMemory(
                 brick_id=brick_id,
@@ -811,16 +800,16 @@ def test_forget_brick_success(client: TestClient):
             assert remaining_brick is not None
 
             # Memory is removed
-            rem = session.exec(
+            rem = session.scalar(
                 select(BrickMemory).where(
                     BrickMemory.brick_id == brick_id,
                     BrickMemory.learner_id == 2,
                 )
-            ).first()
+            )
             assert rem is None
 
             # Reviews are removed
-            revs = session.exec(
+            revs = session.scalars(
                 select(BrickReview).where(
                     BrickReview.brick_id == brick_id,
                     BrickReview.learner_id == 2,
@@ -829,7 +818,7 @@ def test_forget_brick_success(client: TestClient):
             assert len(revs) == 0
 
             # Interactions are removed
-            ints = session.exec(
+            ints = session.scalars(
                 select(BrickInteraction).where(
                     BrickInteraction.brick_id == brick_id,
                     BrickInteraction.learner_id == 2,
@@ -860,12 +849,12 @@ def test_skip_brick_success(client: TestClient):
     )
 
     with Session(engine) as session:
-        brick = session.exec(
+        brick = session.scalar(
             select(Brick).where(
                 Brick.creator_id == 2,
                 Brick.is_skipped == False,  # noqa: E712
             )
-        ).first()
+        )
         assert brick is not None
         brick_id = brick.id
 
@@ -934,9 +923,7 @@ def test_skip_brick_forbidden(client: TestClient):
     )
 
     with Session(engine) as session:
-        brick = session.exec(
-            select(Brick).where(Brick.creator_id == 2)
-        ).first()
+        brick = session.scalar(select(Brick).where(Brick.creator_id == 2))
         assert brick is not None
         brick_id = brick.id
 
@@ -1250,11 +1237,11 @@ def test_create_brick_with_image_file(client: TestClient):
     )
 
     with Session(engine) as session:
-        island = session.exec(
+        island = session.scalar(
             select(Island).where(
                 Island.creator_id == 2, Island.name == "Island 10"
             )
-        ).first()
+        )
         assert island is not None
         island_id = island.id
 
@@ -1315,11 +1302,11 @@ def test_update_brick_with_image_file(client: TestClient):
     )
 
     with Session(engine) as session:
-        island = session.exec(
+        island = session.scalar(
             select(Island).where(
                 Island.creator_id == 2, Island.name == "Island 10"
             )
-        ).first()
+        )
         brick = Brick(
             native_text="Gốc",
             target_text="Original text for update image",
@@ -1372,11 +1359,11 @@ def test_get_brick_image_success(client: TestClient, tmp_path):
     )
 
     with Session(engine) as session:
-        island = session.exec(
+        island = session.scalar(
             select(Island).where(
                 Island.creator_id == 2, Island.name == "Island 10"
             )
-        ).first()
+        )
         brick = Brick(
             native_text="Tải ảnh",
             target_text="Download image test brick",
@@ -1427,11 +1414,11 @@ def test_get_brick_image_no_image_returns_404(client: TestClient):
     )
 
     with Session(engine) as session:
-        island = session.exec(
+        island = session.scalar(
             select(Island).where(
                 Island.creator_id == 2, Island.name == "Island 10"
             )
-        ).first()
+        )
         brick = Brick(
             native_text="Không ảnh",
             target_text="No image test brick",

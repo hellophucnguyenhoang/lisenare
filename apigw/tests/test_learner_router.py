@@ -3,7 +3,7 @@ from unittest.mock import MagicMock, patch
 
 from fastapi.testclient import TestClient
 from PIL import Image
-from sqlmodel import Session
+from sqlalchemy.orm import Session
 
 from config import settings
 from database import Learner, LearnerSetting, engine

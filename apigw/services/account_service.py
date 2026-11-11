@@ -2,7 +2,8 @@ from datetime import datetime, timezone
 
 from fastapi import BackgroundTasks, status
 from fastapi_mail import MessageSchema, MessageType
-from sqlmodel import Session, or_, select
+from sqlalchemy import or_, select
+from sqlalchemy.orm import Session
 
 import security
 from config import fast_mail, logger
@@ -19,10 +20,10 @@ from schemas import (
 from . import auth_service, otp_service
 
 
-def get_account_by_username(session: Session, username: str) -> Account:
+def get_account_by_username(session: Session, username: str) -> Account | None:
     logger.info(f"Fetching account details for username: {username}")
     stmt = select(Account).where(Account.username == username)
-    return session.exec(stmt).first()
+    return session.scalar(stmt)
 
 
 def create_learner_account(
@@ -37,9 +38,7 @@ def create_learner_account(
     if learner_account_create.email is not None:
         conditions.append(Account.email == learner_account_create.email)
 
-    existing_account = session.scalars(
-        select(Account).where(or_(*conditions))
-    ).first()
+    existing_account = session.scalar(select(Account).where(or_(*conditions)))
 
     if existing_account:
         logger.warning(
@@ -78,9 +77,9 @@ def change_learner_account_password(
     session: Session, learner_id: int, old_password: str, new_password: str
 ) -> Account:
     logger.info(f"Attempting password change for learner_id: {learner_id}")
-    account = session.exec(
+    account = session.scalar(
         select(Account).where(Account.learner_id == learner_id)
-    ).first()
+    )
     if not account:
         logger.warning(
             f"Password change failed: Account for learner_id={learner_id} not found"
@@ -180,9 +179,9 @@ def send_email_change_otp(
     logger.info(
         f"Initiating email change OTP for learner_id: {learner_id} to new email: {request.new_email}"
     )
-    account = session.exec(
+    account = session.scalar(
         select(Account).where(Account.learner_id == learner_id)
-    ).first()
+    )
     if not account:
         logger.warning(
             f"Email change OTP failed: Account for learner_id={learner_id} not found"
@@ -204,12 +203,12 @@ def send_email_change_otp(
                 error_code=ErrorCode.INCORRECT_EMAIL,
             )
 
-    existing_account = session.scalars(
+    existing_account = session.scalar(
         select(Account).where(
             Account.email == request.new_email,
             Account.learner_id != learner_id,
         )
-    ).first()
+    )
     if existing_account:
         logger.warning(
             f"Email change OTP failed: Email '{request.new_email}' is already taken by another account"
@@ -323,9 +322,9 @@ def change_learner_account_email(
     logger.info(
         f"Attempting email change via OTP for learner_id: {learner_id} to new email: {request.new_email}"
     )
-    account = session.exec(
+    account = session.scalar(
         select(Account).where(Account.learner_id == learner_id)
-    ).first()
+    )
     if not account:
         logger.warning(
             f"Email change failed: Account for learner_id={learner_id} not found"
@@ -347,12 +346,12 @@ def change_learner_account_email(
                 error_code=ErrorCode.INCORRECT_EMAIL,
             )
 
-    existing_account = session.scalars(
+    existing_account = session.scalar(
         select(Account).where(
             Account.email == request.new_email,
             Account.learner_id != learner_id,
         )
-    ).first()
+    )
     if existing_account:
         logger.warning(
             f"Email change failed: Email '{request.new_email}' is already taken by another account"

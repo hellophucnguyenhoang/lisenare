@@ -1,11 +1,13 @@
-from sqlmodel import Field, SQLModel
+from pydantic import Field
+
+from schemas.base import Schema
 
 
-class ExplanationRequest(SQLModel):
+class ExplanationRequest(Schema):
     target_term: str
 
 
-class ExplanationResponse(SQLModel):
+class ExplanationResponse(Schema):
     target_term: str = Field(
         description="The word, phrase, or sentence the learner wants to understand.",
     )

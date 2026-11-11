@@ -7,7 +7,8 @@ from zoneinfo import ZoneInfo
 
 from fastapi import status
 from fsrs import Card, ReviewLog, Scheduler
-from sqlmodel import Session, case, func, select
+from sqlalchemy import case, func, select
+from sqlalchemy.orm import Session
 
 import http_client
 from config import logger
@@ -42,7 +43,7 @@ def optimize_learner_scheduler(learner_id: int):
         statement = select(BrickReview).where(
             BrickReview.learner_id == learner_id
         )
-        reviews = session.exec(statement).all()
+        reviews = session.scalars(statement).all()
 
         valid_review_logs = [
             r.fsrs_log_dict for r in reviews if r.fsrs_log_dict
@@ -88,7 +89,7 @@ def optimize_learner_scheduler(learner_id: int):
             card_statement = select(BrickMemory).where(
                 BrickMemory.learner_id == learner_id
             )
-            learning_cards = session.exec(card_statement).all()
+            learning_cards = session.scalars(card_statement).all()
 
             for db_card in learning_cards:
                 # Filter logs specific to THIS card (brick)
@@ -134,11 +135,11 @@ def get_next_due(
     Returns the earliest due date/time among cards for this learner,
     or None if the learner has no cards scheduled.
     """
-    return session.exec(
+    return session.scalar(
         select(func.min(BrickMemory.due)).where(
             BrickMemory.learner_id == learner_id
         )
-    ).one()
+    )
 
 
 def get_estimated_recalled(
@@ -155,7 +156,7 @@ def get_estimated_recalled(
         days,
     )
 
-    rows = session.exec(statement).all()
+    rows = session.scalars(statement).all()
     total = 0.0
 
     scheduler = get_scheduler_for_learner(session, learner_id)
@@ -187,7 +188,7 @@ def get_learning_stats(
         days,
     )
 
-    result = session.exec(statement).one()
+    result = session.execute(statement).one()
     return {
         "total_learning": result.total_learning,
         "due_count": result.due_count,
@@ -250,7 +251,7 @@ def get_daily_learning_counts(
         days,
     )
 
-    rows = session.exec(statement).all()
+    rows = session.scalars(statement).all()
 
     # Convert to local day + group
     tz = ZoneInfo(tz_name)
@@ -457,7 +458,7 @@ def get_learner_seen_stems(
         .where(BrickMemory.learner_id == learner_id)
     )
 
-    sentences = session.exec(statement).all()
+    sentences = list(session.scalars(statement).all())
     return get_lenient_stems(sentences)
 
 

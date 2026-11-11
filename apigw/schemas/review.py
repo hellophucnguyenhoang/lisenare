@@ -2,11 +2,12 @@ from datetime import datetime, timezone
 from typing import Any
 
 from fsrs import Rating
-from pydantic import field_validator, model_validator
-from sqlmodel import Field, SQLModel
+from pydantic import Field, field_validator, model_validator
+
+from schemas.base import Schema
 
 
-class ReviewBase(SQLModel):
+class ReviewBase(Schema):
     reviewed_at: datetime = Field(
         default_factory=lambda: datetime.now(timezone.utc)
     )
@@ -50,5 +51,5 @@ class ReviewCreate(ReviewBase):
         return round(v, 4)
 
 
-class ReviewResponse(SQLModel):
+class ReviewResponse(Schema):
     total_reviews: int

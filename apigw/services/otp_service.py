@@ -1,4 +1,4 @@
-from sqlmodel import Session
+from sqlalchemy.orm import Session
 
 import security
 from config import logger

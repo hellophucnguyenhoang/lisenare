@@ -10,7 +10,7 @@ from fastapi import (
     UploadFile,
     status,
 )
-from sqlmodel import Session
+from sqlalchemy.orm import Session
 
 from constants import BRICK_IMAGES_DIR, LEARNER_AUDIOS_DIR
 from database import Learner, get_session

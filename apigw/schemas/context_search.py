@@ -1,9 +1,11 @@
 from typing import Literal
 
-from sqlmodel import Field, SQLModel
+from pydantic import Field
+
+from schemas.base import Schema
 
 
-class ContextSearchRequest(SQLModel):
+class ContextSearchRequest(Schema):
     query: str = "hang out"
     kind: Literal["word", "sentence"] | None = None
     limit: int = Field(default=30, ge=1, le=100)

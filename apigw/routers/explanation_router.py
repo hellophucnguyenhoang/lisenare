@@ -2,7 +2,7 @@ import time
 from typing import Annotated
 
 from fastapi import APIRouter, Body, Depends
-from sqlmodel import Session
+from sqlalchemy.orm import Session
 
 from config import logger
 from database import Learner, get_session

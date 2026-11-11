@@ -99,7 +99,7 @@ class TestEmbeddingReuse:
     def test_returns_existing_without_recomputing(self):
         emb = _make_emb()
         session = MagicMock()
-        session.exec.return_value.first.return_value = emb
+        session.scalars.return_value.first.return_value = emb
 
         with patch.object(search_service, "_embed_document") as mock_embed:
             result = search_service.get_or_create_embedding(
@@ -111,7 +111,7 @@ class TestEmbeddingReuse:
 
     def test_creates_new_when_not_found(self):
         session = MagicMock()
-        session.exec.return_value.first.return_value = None
+        session.scalars.return_value.first.return_value = None
 
         fake_vec = [0.05] * 384
         with patch.object(
@@ -144,7 +144,7 @@ class TestEmbeddingReuse:
 
     def test_server_invalid_result_returns_none_and_skips(self):
         session = MagicMock()
-        session.exec.return_value.first.return_value = None
+        session.scalars.return_value.first.return_value = None
         with patch.object(
             search_service,
             "_embed_document",
@@ -158,7 +158,7 @@ class TestEmbeddingReuse:
 
     def test_server_error_returns_none_and_skips(self):
         session = MagicMock()
-        session.exec.return_value.first.return_value = None
+        session.scalars.return_value.first.return_value = None
         with patch.object(
             search_service,
             "_embed_document",
@@ -195,7 +195,7 @@ class TestConcurrentCreation:
                 )
             return result
 
-        session.exec.side_effect = fake_exec
+        session.scalars.side_effect = fake_exec
         session.flush.side_effect = IntegrityError("duplicate key", "", "")
 
         fake_vec = [0.1] * 384
@@ -279,7 +279,7 @@ def _make_search_row(
 class TestSemanticSearch:
     def test_semantic_search_empty_when_no_rows(self):
         session = MagicMock()
-        session.exec.return_value.all.return_value = []
+        session.execute.return_value.all.return_value = []
         with patch.object(
             search_service, "_embed_query", return_value=[0.0] * 384
         ):
@@ -294,7 +294,7 @@ class TestSemanticSearch:
             _make_search_row(id_=2, target_text="apple"),
             _make_search_row(id_=3, target_text="banana"),
         ]
-        session.exec.return_value.all.return_value = rows
+        session.execute.return_value.all.return_value = rows
 
         query_vec = [0.1] * 384
         with patch.object(
@@ -314,7 +314,7 @@ class TestSemanticSearch:
             _make_search_row(id_=i, target_text=f"brick_{i}")
             for i in range(10)
         ]
-        session.exec.return_value.all.return_value = rows
+        session.execute.return_value.all.return_value = rows
 
         query_vec = [0.1] * 384
         with patch.object(
@@ -329,7 +329,7 @@ class TestSemanticSearch:
     def test_returns_brick_context_search_instances(self):
         session = MagicMock()
         rows = [_make_search_row(id_=99, target_text="mountain")]
-        session.exec.return_value.all.return_value = rows
+        session.execute.return_value.all.return_value = rows
 
         with patch.object(
             search_service, "_embed_query", return_value=[0.1] * 384
@@ -398,7 +398,7 @@ class TestMMR:
 class TestRelevantBricks:
     def test_returns_empty_when_no_bricks(self):
         session = MagicMock()
-        session.exec.return_value.all.return_value = []
+        session.execute.return_value.all.return_value = []
         result = search_service.get_relevant_bricks(session, [0.1] * 384)
         assert result == []
 
@@ -406,7 +406,7 @@ class TestRelevantBricks:
         session = MagicMock()
         r1 = MagicMock(id=101, embedding=[0.5] * 384)
         r2 = MagicMock(id=102, embedding=[-0.5] * 384)
-        session.exec.return_value.all.return_value = [r1, r2]
+        session.execute.return_value.all.return_value = [r1, r2]
 
         result = search_service.get_relevant_bricks(
             session, [0.5] * 384, limit=2

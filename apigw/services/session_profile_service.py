@@ -2,7 +2,7 @@ from datetime import datetime, timezone
 
 import numpy as np
 from numpy.typing import NDArray
-from sqlmodel import Session
+from sqlalchemy.orm import Session
 
 from config import logger
 from constants import SEMANTIC_EMB_DIM

@@ -1,7 +1,7 @@
 from typing import Annotated
 
 from fastapi import APIRouter, BackgroundTasks, Depends, status
-from sqlmodel import Session
+from sqlalchemy.orm import Session
 
 from config import logger
 from database import Learner, get_session

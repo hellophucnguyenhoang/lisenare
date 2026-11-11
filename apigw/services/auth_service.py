@@ -3,8 +3,8 @@ from typing import Annotated
 from fastapi import Cookie, Depends, status
 from fastapi.security import OAuth2PasswordBearer
 from jwt import InvalidTokenError
-from sqlalchemy import not_
-from sqlmodel import Session, select
+from sqlalchemy import not_, select
+from sqlalchemy.orm import Session
 
 import security
 from config import logger
@@ -136,11 +136,11 @@ async def decode_token_get_optional_learner(
 def get_most_recent_unused_otp(session: Session, email: str) -> OTP:
     logger.info(f"Querying most recent unused OTP for email: '{email}'")
 
-    otp_db = session.exec(
+    otp_db = session.scalar(
         select(OTP)
         .where(OTP.email == email, not_(OTP.used))
         .order_by(OTP.expires_at.desc())
-    ).first()
+    )
 
     if not otp_db:
         logger.warning(

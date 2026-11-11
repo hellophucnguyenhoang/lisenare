@@ -2,7 +2,7 @@ from pathlib import Path
 
 from apscheduler.schedulers.background import BackgroundScheduler
 from fastapi import status
-from sqlmodel import Session
+from sqlalchemy.orm import Session
 
 from cloud_storage_client import download_file
 from config import logger, settings

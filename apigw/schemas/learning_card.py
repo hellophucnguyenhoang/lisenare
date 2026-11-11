@@ -1,9 +1,11 @@
 from datetime import date, datetime
 
-from sqlmodel import Field, SQLModel
+from pydantic import Field
+
+from schemas.base import Schema
 
 
-class LearningCardStats(SQLModel):
+class LearningCardStats(Schema):
     total_learning: int = Field(ge=0)
     estimated_recalled: float = Field(ge=0.0)
     due_count: int = Field(ge=0)
@@ -12,12 +14,12 @@ class LearningCardStats(SQLModel):
     timestamp: datetime
 
 
-class TimeSeriesPoint(SQLModel):
+class TimeSeriesPoint(Schema):
     date: date  # "2026-04-01"
     value: float
 
 
-class LearningTimeSeries(SQLModel):
+class LearningTimeSeries(Schema):
     metric: str  # e.g. "total_learning"
     unit: str  # e.g. "cards"
     data: list[TimeSeriesPoint]

@@ -3,9 +3,8 @@ from datetime import datetime, timezone
 
 import numpy as np
 from fastapi import status
-from sqlalchemy import case
-from sqlalchemy.orm import selectinload
-from sqlmodel import Session, and_, exists, func, not_, select
+from sqlalchemy import and_, case, exists, func, not_, select
+from sqlalchemy.orm import Session, selectinload
 
 from config import logger
 from constants import MAX_BRICKS_PER_ISLAND
@@ -109,7 +108,7 @@ def get_bricks(
         stmt = stmt.order_by(Brick.target_text.desc())
 
     stmt = stmt.offset(offset).limit(limit)
-    results = session.exec(stmt).all()
+    results = session.execute(stmt).all()
 
     bricks = []
     for brick, learned in results:
@@ -145,7 +144,7 @@ def get_random_bricks(
         query = query.where(Brick.target_lang == retrieval_lang)
 
     query = query.order_by(func.random()).limit(limit)
-    return list(session.exec(query).all())
+    return list(session.scalars(query).all())
 
 
 def get_recommended_bricks(
@@ -161,7 +160,7 @@ def get_recommended_bricks(
     interacted_query = select(BrickInteraction.brick_id).where(
         BrickInteraction.session_id == session_id
     )
-    interacted_ids = set(session.exec(interacted_query).all())
+    interacted_ids = set(session.scalars(interacted_query).all())
 
     redis = get_redis_client()
     cache_key = f"recommended_bricks:{session_id}"
@@ -219,7 +218,7 @@ def get_recommended_bricks(
     if retrieval_lang:
         query = query.where(Brick.target_lang == retrieval_lang)
 
-    bricks = list(session.exec(query).all())
+    bricks = list(session.scalars(query).all())
     if bricks:
         redis.sadd(cache_key, *[b.id for b in bricks if b.id is not None])
         redis.expire(cache_key, 3600)
@@ -281,7 +280,7 @@ def count_bricks(
     if conditions:
         stmt = stmt.where(*conditions)
 
-    total_count = session.exec(stmt).one()
+    total_count = session.scalars(stmt).one()
     return total_count
 
 
@@ -289,7 +288,7 @@ def get_brick(session: Session, brick_id: int, creator_id: int) -> Brick:
     stmt = select(Brick).where(
         Brick.id == brick_id, Brick.creator_id == creator_id
     )
-    brick = session.exec(stmt).first()
+    brick = session.scalar(stmt)
     if not brick:
         raise RequestException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -331,7 +330,7 @@ def get_brick_detail(
 
 def get_brick_by_audio_path(session: Session, audio_path: str) -> Brick:
     stmt = select(Brick).where(Brick.target_audio_path == audio_path)
-    brick = session.exec(stmt).first()
+    brick = session.scalar(stmt)
     if not brick:
         raise RequestException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -359,7 +358,7 @@ def get_next_brick(
         retrieval_lang = setting.retrieval_lang if setting else "en"
 
     now = datetime.now(timezone.utc)
-    broken_brick_ids = session.exec(
+    broken_brick_ids = session.scalars(
         select(BrickReport.brick_id).where(
             BrickReport.learner_id == creator_id,
             BrickReport.status == "open",
@@ -388,7 +387,7 @@ def get_next_brick(
     )
 
     due_stmt = apply_filters(due_stmt)
-    brick = session.exec(due_stmt).first()
+    brick = session.scalar(due_stmt)
     if brick:
         logger.info("FSRS Case 1: Get the least overdue card")
         tags = fetch_tags_for_entity(session, brick.id, "Brick")
@@ -424,7 +423,7 @@ def get_next_brick(
         )
     ).order_by(func.random())
 
-    brick = session.exec(shared_tag_stmt).first()
+    brick = session.scalar(shared_tag_stmt)
 
     # 2. Fallback: prefer shorter target_texts if no shared-tag bricks exist
     if not brick:
@@ -432,7 +431,7 @@ def get_next_brick(
             func.length(Brick.target_text).asc(),
             func.random(),
         )
-        brick = session.exec(fallback_stmt).first()
+        brick = session.scalar(fallback_stmt)
 
     if brick:
         tags = fetch_tags_for_entity(session, brick.id, "Brick")
@@ -451,17 +450,13 @@ def check_brick_exists(
         func.lower(func.regexp_replace(Brick.target_text, r"[^\w]", "", "g"))
         == cleaned_target,
     )
-    result = session.exec(stmt).first()
+    result = session.scalar(stmt)
     return result is not None
 
 
 def count_bricks_in_island(session: Session, island_id: int) -> int:
-    return (
-        session.exec(
-            select(func.count(Brick.id)).where(Brick.island_id == island_id)
-        ).one()
-        or 0
-    )
+    stmt = select(func.count(Brick.id)).where(Brick.island_id == island_id)
+    return session.scalars(stmt).one()
 
 
 def create_brick(
@@ -513,7 +508,8 @@ def create_brick(
         creator_id=creator_id,
         island_id=island.id,
     )
-    brick = Brick.model_validate(brick_create)
+    brick_data = brick_create.model_dump(exclude={"tags"})
+    brick = Brick(**brick_data)
     session.add(brick)
     session.flush()
 
@@ -546,7 +542,7 @@ def update_brick(
     image_path: str | None = None,
 ) -> BrickRead:
     stmt = select(Brick).where(Brick.id == brick_id)
-    brick = session.exec(stmt).first()
+    brick = session.scalar(stmt)
     if not brick:
         logger.warning(f"Brick update failed: brick_id: {brick_id} not found")
         raise RequestException(
@@ -813,7 +809,7 @@ def add_bricks_from_island(
     stmt = select(Brick).where(Brick.island_id == source_island_id)
     if source_island.creator_id != learner_id:
         stmt = stmt.where(Brick.is_private == False)  # noqa: E712
-    source_bricks = session.exec(stmt).all()
+    source_bricks = session.scalars(stmt).all()
 
     to_add = []
     skipped = 0
@@ -900,17 +896,17 @@ def forget_brick(
         )
 
     # Delete BrickMemory
-    memory = session.exec(
+    memory = session.scalar(
         select(BrickMemory).where(
             BrickMemory.brick_id == brick_id,
             BrickMemory.learner_id == learner_id,
         )
-    ).first()
+    )
     if memory:
         session.delete(memory)
 
     # Delete BrickReview rows
-    reviews = session.exec(
+    reviews = session.scalars(
         select(BrickReview).where(
             BrickReview.brick_id == brick_id,
             BrickReview.learner_id == learner_id,
@@ -920,7 +916,7 @@ def forget_brick(
         session.delete(review)
 
     # Delete BrickInteraction rows
-    interactions = session.exec(
+    interactions = session.scalars(
         select(BrickInteraction).where(
             BrickInteraction.brick_id == brick_id,
             BrickInteraction.learner_id == learner_id,
@@ -961,12 +957,12 @@ def skip_brick(
     brick.is_skipped = is_skipped
     session.add(brick)
 
-    memory = session.exec(
+    memory = session.scalar(
         select(BrickMemory).where(
             BrickMemory.brick_id == brick_id,
             BrickMemory.learner_id == learner_id,
         )
-    ).first()
+    )
     if memory:
         memory.is_skipped = is_skipped
         session.add(memory)

@@ -2,7 +2,8 @@ import uuid
 from unittest.mock import patch
 
 from fastapi.testclient import TestClient
-from sqlmodel import Session, select
+from sqlalchemy import select
+from sqlalchemy.orm import Session
 
 from database import Brick, Island, Learner, LearnerSetting, engine
 from main import app
@@ -20,11 +21,11 @@ def _ensure_learner(session: Session, learner_id: int, name: str) -> Learner:
 
 
 def _ensure_island(session: Session, creator_id: int, name: str) -> Island:
-    col = session.exec(
+    col = session.scalar(
         select(Island).where(
             Island.creator_id == creator_id, Island.name == name
         )
-    ).first()
+    )
     if not col:
         col = Island(name=name, creator_id=creator_id)
         session.add(col)
@@ -448,10 +449,16 @@ def test_search_bricks_lightweight_without_creator_name(client: TestClient):
             "Zebra unique search target",
         )
 
-        with patch.object(
-            search_service,
-            "search_bricks_semantic",
-            return_value=[],
+        with (
+            patch.object(
+                search_service,
+                "search_bricks_semantic",
+                return_value=[],
+            ),
+            patch(
+                "utils.text_utils.refined_spell_fix",
+                side_effect=lambda q: q,
+            ),
         ):
             results = search_service.search_bricks(
                 session=session,
@@ -493,10 +500,16 @@ def test_search_bricks_endpoint_authenticated_success(client: TestClient):
         learner
     )
     try:
-        with patch.object(
-            search_service,
-            "search_bricks_semantic",
-            return_value=[],
+        with (
+            patch.object(
+                search_service,
+                "search_bricks_semantic",
+                return_value=[],
+            ),
+            patch(
+                "utils.text_utils.refined_spell_fix",
+                side_effect=lambda q: q,
+            ),
         ):
             response = client.post(
                 "/api/search/bricks",

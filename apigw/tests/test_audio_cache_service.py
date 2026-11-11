@@ -1,6 +1,7 @@
 from unittest.mock import MagicMock, patch
 
-from sqlmodel import Session, select
+from sqlalchemy import select
+from sqlalchemy.orm import Session
 
 from config import settings
 from constants import (
@@ -27,18 +28,18 @@ def _setup_test_brick(learner_id: int = 1) -> Brick:
             session.add(learner)
             session.commit()
 
-        island = session.exec(
+        island = session.scalar(
             select(Island).where(Island.creator_id == learner_id)
-        ).first()
+        )
         if not island:
             island = Island(name="Test Col", creator_id=learner_id)
             session.add(island)
             session.commit()
             session.refresh(island)
 
-        brick = session.exec(
+        brick = session.scalar(
             select(Brick).where(Brick.creator_id == learner_id)
-        ).first()
+        )
         if not brick:
             brick = Brick(
                 native_text="Xin chao",
@@ -440,9 +441,7 @@ def test_update_brick_without_audio_keeps_redis_cache():
 def test_delete_brick_clears_redis_cache():
     """Deleting a brick must clear its audio cache from Redis."""
     with Session(engine) as session:
-        col = session.exec(
-            select(Island).where(Island.creator_id == 1)
-        ).first()
+        col = session.scalar(select(Island).where(Island.creator_id == 1))
         brick = Brick(
             native_text="To be deleted",
             target_text="Delete me",

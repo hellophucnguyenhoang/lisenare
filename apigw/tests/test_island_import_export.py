@@ -1,10 +1,11 @@
-from datetime import datetime, timezone
 import io
 import json
 import uuid
+from datetime import datetime, timezone
 
 from fastapi.testclient import TestClient
-from sqlmodel import Session, select
+from sqlalchemy import select
+from sqlalchemy.orm import Session
 
 from database import (
     Brick,
@@ -31,11 +32,11 @@ def _ensure_learner(session: Session, learner_id: int, name: str) -> Learner:
 
 
 def _ensure_island(session: Session, creator_id: int, name: str) -> Island:
-    col = session.exec(
+    col = session.scalar(
         select(Island).where(
             Island.creator_id == creator_id, Island.name == name
         )
-    ).first()
+    )
     if not col:
         col = Island(name=name, creator_id=creator_id)
         session.add(col)
@@ -210,7 +211,7 @@ def test_import_island_success(client: TestClient):
 
         # Verify bricks created in database for the importer
         with Session(engine) as session:
-            imported = session.exec(
+            imported = session.scalars(
                 select(Brick).where(Brick.island_id == target_col_id)
             ).all()
             assert len(imported) == 2
@@ -452,23 +453,23 @@ def test_import_island_with_memory_and_reviews(client: TestClient):
         assert response.json()["added"] == 1
 
         with Session(engine) as session:
-            brick = session.exec(
+            brick = session.scalar(
                 select(Brick).where(Brick.island_id == target_col_id)
-            ).first()
+            )
             assert brick is not None
 
             # Verify BrickMemory created for importer
-            mem = session.exec(
+            mem = session.scalar(
                 select(BrickMemory).where(
                     BrickMemory.brick_id == brick.id,
                     BrickMemory.learner_id == 110,
                 )
-            ).first()
+            )
             assert mem is not None
             assert mem.fsrs_card_dict == {"stability": 5.0}
 
             # Verify BrickReview created for importer
-            reviews = session.exec(
+            reviews = session.scalars(
                 select(BrickReview).where(
                     BrickReview.brick_id == brick.id,
                     BrickReview.learner_id == 110,

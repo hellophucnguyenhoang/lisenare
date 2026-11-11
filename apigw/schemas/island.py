@@ -1,12 +1,12 @@
 from datetime import datetime
 
 from pydantic import field_validator
-from sqlmodel import SQLModel
 
+from schemas.base import Schema
 from utils.tag_utils import clean_tags
 
 
-class IslandBase(SQLModel):
+class IslandBase(Schema):
     name: str
     description: str | None = None
 
@@ -22,7 +22,7 @@ class IslandCreate(IslandBase):
         return clean_tags(v)
 
 
-class IslandUpdate(SQLModel):
+class IslandUpdate(Schema):
     name: str | None = None
     description: str | None = None
     tags: list[str] | None = None
@@ -51,5 +51,5 @@ class IslandRead(IslandBase):
         return clean_tags(v)
 
 
-class IslandRenameRequest(SQLModel):
+class IslandRenameRequest(Schema):
     new_name: str

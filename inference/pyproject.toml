@@ -39,7 +39,7 @@ dependencies = [
     "sherpa-onnx-bin>=1.13.8",
     "soundfile>=0.13.1",
     "spacy>=3.8.9",
-    "sqlmodel>=0.0.27",
+    "sqlalchemy==2.0.44",
     "textstat>=0.7.12",
     "tzdata>=2025.2",
     "wordfreq>=3.1.1",
