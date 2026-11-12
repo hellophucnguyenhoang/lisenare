@@ -85,7 +85,7 @@ def review_exists(session: Session, learner_id: int, brick_id: int) -> bool:
 def get_true_retention(
     session: Session,
     learner_id: int,
-    tz_name: str,
+    tz: ZoneInfo,
     days: int | None = None,
 ) -> float:
     """
@@ -101,7 +101,7 @@ def get_true_retention(
     statement = apply_time_filter(
         statement,
         BrickReview.reviewed_at,
-        tz_name,
+        tz,
         days,
     )
 
@@ -128,7 +128,7 @@ def to_timeseries(rows):
 def get_daily_review_counts(
     session: Session,
     learner_id: int,
-    tz_name: str,
+    tz: ZoneInfo,
     days: int | None = None,
 ):
     """
@@ -143,14 +143,13 @@ def get_daily_review_counts(
     statement = apply_time_filter(
         statement,
         BrickReview.reviewed_at,
-        tz_name,
+        tz,
         days,
     )
 
     rows = session.scalars(statement).all()
 
     # 2. Convert to local day + group
-    tz = ZoneInfo(tz_name)
     counts = defaultdict(int)
 
     for reviewed_at in rows:

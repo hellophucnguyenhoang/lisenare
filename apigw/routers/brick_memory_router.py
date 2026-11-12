@@ -1,4 +1,5 @@
 from typing import Annotated
+from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
@@ -23,12 +24,7 @@ def get_learning_stats(
     learner: Annotated[
         Learner, Depends(auth_service.decode_token_get_learner)
     ],
-    tz_name: Annotated[
-        str,
-        Query(
-            description="Your IANA timezone string (e.g., 'Asia/Ho_Chi_Minh')"
-        ),
-    ] = "Asia/Ho_Chi_Minh",
+    tz: Annotated[ZoneInfo, Query()] = ZoneInfo("Asia/Ho_Chi_Minh"),
     days: Annotated[
         int | None,
         Query(
@@ -38,10 +34,11 @@ def get_learning_stats(
         ),
     ] = None,
 ):
+    logger.info(f"{tz=}, {days=}")
     return brick_memory_service.get_learning_stats(
         session,
         learner.id,
-        tz_name,
+        tz,
         days,
     )
 
@@ -62,12 +59,7 @@ def get_learning_timeseries(
             description="Metric type: total_learning | reviews",
         ),
     ] = "total_learning",
-    tz_name: Annotated[
-        str,
-        Query(
-            description="Your IANA timezone string (e.g., 'Asia/Ho_Chi_Minh')"
-        ),
-    ] = "Asia/Ho_Chi_Minh",
+    tz: Annotated[ZoneInfo, Query()] = ZoneInfo("Asia/Ho_Chi_Minh"),
     days: Annotated[
         int | None,
         Query(
@@ -76,12 +68,12 @@ def get_learning_timeseries(
         ),
     ] = None,
 ):
-    logger.info(f"{metric=}, {tz_name=}, {days=}")
+    logger.info(f"{metric=}, {tz=}, {days=}")
     result = LearningTimeSeries(
         **brick_memory_service.get_learning_timeseries(
             session,
             learner.id,
-            tz_name,
+            tz,
             days,
             metric,
         )

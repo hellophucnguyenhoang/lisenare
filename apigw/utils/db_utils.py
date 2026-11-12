@@ -2,14 +2,14 @@ from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 
 
-def apply_time_filter(statement, column, tz_name: str, days: int | None):
+def apply_time_filter(statement, column, tz: ZoneInfo, days: int | None):
     """
     Apply a calendar-based time filter using the user's timezone.
 
     Args:
         statement: SQL query object.
         column: UTC timestamp column to filter on.
-        tz_name: IANA timezone string (e.g., "Asia/Ho_Chi_Minh").
+        tz: IANA timezone.
         days:
             - None → no filtering (all time)
             - 0 → today (from local midnight to now)
@@ -23,7 +23,6 @@ def apply_time_filter(statement, column, tz_name: str, days: int | None):
     if days is None:
         return statement
 
-    tz = ZoneInfo(tz_name)
     now_local = datetime.now(tz)
 
     # Local midnight (start of today in user's timezone)

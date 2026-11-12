@@ -143,7 +143,7 @@ def get_next_due(
 
 
 def get_estimated_recalled(
-    session: Session, learner_id: int, tz_name: str, days: int | None = None
+    session: Session, learner_id: int, tz: ZoneInfo, days: int | None = None
 ) -> float:
     statement = select(BrickMemory.fsrs_card_dict).where(
         BrickMemory.learner_id == learner_id
@@ -152,7 +152,7 @@ def get_estimated_recalled(
     statement = apply_time_filter(
         statement,
         BrickMemory.created_at,
-        tz_name,
+        tz,
         days,
     )
 
@@ -172,7 +172,7 @@ def get_estimated_recalled(
 def get_learning_stats(
     session: Session,
     learner_id: int,
-    tz_name: str,
+    tz: ZoneInfo,
     days: int | None = None,
 ):
     now = datetime.now(timezone.utc)
@@ -184,7 +184,7 @@ def get_learning_stats(
     statement = apply_time_filter(
         statement,
         BrickMemory.created_at,
-        tz_name,
+        tz,
         days,
     )
 
@@ -195,14 +195,14 @@ def get_learning_stats(
         "true_retention": get_true_retention(
             session,
             learner_id,
-            tz_name,
+            tz,
             days,
         ),
         "next_due": get_next_due(session, learner_id),
         "estimated_recalled": get_estimated_recalled(
             session,
             learner_id,
-            tz_name,
+            tz,
             days,
         ),
         "timestamp": now,
@@ -229,7 +229,7 @@ def to_cumulative(rows):
 def get_daily_learning_counts(
     session: Session,
     learner_id: int,
-    tz_name: str,
+    tz: ZoneInfo,
     days: int | None = None,
 ):
     """
@@ -247,14 +247,13 @@ def get_daily_learning_counts(
     statement = apply_time_filter(
         statement,
         BrickMemory.created_at,
-        tz_name,
+        tz,
         days,
     )
 
     rows = session.scalars(statement).all()
 
     # Convert to local day + group
-    tz = ZoneInfo(tz_name)
     counts = defaultdict(int)
 
     for created_at in rows:
@@ -268,7 +267,7 @@ def get_daily_learning_counts(
 def get_learning_timeseries(
     session: Session,
     learner_id: int,
-    tz_name: str,
+    tz: ZoneInfo,
     days: int | None = None,
     metric: str = "total_learning",
 ):
@@ -277,7 +276,7 @@ def get_learning_timeseries(
     """
 
     if metric == "total_learning":
-        rows = get_daily_learning_counts(session, learner_id, tz_name, days)
+        rows = get_daily_learning_counts(session, learner_id, tz, days)
         return {
             "metric": "total_learning",
             "unit": "cards",
@@ -285,7 +284,7 @@ def get_learning_timeseries(
         }
 
     elif metric == "reviews":
-        rows = get_daily_review_counts(session, learner_id, tz_name, days)
+        rows = get_daily_review_counts(session, learner_id, tz, days)
         return {
             "metric": "reviews",
             "unit": "reviews",
@@ -302,7 +301,7 @@ def get_learning_timeseries(
 def get_learning_timeseries_mock(
     session,
     learner_id: int,
-    tz_name: str,
+    tz: ZoneInfo,
     days: int | None,
     metric: str,
 ):
@@ -312,8 +311,6 @@ def get_learning_timeseries_mock(
     - total_learning: cumulative growth
     - reviews: random daily values
     """
-
-    tz = ZoneInfo(tz_name)
     today = datetime.now(tz).date()
 
     # default range
