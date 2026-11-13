@@ -5,7 +5,7 @@ from ollama import chat
 from config import logger
 from redis_client import get_redis_client
 
-SESSION_EXPIRY = 3600  # 60 minutes in seconds
+CHAT_SESSION_EXPIRY_SECONDS = 3600
 
 
 def generate_chat_stream(session_id: str, user_message: str):
@@ -14,6 +14,7 @@ def generate_chat_stream(session_id: str, user_message: str):
 
     # 1. Retrieve history from Redis
     raw_history = r.get(session_key)
+
     # If no history exists, start with a system prompt
     messages = (
         json.loads(raw_history)
@@ -21,10 +22,10 @@ def generate_chat_stream(session_id: str, user_message: str):
         else [
             {
                 "role": "system",
-                "content": "You are a funny English teacher who keeps responses short and concise.",
+                "content": "You are a friendly English teacher who keeps responses concise, clear, and to the point.",
             }
         ]
-    )  # [] or [{"role": "system", "content": "You are a helpful assistant."}]
+    )
 
     # 2. Add the new user message
     messages.append({"role": "user", "content": user_message})
@@ -42,7 +43,7 @@ def generate_chat_stream(session_id: str, user_message: str):
     messages.append({"role": "assistant", "content": full_response})
 
     # resets the countdown every time a message is sent
-    r.setex(session_key, SESSION_EXPIRY, json.dumps(messages))
+    r.setex(session_key, CHAT_SESSION_EXPIRY_SECONDS, json.dumps(messages))
     logger.info(f"Completed chat stream for session_id: {session_id}")
 
 

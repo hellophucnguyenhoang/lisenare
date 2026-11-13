@@ -71,6 +71,11 @@ class Settings(BaseSettings):
     # load value from the .env file
     model_config = SettingsConfigDict(env_file=os.getenv("TARGET_ENV", ".env"))
 
+    @property
+    def is_production(self) -> bool:
+        env_file = self.model_config.get("env_file", "")
+        return env_file == ".env"
+
 
 settings = Settings()
 

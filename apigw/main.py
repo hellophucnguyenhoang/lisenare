@@ -11,7 +11,7 @@ import cloud_storage_client
 import database
 import http_client
 import redis_client
-from config import logger
+from config import logger, settings
 from constants import ASSETS_DIR
 from exceptions import RequestException
 from routers import (
@@ -53,7 +53,7 @@ async def lifespan(app: FastAPI):
     image_cache_service.stop_image_cleanup_scheduler(image_scheduler)
     audio_cache_service.stop_audio_cleanup_scheduler(audio_scheduler)
     redis_client.close_redis_client()
-    # database.delete_db_force()
+    database.delete_db_force()
     http_client.close_client()
     await http_client.close_async_client()
     logger.info("Lisenare API services shut down successfully.")
@@ -62,9 +62,9 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="Lisenare API",
     lifespan=lifespan,
-    docs_url=None,
-    redoc_url=None,
-    openapi_url=None,
+    docs_url=None if settings.is_production else "/docs",
+    redoc_url=None if settings.is_production else "/redoc",
+    openapi_url=None if settings.is_production else "/openapi.json",
 )
 
 
@@ -176,7 +176,7 @@ app.add_middleware(
 
 # Only use when cloud doesn't support
 # from fastapi.middleware.httpsredirect import HTTPSRedirectMiddleware
-# if os.getenv("ENV") == "production":
+# if settings.is_production:
 #     app.add_middleware(HTTPSRedirectMiddleware)
 
 
@@ -195,15 +195,16 @@ async def add_security_headers(request: Request, call_next):
         "geolocation=(), microphone=(self), camera=()"
     )
 
-    # Allow loading from external secure HTTPS source
-    response.headers["Content-Security-Policy"] = (
-        "default-src 'self';"
-        "style-src 'self' 'unsafe-inline' https:;"
-        "script-src 'self' https://static.cloudflareinsights.com;"
-        "media-src 'self' blob:;"
-        "font-src 'self' https: data:;"
-        "img-src 'self' https://placecats.com data:;"
-    )
+    if settings.is_production:
+        # Allow loading from external secure HTTPS source
+        response.headers["Content-Security-Policy"] = (
+            "default-src 'self';"
+            "style-src 'self' 'unsafe-inline' https:;"
+            "script-src 'self' https://static.cloudflareinsights.com;"
+            "media-src 'self' blob:;"
+            "font-src 'self' https: data:;"
+            "img-src 'self' https://placecats.com data:;"
+        )
 
     return response
 

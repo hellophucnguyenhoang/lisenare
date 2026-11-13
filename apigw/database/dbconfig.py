@@ -28,7 +28,7 @@ def get_session() -> Iterator[Session]:
         yield session
 
 
-def init_db() -> None:
+def init_db(init_data: bool = False) -> None:
     """Initialize the database schema and seed data if necessary."""
     try:
         logger.info("Initializing database schema...")
@@ -46,31 +46,17 @@ def init_db() -> None:
             logger.info("Creating SQLAlchemy tables...")
             Base.metadata.create_all(engine)
 
-            with Session(engine) as session:
-                init_bricks(session)
+            if init_data:
+                with Session(engine) as session:
+                    init_bricks(session)
 
-            logger.info(
-                "Data initialization complete EXCEPT brick embeddings."
-            )
+                logger.info(
+                    "Data initialization complete EXCEPT brick embeddings."
+                )
+            else:
+                logger.info("Skipping data initialization.")
         else:
             logger.info("Database already initialized, skipping.")
-
-            columns = {
-                column["name"] for column in inspector.get_columns("brick")
-            }
-
-            if "is_skipped" not in columns:
-                with Session(engine) as session:
-                    session.execute(
-                        text(
-                            """
-                            ALTER TABLE brick
-                            ADD COLUMN IF NOT EXISTS is_skipped
-                            BOOLEAN DEFAULT FALSE NOT NULL;
-                            """
-                        )
-                    )
-                    session.commit()
 
     except Exception as e:
         logger.critical(
