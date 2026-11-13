@@ -48,7 +48,7 @@ RUN mkdir -p /root/.cache/torch/hub/checkpoints \
 RUN ollama serve & \
     OLLAMA_PID=$! && \
     sleep 3 && \
-    # ollama pull gemma3:270m-it-qat && \
+    ollama pull gemma3:270m-it-qat && \
     kill $OLLAMA_PID && \
     sleep 3
 

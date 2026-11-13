@@ -3,7 +3,7 @@ from collections.abc import Iterable
 from fastapi import APIRouter
 from fastapi.responses import StreamingResponse
 
-from schemas.chat import ChatLearnerRequest
+from schemas.chat import ChatLearnerRequest, ChatMessage
 from services import chat_service
 
 router = APIRouter(prefix="/chat", tags=["Chat Features"])
@@ -16,3 +16,8 @@ def chat_endpoint(request: ChatLearnerRequest) -> Iterable[str]:
         request.learner_question,
     ):
         yield chunk_text
+
+
+@router.get("/{session_id}", response_model=list[ChatMessage])
+def get_chat_messages(session_id: str) -> list[ChatMessage]:
+    return chat_service.get_chat_messages(session_id)

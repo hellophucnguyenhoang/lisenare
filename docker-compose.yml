@@ -1,14 +1,4 @@
 services:
-  inference:
-    build:
-      context: ./inference
-      dockerfile: Dockerfile
-    # ports:
-    #   - "8001:8001"
-    volumes:
-      - ./logs:/app/logs
-    restart: always
-
   apigw:
     build:
       context: ./apigw
@@ -21,13 +11,23 @@ services:
       - ./logs:/app/logs
     depends_on:
       - inference
-      - database
+      - db
       - catch_db
     restart: always
 
-  database:
+  inference:
     build:
-      context: .
+      context: ./inference
+      dockerfile: Dockerfile
+    # ports:
+    #   - "8001:8001"
+    volumes:
+      - ./logs:/app/logs
+    restart: always
+
+  db:
+    build:
+      context: ./db
       dockerfile: Dockerfile
     restart: always
     environment:
@@ -39,7 +39,7 @@ services:
     #   - "5433:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
-    
+
   catch_db:
     image: redis:7-alpine
     restart: always

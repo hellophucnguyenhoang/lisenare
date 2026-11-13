@@ -10,13 +10,13 @@ class ChatRole(str, Enum):
     tool = "tool"
 
 
-class Message(Schema):
+class ChatMessage(Schema):
     role: ChatRole = ChatRole.user
     content: str = "Answer in one sentence, why is the sky blue?"
 
 
 class ChatRequest(Schema):
-    messages: list[Message]
+    messages: list[ChatMessage]
 
 
 class ChatLearnerRequest(Schema):

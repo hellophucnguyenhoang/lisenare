@@ -1,11 +1,14 @@
 import json
 
-from ollama import chat
+from ollama import Client
 
-from config import logger
+from config import logger, settings
 from redis_client import get_redis_client
+from schemas.chat import ChatMessage
 
 CHAT_SESSION_EXPIRY_SECONDS = 3600
+
+ollama_client = Client(host=settings.ollama_host)
 
 
 def generate_chat_stream(session_id: str, user_message: str):
@@ -31,7 +34,11 @@ def generate_chat_stream(session_id: str, user_message: str):
     messages.append({"role": "user", "content": user_message})
 
     # 3. Stream from Ollama
-    stream = chat(model="gemma3:270m-it-qat", messages=messages, stream=True)
+    stream = ollama_client.chat(
+        model="gemma3:270m-it-qat",
+        messages=messages,
+        stream=True,
+    )
 
     full_response = ""
     for chunk in stream:
@@ -45,6 +52,22 @@ def generate_chat_stream(session_id: str, user_message: str):
     # resets the countdown every time a message is sent
     r.setex(session_key, CHAT_SESSION_EXPIRY_SECONDS, json.dumps(messages))
     logger.info(f"Completed chat stream for session_id: {session_id}")
+
+
+def get_chat_messages(session_id: str) -> list[ChatMessage]:
+    r = get_redis_client()
+    session_key = f"chat:{session_id}"
+    raw_history = r.get(session_key)
+    if not raw_history:
+        return []
+    try:
+        messages = json.loads(raw_history)
+        return [ChatMessage.model_validate(msg) for msg in messages]
+    except Exception as e:
+        logger.error(
+            f"Failed to load chat messages for session_id {session_id}: {e}"
+        )
+        return []
 
 
 def generate_response_stream_fake(user_message: str):

@@ -350,5 +350,5 @@ class PhonemeService:
 
 transcription_service = TranscriptionService()
 phoneme_recognition_service = PhonemeService(
-    lora_path="weights/lora_adapter_epoch3_20260601_062920_loss0.2356.pt"
+    lora_path="./models/lora_adapter_epoch3_20260601_062920_loss0.2356.pt"
 )

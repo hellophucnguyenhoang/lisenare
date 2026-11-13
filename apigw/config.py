@@ -5,36 +5,6 @@ from pathlib import Path
 from fastapi_mail import ConnectionConfig, FastMail
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-# If ../logs exists (Local Dev), go up to lisenare/logs/
-# If it doesn't (Docker Production), write to /app/logs/
-if os.path.exists("../logs"):
-    LOG_DIR = Path("../logs").resolve()
-else:
-    LOG_DIR = Path("logs").resolve()
-
-LOG_FILE_PATH = LOG_DIR / "apigw.log"
-LOG_DIR.mkdir(parents=True, exist_ok=True)
-
-logger = logging.getLogger("apigw")
-logger.setLevel(logging.INFO)
-
-# prevent propagate to the system logger, application logs only
-logger.propagate = False
-
-
-file_handler = logging.FileHandler(LOG_FILE_PATH, encoding="utf-8")
-file_formatter = logging.Formatter(
-    "%(asctime)s - %(levelname)s - [%(filename)s:%(lineno)d] - %(message)s"
-)
-file_handler.setFormatter(file_formatter)
-
-console_handler = logging.StreamHandler()
-console_formatter = logging.Formatter("[APIGW] %(levelname)s - %(message)s")
-console_handler.setFormatter(console_formatter)
-
-logger.addHandler(file_handler)
-logger.addHandler(console_handler)
-
 
 class Settings(BaseSettings):
     """
@@ -59,6 +29,7 @@ class Settings(BaseSettings):
     db_url: str
     redis_url: str
     inference_url: str
+    ollama_host: str
 
     # Audio cloud storage
     asset_base_url: str
@@ -78,6 +49,48 @@ class Settings(BaseSettings):
 
 
 settings = Settings()
+
+
+# If ../logs exists (Local Dev), write to lisenare/logs/
+# If it doesn't (Docker Production), write to /app/logs/
+LOG_DIR = (
+    Path("../logs").resolve()
+    if os.path.exists("../logs")
+    else Path("logs").resolve()
+)
+LOG_DIR.mkdir(parents=True, exist_ok=True)
+
+
+def setup_logger(name: str, prefix: str) -> logging.Logger:
+    log_suffix = "" if settings.is_production else ".dev"
+    log_file_path = LOG_DIR / f"{name}{log_suffix}.log"
+
+    logger = logging.getLogger(name)
+    logger.setLevel(logging.INFO)
+
+    # prevent propagate to the system logger
+    # application logs only
+    logger.propagate = False
+
+    file_handler = logging.FileHandler(log_file_path, encoding="utf-8")
+    file_handler.setFormatter(
+        logging.Formatter(
+            "%(asctime)s - %(levelname)s - [%(filename)s:%(lineno)d] - %(message)s"
+        )
+    )
+
+    console_handler = logging.StreamHandler()
+    console_handler.setFormatter(
+        logging.Formatter(f"[{prefix}] %(levelname)s - %(message)s")
+    )
+
+    logger.addHandler(file_handler)
+    logger.addHandler(console_handler)
+
+    return logger
+
+
+logger = setup_logger("apigw", "APIGW")
 
 mail_config = ConnectionConfig(
     MAIL_USERNAME=settings.google_app_email_address,

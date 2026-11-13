@@ -43,15 +43,15 @@ def init_db(init_data: bool = False) -> None:
         inspector = inspect(engine)
 
         if not inspector.has_table("brick"):
-            logger.info("Creating SQLAlchemy tables...")
             Base.metadata.create_all(engine)
+            logger.info("Database tables created.")
 
             if init_data:
                 with Session(engine) as session:
                     init_bricks(session)
 
                 logger.info(
-                    "Data initialization complete EXCEPT brick embeddings."
+                    "Database data initialized EXCEPT brick embeddings."
                 )
             else:
                 logger.info("Skipping data initialization.")
@@ -66,14 +66,15 @@ def init_db(init_data: bool = False) -> None:
         raise
 
 
-def delete_db_force() -> None:
-    with Session(engine) as session:
-        session.execute(text("DROP SCHEMA public CASCADE;"))
-        session.execute(text("CREATE SCHEMA public;"))
-        session.execute(text("GRANT ALL ON SCHEMA public TO public;"))
-        session.commit()
+def reset_dev_database() -> None:
+    if not settings.is_production:
+        with Session(engine) as session:
+            session.execute(text("DROP SCHEMA public CASCADE;"))
+            session.execute(text("CREATE SCHEMA public;"))
+            session.execute(text("GRANT ALL ON SCHEMA public TO public;"))
+            session.commit()
 
-    logger.info("Dropped and recreated a clean public schema.")
+        logger.info("Dropped and recreated a clean dev public schema.")
 
 
 def create_learner_account(

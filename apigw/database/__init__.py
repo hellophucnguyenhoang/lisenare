@@ -1,4 +1,4 @@
-from .dbconfig import delete_db_force, engine, get_session, init_db
+from .dbconfig import engine, get_session, init_db, reset_dev_database
 from .models import (
     OTP,
     Account,
@@ -17,10 +17,10 @@ from .models import (
 )
 
 __all__ = [
-    "delete_db_force",
     "engine",
     "get_session",
     "init_db",
+    "reset_dev_database",
     "OTP",
     "Account",
     "Brick",
