@@ -23,4 +23,5 @@ services:
 
 volumes:
   postgres_data:
+    external: true
   redis_data:

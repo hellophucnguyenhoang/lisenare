@@ -123,7 +123,7 @@ class Brick(Base):
 
 
 class BrickInteraction(Base):
-    __tablename__ = "brickinteraction"
+    __tablename__ = "brick_interaction"
 
     id: Mapped[int] = mapped_column(primary_key=True)
 
@@ -156,7 +156,7 @@ class BrickMemory(Base):
     Exactly ONE row exists per learner-brick pair. Updated on every review.
     """
 
-    __tablename__ = "brickmemory"
+    __tablename__ = "brick_memory"
     __table_args__ = (
         UniqueConstraint(
             "learner_id",
@@ -190,7 +190,7 @@ class BrickMemory(Base):
 
 
 class BrickReport(Base):
-    __tablename__ = "brickreport"
+    __tablename__ = "brick_report"
 
     id: Mapped[int] = mapped_column(primary_key=True)
     reason: Mapped[str] = mapped_column(String(1000), default="Not provided")
@@ -221,7 +221,7 @@ class BrickReview(Base):
     Appends a new row every time a learner answers.
     """
 
-    __tablename__ = "brickreview"
+    __tablename__ = "brick_review"
     __table_args__ = (
         CheckConstraint(
             "fsrs_rating >= 1 AND fsrs_rating <= 4",
@@ -361,7 +361,7 @@ class Learner(Base):
 
 
 class LearnerSetting(Base):
-    __tablename__ = "learnersetting"
+    __tablename__ = "learner_setting"
 
     learner_id: Mapped[int] = mapped_column(
         ForeignKey("learner.id", ondelete="CASCADE"),
@@ -394,7 +394,7 @@ class OTP(Base):
 
 
 class SessionProfile(Base):
-    __tablename__ = "sessionprofile"
+    __tablename__ = "session_profile"
 
     session_id: Mapped[str] = mapped_column(String, primary_key=True)
     profile_vector: Mapped[bytes] = mapped_column(LargeBinary)

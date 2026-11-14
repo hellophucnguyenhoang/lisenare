@@ -22,8 +22,18 @@ def init_s3_client():
             kwargs["region_name"] = settings.aws_region_name
 
         s3_client = boto3.client(**kwargs)
-        logger.info("Initialized S3 cloud storage client")
+        logger.info("S3 storage client initialized.")
     return s3_client
+
+
+def close_s3_client() -> None:
+    """Closes the S3 client and releases its resources."""
+    global s3_client
+
+    if s3_client is not None:
+        s3_client.close()
+        s3_client = None
+        logger.info("S3 cloud storage client closed.")
 
 
 def get_s3_client():

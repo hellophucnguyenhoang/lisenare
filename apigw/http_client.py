@@ -11,7 +11,7 @@ def init_client() -> httpx.Client:
     global client
     if client is None:
         client = httpx.Client(base_url=settings.inference_url, timeout=30.0)
-        logger.info(f"Done initialize HTTP client {client.base_url}")
+        logger.info(f"HTTP client initialized ({client.base_url}).")
     return client
 
 
@@ -40,7 +40,7 @@ async def init_async_client() -> httpx.AsyncClient:
             base_url=settings.inference_url, timeout=30.0
         )
         logger.info(
-            f"Done initialize async HTTP client {async_client.base_url}"
+            f"Async HTTP client initialized ({async_client.base_url})."
         )
     return async_client
 

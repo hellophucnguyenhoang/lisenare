@@ -39,23 +39,27 @@ from utils.form_utils import get_model_example_string
 async def lifespan(app: FastAPI):
     # Startup code
     logger.info("Initializing Lisenare API services...")
-    database.init_db()
     http_client.init_client()
     await http_client.init_async_client()
     redis_client.init_redis_client()
     cloud_storage_client.init_s3_client()
     audio_scheduler = audio_cache_service.start_audio_cleanup_scheduler()
     image_scheduler = image_cache_service.start_image_cleanup_scheduler()
+
+    database.init_db(init_data=False)
     logger.info("Lisenare API services initialized successfully.")
     yield
+
     # Shutdown code
     logger.info("Shutting down Lisenare API services...")
+    # database.reset_dev_database()
+
     image_cache_service.stop_image_cleanup_scheduler(image_scheduler)
     audio_cache_service.stop_audio_cleanup_scheduler(audio_scheduler)
+    cloud_storage_client.close_s3_client()
     redis_client.close_redis_client()
-    database.reset_dev_database()
-    http_client.close_client()
     await http_client.close_async_client()
+    http_client.close_client()
     logger.info("Lisenare API services shut down successfully.")
 
 

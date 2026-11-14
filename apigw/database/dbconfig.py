@@ -48,7 +48,7 @@ def init_db(init_data: bool = False) -> None:
 
             if init_data:
                 with Session(engine) as session:
-                    init_bricks(session)
+                    init_db_data(session)
 
                 logger.info(
                     "Database data initialized EXCEPT brick embeddings."
@@ -56,7 +56,7 @@ def init_db(init_data: bool = False) -> None:
             else:
                 logger.info("Skipping data initialization.")
         else:
-            logger.info("Database already initialized, skipping.")
+            logger.info("Database schema already exists, skipping init.")
 
     except Exception as e:
         logger.critical(
@@ -101,7 +101,7 @@ def create_learner_account(
     return account
 
 
-def init_bricks(session: Session) -> None:
+def init_db_data(session: Session) -> None:
     system_account_create = LearnerAccountCreate(
         name="The Avid Learner",
         username="hoangphuc",

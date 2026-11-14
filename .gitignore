@@ -21,8 +21,11 @@ lisenare-assets/
 *.mp3
 *.m4a
 
+# Database backup
+backups/
+
 # Models
-inference/models
+inference/models/
 
 # Cache
 .cache/

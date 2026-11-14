@@ -163,7 +163,7 @@ def start_image_cleanup_scheduler(
     scheduler.start()
     _cleanup_scheduler = scheduler
     logger.info(
-        f"Started image cleanup scheduler (interval: {interval_hours}h)"
+        f"Started image cleanup scheduler (interval: {interval_hours}h)."
     )
     return scheduler
 
@@ -174,5 +174,5 @@ def stop_image_cleanup_scheduler(scheduler: BackgroundScheduler | None = None):
     active = scheduler or _cleanup_scheduler
     if active and active.running:
         active.shutdown(wait=False)
-        logger.info("Stopped image cleanup scheduler")
+        logger.info("Stopped image cleanup scheduler.")
     _cleanup_scheduler = None

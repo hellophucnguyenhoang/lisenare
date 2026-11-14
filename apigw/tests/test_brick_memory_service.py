@@ -51,7 +51,7 @@ def test_optimize_learner_scheduler_success():
     def fake_exec(stmt):
         mock_res = MagicMock()
         stmt_str = str(stmt).lower()
-        if "brickreview" in stmt_str or "brick_review" in stmt_str:
+        if "brick_review" in stmt_str:
             mock_res.all.return_value = reviews
         else:
             mock_res.all.return_value = [db_card]
