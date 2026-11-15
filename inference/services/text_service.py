@@ -17,7 +17,7 @@ from sentence_transformers import SentenceTransformer, util
 from wordfreq import word_frequency
 
 from config import logger
-from shared_schemas.text import PhonemeAnalysisResponse
+from shared.schemas.text import PhonemeAnalysisResponse
 
 
 class TextService:

@@ -21,7 +21,10 @@ from database import (
 )
 from exceptions import RequestException
 from schemas import TimeSeriesPoint
-from shared_schemas.fsrs import FSRSOptimizeRequest, FSRSOptimizeResponse
+from shared.schemas.fsrs import (
+    FSRSOptimizeRequest,
+    FSRSOptimizeResponse,
+)
 from utils.db_utils import apply_time_filter
 from utils.text_utils import (
     calculate_batch_rarity,

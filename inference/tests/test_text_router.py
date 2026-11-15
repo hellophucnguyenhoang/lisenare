@@ -1,11 +1,11 @@
 from fastapi.testclient import TestClient
 
 from main import app
-from shared_schemas.sentence import (
+from shared.schemas.sentence import (
     SentenceCompareRequest,
     SentenceCompareResponse,
 )
-from shared_schemas.text import (
+from shared.schemas.text import (
     BatchRarityRequest,
     BatchRarityResponse,
     EmbeddingRequest,

@@ -1,7 +1,7 @@
 from fastapi import APIRouter, HTTPException, status
 
 from services import fsrs_service
-from shared_schemas.fsrs import FSRSOptimizeRequest, FSRSOptimizeResponse
+from shared.schemas.fsrs import FSRSOptimizeRequest, FSRSOptimizeResponse
 
 router = APIRouter(prefix="/fsrs", tags=["FSRS"])
 

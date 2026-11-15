@@ -6,8 +6,8 @@ from fsrs import Rating
 from database import Learner, LearnerSetting
 from main import app
 from services import auth_service
-from shared_schemas.sentence import SentenceCompareResponse
-from shared_schemas.text import PhonemeAnalysisResponse
+from shared.schemas.sentence import SentenceCompareResponse
+from shared.schemas.text import PhonemeAnalysisResponse
 
 
 def test_create_brick_review_unauthenticated_fails():

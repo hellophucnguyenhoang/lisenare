@@ -1,5 +1,5 @@
 import http_client
-from shared_schemas.text import (
+from shared.schemas.text import (
     BatchRarityRequest,
     BatchRarityResponse,
     EmbeddingRequest,

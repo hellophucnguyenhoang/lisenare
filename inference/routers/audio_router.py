@@ -10,7 +10,7 @@ from services.transcription_service import (
     preprocess_upload_file,
     transcription_service,
 )
-from shared_schemas.audio import STTResponse
+from shared.schemas.audio import STTResponse
 
 router = APIRouter(prefix="/audio", tags=["Audio Features"])
 

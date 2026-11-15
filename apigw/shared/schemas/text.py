@@ -1,6 +1,6 @@
 from pydantic import BaseModel, Field
 
-from shared_constants import BRICK_AVG_WORD_LEN, BRICK_MAX_WORDS
+from shared.constants import BRICK_AVG_WORD_LEN, BRICK_MAX_WORDS
 
 
 class TTSRequest(BaseModel):

@@ -1,12 +1,12 @@
 from fastapi import APIRouter, HTTPException, Response, status
 
 from services.text_service import text_service
-from shared_constants import BRICK_AVG_WORD_LEN, BRICK_MAX_WORDS
-from shared_schemas.sentence import (
+from shared.constants import BRICK_AVG_WORD_LEN, BRICK_MAX_WORDS
+from shared.schemas.sentence import (
     SentenceCompareRequest,
     SentenceCompareResponse,
 )
-from shared_schemas.text import (
+from shared.schemas.text import (
     BatchRarityRequest,
     BatchRarityResponse,
     EmbeddingRequest,

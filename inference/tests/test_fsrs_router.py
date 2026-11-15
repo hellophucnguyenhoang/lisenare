@@ -1,9 +1,10 @@
 from datetime import datetime, timedelta, timezone
+
 from fastapi.testclient import TestClient
 from fsrs import Card, Rating, Scheduler
 
 from main import app
-from shared_schemas.fsrs import FSRSOptimizeRequest, FSRSOptimizeResponse
+from shared.schemas.fsrs import FSRSOptimizeRequest, FSRSOptimizeResponse
 
 client = TestClient(app)
 

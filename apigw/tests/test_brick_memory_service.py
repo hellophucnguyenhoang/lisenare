@@ -2,7 +2,7 @@ from unittest.mock import MagicMock, patch
 
 from database import BrickMemory, LearnerSetting
 from services import brick_memory_service
-from shared_schemas.fsrs import FSRSOptimizeResponse
+from shared.schemas.fsrs import FSRSOptimizeResponse
 
 
 def test_optimize_learner_scheduler_aborts_when_under_100_logs():

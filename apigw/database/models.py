@@ -19,7 +19,7 @@ from constants import (
     OTP_EXPIRE_MINUTES,
     SEMANTIC_EMB_DIM,
 )
-from shared_constants import BRICK_AVG_WORD_LEN, BRICK_MAX_WORDS
+from shared.constants import BRICK_AVG_WORD_LEN, BRICK_MAX_WORDS
 
 
 class Base(DeclarativeBase):

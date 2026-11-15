@@ -1,9 +1,9 @@
-import logging
 import os
-from pathlib import Path
 
 from fastapi_mail import ConnectionConfig, FastMail
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+from shared.logger import setup_logger
 
 
 class Settings(BaseSettings):
@@ -51,46 +51,7 @@ class Settings(BaseSettings):
 settings = Settings()
 
 
-# If ../logs exists (Local Dev), write to lisenare/logs/
-# If it doesn't (Docker Production), write to /app/logs/
-LOG_DIR = (
-    Path("../logs").resolve()
-    if os.path.exists("../logs")
-    else Path("logs").resolve()
-)
-LOG_DIR.mkdir(parents=True, exist_ok=True)
-
-
-def setup_logger(name: str, prefix: str) -> logging.Logger:
-    log_suffix = "" if settings.is_production else ".dev"
-    log_file_path = LOG_DIR / f"{name}{log_suffix}.log"
-
-    logger = logging.getLogger(name)
-    logger.setLevel(logging.INFO)
-
-    # prevent propagate to the system logger
-    # application logs only
-    logger.propagate = False
-
-    file_handler = logging.FileHandler(log_file_path, encoding="utf-8")
-    file_handler.setFormatter(
-        logging.Formatter(
-            "%(asctime)s - %(levelname)s - [%(filename)s:%(lineno)d] - %(message)s"
-        )
-    )
-
-    console_handler = logging.StreamHandler()
-    console_handler.setFormatter(
-        logging.Formatter(f"[{prefix}] %(levelname)s - %(message)s")
-    )
-
-    logger.addHandler(file_handler)
-    logger.addHandler(console_handler)
-
-    return logger
-
-
-logger = setup_logger("apigw", "APIGW")
+logger = setup_logger("apigw", "APIGW", settings.is_production)
 
 mail_config = ConnectionConfig(
     MAIL_USERNAME=settings.google_app_email_address,

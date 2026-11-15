@@ -17,8 +17,8 @@ from services import (
     brick_service,
 )
 from services.text_service import text_service
-from shared_schemas.audio import STTResponse
-from shared_schemas.text import (
+from shared.schemas.audio import STTResponse
+from shared.schemas.text import (
     PhonemeAnalysisRequest,
     PhonemeAnalysisResponse,
 )

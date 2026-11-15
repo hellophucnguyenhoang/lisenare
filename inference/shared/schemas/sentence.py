@@ -2,7 +2,7 @@ from typing import Annotated
 
 from pydantic import BaseModel, Field
 
-from shared_constants import PASS_SCORE
+from shared.constants import PASS_SCORE
 
 
 class SentenceCompareRequest(BaseModel):

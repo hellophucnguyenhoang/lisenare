@@ -6,9 +6,9 @@ from database.models import Learner, LearnerSetting
 from main import app
 from services import auth_service
 from services.text_service import text_service
-from shared_constants import PASS_SCORE
-from shared_schemas.sentence import SentenceCompareResponse
-from shared_schemas.text import PhonemeAnalysisResponse
+from shared.constants import PASS_SCORE
+from shared.schemas.sentence import SentenceCompareResponse
+from shared.schemas.text import PhonemeAnalysisResponse
 
 
 def test_evaluate_phoneme_pronunciation_english():
