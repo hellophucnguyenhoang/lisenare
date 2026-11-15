@@ -174,5 +174,5 @@ def stop_image_cleanup_scheduler(scheduler: BackgroundScheduler | None = None):
     active = scheduler or _cleanup_scheduler
     if active and active.running:
         active.shutdown(wait=False)
-        logger.info("Stopped image cleanup scheduler.")
+        logger.info("Stopped image cleanup scheduler")
     _cleanup_scheduler = None

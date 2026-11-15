@@ -17,7 +17,7 @@ router = APIRouter(prefix="/search", tags=["Brick Search"])
 @router.post(
     "/init-embeddings",
     status_code=status.HTTP_201_CREATED,
-    description="WARNING: This takes about 10 minutes to run.",
+    description="WARNING: This can takes about 10 minutes to run.",
 )
 @metrics.measure_time
 def init_embeddings(

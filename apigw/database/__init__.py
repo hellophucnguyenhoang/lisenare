@@ -1,4 +1,4 @@
-from .dbconfig import engine, get_session, init_db, reset_dev_database
+from .dbconfig import engine, get_session, init_db, reset_dev_db
 from .models import (
     OTP,
     Account,
@@ -20,7 +20,7 @@ __all__ = [
     "engine",
     "get_session",
     "init_db",
-    "reset_dev_database",
+    "reset_dev_db",
     "OTP",
     "Account",
     "Brick",

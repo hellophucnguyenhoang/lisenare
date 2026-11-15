@@ -28,7 +28,7 @@ def get_session() -> Iterator[Session]:
         yield session
 
 
-def init_db(init_data: bool = False) -> None:
+def init_db(seed_data: bool = False) -> None:
     """Initialize the database schema and seed data if necessary."""
     try:
         logger.info("Initializing database schema...")
@@ -38,25 +38,27 @@ def init_db(init_data: bool = False) -> None:
             session.execute(text("CREATE EXTENSION IF NOT EXISTS pgroonga;"))
             session.commit()
 
-        logger.info("Database extensions enabled.")
+        logger.info("Database extensions enabled")
 
         inspector = inspect(engine)
 
         if not inspector.has_table("brick"):
             Base.metadata.create_all(engine)
-            logger.info("Database tables created.")
+            logger.info("Database tables created")
 
-            if init_data:
+            if seed_data:
                 with Session(engine) as session:
                     init_db_data(session)
-
-                logger.info(
-                    "Database data initialized EXCEPT brick embeddings."
-                )
+                    logger.info(
+                        "Database seeded, except for brick embeddings."
+                    )
             else:
-                logger.info("Skipping data initialization.")
+                logger.info("Skipping data initialization")
+
         else:
-            logger.info("Database schema already exists, skipping init.")
+            logger.info(
+                "Database already initialized; skipping table creation and seeding."
+            )
 
     except Exception as e:
         logger.critical(
@@ -66,7 +68,7 @@ def init_db(init_data: bool = False) -> None:
         raise
 
 
-def reset_dev_database() -> None:
+def reset_dev_db() -> None:
     if not settings.is_production:
         with Session(engine) as session:
             session.execute(text("DROP SCHEMA public CASCADE;"))
@@ -74,7 +76,7 @@ def reset_dev_database() -> None:
             session.execute(text("GRANT ALL ON SCHEMA public TO public;"))
             session.commit()
 
-        logger.info("Dropped and recreated a clean dev public schema.")
+        logger.info("Dropped and recreated a clean dev public schema")
 
 
 def create_learner_account(

@@ -65,7 +65,7 @@ def get_or_create_embedding(
     produces an invalid result.
     """
     if not canonical.strip():
-        logger.warning("Empty canonical text provided, skipping embedding.")
+        logger.warning("Empty canonical text provided, skipping embedding")
         return None
 
     model_version = _model_version_for(lang)
@@ -431,7 +431,7 @@ def initialize_embeddings(session: Session) -> None:
     stmt = select(Brick).where(Brick.embedding_id.is_(None))
     bricks = session.scalars(stmt).all()
     if not bricks:
-        logger.info("No bricks without embeddings.")
+        logger.info("No bricks without embeddings")
         return
 
     logger.info(f"Embedding {len(bricks)} bricks without embeddings...")
@@ -448,7 +448,7 @@ def initialize_embeddings(session: Session) -> None:
                 f"Failed to embed brick ID {brick.id}: {e}", exc_info=True
             )
     session.commit()
-    logger.info("All bricks embedded.")
+    logger.info("All bricks embedded")
 
 
 # ---------------------------------------------------------------------------

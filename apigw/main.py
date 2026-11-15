@@ -46,13 +46,13 @@ async def lifespan(app: FastAPI):
     audio_scheduler = audio_cache_service.start_audio_cleanup_scheduler()
     image_scheduler = image_cache_service.start_image_cleanup_scheduler()
 
-    database.init_db(init_data=False)
-    logger.info("Lisenare API services initialized successfully.")
+    database.init_db(seed_data=True)
+    logger.info("Lisenare API services initialized successfully")
     yield
 
     # Shutdown code
     logger.info("Shutting down Lisenare API services...")
-    # database.reset_dev_database()
+    # database.reset_dev_db()
 
     image_cache_service.stop_image_cleanup_scheduler(image_scheduler)
     audio_cache_service.stop_audio_cleanup_scheduler(audio_scheduler)
@@ -60,7 +60,7 @@ async def lifespan(app: FastAPI):
     redis_client.close_redis_client()
     await http_client.close_async_client()
     http_client.close_client()
-    logger.info("Lisenare API services shut down successfully.")
+    logger.info("Lisenare API services shut down successfully")
 
 
 app = FastAPI(

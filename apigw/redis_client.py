@@ -13,7 +13,7 @@ def init_redis_client() -> redis.Redis:
             r = redis.from_url(settings.redis_url, decode_responses=True)
             r.ping()
             client = r
-            logger.info(f"Connected to Redis ({settings.redis_url}).")
+            logger.info(f"Connected to Redis ({settings.redis_url})")
         except Exception as e:
             logger.warning(
                 f"Could not connect to Redis at {settings.redis_url}: {e}. "
@@ -34,7 +34,7 @@ def close_redis_client():
         except Exception as e:
             logger.warning(f"Error closing Redis client: {e}")
         client = None
-    logger.info("Redis client closed.")
+    logger.info("Redis client closed")
 
 
 def get_redis_client() -> redis.Redis:

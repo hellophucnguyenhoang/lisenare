@@ -11,7 +11,7 @@ def init_client() -> httpx.Client:
     global client
     if client is None:
         client = httpx.Client(base_url=settings.inference_url, timeout=30.0)
-        logger.info(f"HTTP client initialized ({client.base_url}).")
+        logger.info(f"HTTP client initialized ({client.base_url})")
     return client
 
 
@@ -21,7 +21,7 @@ def close_client():
     if client:
         client.close()
         client = None
-    logger.info("HTTP client closed.")
+    logger.info("HTTP client closed")
 
 
 def get_client() -> httpx.Client:
@@ -51,7 +51,7 @@ async def close_async_client():
     if async_client:
         await async_client.aclose()
         async_client = None
-    logger.info("Async HTTP client closed.")
+    logger.info("Async HTTP client closed")
 
 
 def get_async_client() -> httpx.AsyncClient:
