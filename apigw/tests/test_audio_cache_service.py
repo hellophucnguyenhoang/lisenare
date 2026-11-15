@@ -374,7 +374,7 @@ def test_update_brick_audio_clears_redis_cache(client, tmp_path):
     redis.setex(cache_key, 86400, old_audio_path)
     assert redis.get(cache_key) == old_audio_path
 
-    new_audio_path = "learner-audios/learner-1/brick_new.wav"
+    new_audio_path = "brick-audios/learner-1/brick_new.wav"
     with Session(engine) as session:
         brick_service.update_brick(
             session=session,

@@ -4,13 +4,12 @@ from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 from fastapi import UploadFile
-
 from PIL import Image
 
 from constants import (
     ASSETS_DIR,
+    BRICK_AUDIOS_DIR,
     GENERATED_AUDIOS_DIR,
-    LEARNER_AUDIOS_DIR,
     LEARNER_AVATARS_DIR,
     STATIC_IMAGE_MAX_SIZE,
 )
@@ -26,7 +25,7 @@ from utils.file_utils import (
 
 def test_constants():
     assert ASSETS_DIR == Path("lisenare-assets")
-    assert LEARNER_AUDIOS_DIR == Path("learner-audios")
+    assert BRICK_AUDIOS_DIR == Path("brick-audios")
     assert GENERATED_AUDIOS_DIR == Path("generated-audios")
     assert LEARNER_AVATARS_DIR == Path("learner-avatars")
 
@@ -81,11 +80,11 @@ def test_save_upload_file(tmp_path):
 
             rel_path, returned_bytes = await save_upload_file(
                 file=upload,
-                relative_path=LEARNER_AUDIOS_DIR / "learner-42",
+                relative_path=BRICK_AUDIOS_DIR / "learner-42",
                 filename_prefix="brick",
             )
 
-            assert rel_path.startswith("learner-audios/learner-42/brick-")
+            assert rel_path.startswith("brick-audios/learner-42/brick-")
             assert rel_path.endswith(".mp3")
             assert returned_bytes == file_content
 
@@ -124,17 +123,17 @@ def test_save_upload_file_to_cloud():
             file_content = b"cloud_upload_audio"
             upload = UploadFile(
                 file=io.BytesIO(file_content),
-                filename="learner_audio.mp3",
+                filename="brick_audio.mp3",
                 headers={"content-type": "audio/mpeg"},
             )
 
             s3_key, returned_bytes = await save_upload_file_to_cloud(
                 file=upload,
-                relative_path=LEARNER_AUDIOS_DIR / "learner-99",
+                relative_path=BRICK_AUDIOS_DIR / "learner-99",
                 filename_prefix="brick",
             )
 
-            assert s3_key.startswith("learner-audios/learner-99/brick-")
+            assert s3_key.startswith("brick-audios/learner-99/brick-")
             assert s3_key.endswith(".mp3")
             assert returned_bytes == file_content
 
@@ -227,6 +226,7 @@ def test_process_and_save_image_success():
 def test_process_and_save_image_empty():
     async def _test():
         import pytest
+
         from exceptions import RequestException
 
         upload = UploadFile(
@@ -244,6 +244,7 @@ def test_process_and_save_image_empty():
 def test_process_and_save_image_invalid_format():
     async def _test():
         import pytest
+
         from exceptions import RequestException
 
         upload = UploadFile(

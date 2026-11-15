@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 
 import http_client as http_client
 from config import settings
-from constants import LEARNER_AUDIOS_DIR
+from constants import BRICK_AUDIOS_DIR
 from database import Learner, get_session
 from schemas import (
     PronunciationAnalysisResponse,
@@ -131,18 +131,18 @@ async def evaluate_pronunciation_audio(
         learner.id,
     )
     (
-        learner_audio_path,
-        learner_audio_bytes,
+        brick_audio_path,
+        brick_audio_bytes,
     ) = await file_utils.save_upload_file_to_cloud(
         file=learner_file,
-        relative_path=LEARNER_AUDIOS_DIR / f"learner_{learner.id}",
+        relative_path=BRICK_AUDIOS_DIR / f"learner_{learner.id}",
         filename_prefix=f"brick_{target_brick_id}",
     )
 
     learner_files = {
         "file": (
             learner_file.filename,
-            learner_audio_bytes,
+            brick_audio_bytes,
             learner_file.content_type,
         )
     }

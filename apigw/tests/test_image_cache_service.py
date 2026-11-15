@@ -50,7 +50,7 @@ def _setup_test_brick_with_image(learner_id: int = 2) -> Brick:
             brick = Brick(
                 native_text="Bức ảnh",
                 target_text="A test photo",
-                target_audio_path="learner-audios/learner-2/brick.wav",
+                target_audio_path="brick-audios/learner-2/brick.wav",
                 image_path=f"brick-images/learner-{learner_id}/brick-123.webp",
                 kind="word",
                 is_private=True,
@@ -94,7 +94,7 @@ def test_brick_image_no_image_fails(client):
         no_img_brick = Brick(
             native_text="Không ảnh",
             target_text="No image here",
-            target_audio_path="learner-audios/learner-2/brick.wav",
+            target_audio_path="brick-audios/learner-2/brick.wav",
             image_path=None,
             kind="word",
             is_private=False,
@@ -307,7 +307,7 @@ def test_brick_delete_clears_image_cache():
         brick = Brick(
             native_text="Xoá ảnh",
             target_text="Delete image test",
-            target_audio_path="learner-audios/learner-2/brick.wav",
+            target_audio_path="brick-audios/learner-2/brick.wav",
             image_path="brick-images/learner-2/delete-me.webp",
             kind="word",
             is_private=True,

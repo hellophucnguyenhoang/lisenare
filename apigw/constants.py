@@ -13,7 +13,7 @@ WEBP_QUALITY = 80
 WEBP_METHOD = 4
 
 ASSETS_DIR = Path("lisenare-assets")
-LEARNER_AUDIOS_DIR = Path("learner-audios")
+BRICK_AUDIOS_DIR = Path("brick-audios")
 GENERATED_AUDIOS_DIR = Path("generated-audios")
 LEARNER_AVATARS_DIR = Path("learner-avatars")
 BRICK_IMAGES_DIR = Path("brick-images")

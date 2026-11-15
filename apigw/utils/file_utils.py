@@ -120,7 +120,7 @@ async def save_upload_file(
 
     Args:
         file: FastAPI UploadFile
-        relative_path: Directory relative to ASSETS_DIR (e.g. "learner-audios/learner-1")
+        relative_path: Directory relative to ASSETS_DIR (e.g. "brick-audios/learner-1")
         filename_prefix: Prefix for the generated filename (default: "file")
 
     Returns:
@@ -212,7 +212,7 @@ async def save_upload_file_to_cloud(
 
     Args:
         file: FastAPI UploadFile
-        relative_path: Directory/prefix relative to bucket root (e.g. "learner-audios/learner-1")
+        relative_path: Directory/prefix relative to bucket root (e.g. "brick-audios/learner-1")
         filename_prefix: Prefix for the generated filename (default: "file")
 
     Returns:

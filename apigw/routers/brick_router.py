@@ -12,7 +12,7 @@ from fastapi import (
 )
 from sqlalchemy.orm import Session
 
-from constants import BRICK_IMAGES_DIR, LEARNER_AUDIOS_DIR
+from constants import BRICK_AUDIOS_DIR, BRICK_IMAGES_DIR
 from database import Learner, get_session
 from schemas import (
     AddBrickRequest,
@@ -354,7 +354,7 @@ async def create_brick(
     creator_id = learner.id
     target_audio_path, _ = await file_utils.save_upload_file_to_cloud(
         file=target_audio_file,
-        relative_path=LEARNER_AUDIOS_DIR / f"learner-{creator_id}",
+        relative_path=BRICK_AUDIOS_DIR / f"learner-{creator_id}",
         filename_prefix="brick",
     )
     image_path = None
@@ -389,7 +389,7 @@ async def update_brick(
     if target_audio_file:
         target_audio_path, _ = await file_utils.save_upload_file_to_cloud(
             file=target_audio_file,
-            relative_path=LEARNER_AUDIOS_DIR / f"learner-{learner.id}",
+            relative_path=BRICK_AUDIOS_DIR / f"learner-{learner.id}",
             filename_prefix="brick",
         )
 

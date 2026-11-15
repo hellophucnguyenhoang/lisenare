@@ -1260,7 +1260,7 @@ def test_create_brick_with_image_file(client: TestClient):
         patch(
             "utils.file_utils.save_upload_file_to_cloud",
             return_value=(
-                "learner-audios/learner-2/brick.wav",
+                "brick-audios/learner-2/brick.wav",
                 b"fake audio data",
             ),
         ),
@@ -1310,7 +1310,7 @@ def test_update_brick_with_image_file(client: TestClient):
         brick = Brick(
             native_text="Gốc",
             target_text="Original text for update image",
-            target_audio_path="learner-audios/learner-2/brick.wav",
+            target_audio_path="brick-audios/learner-2/brick.wav",
             target_lang="en",
             kind="word",
             is_private=True,
@@ -1367,7 +1367,7 @@ def test_get_brick_image_success(client: TestClient, tmp_path):
         brick = Brick(
             native_text="Tải ảnh",
             target_text="Download image test brick",
-            target_audio_path="learner-audios/learner-2/brick.wav",
+            target_audio_path="brick-audios/learner-2/brick.wav",
             image_path="brick-images/learner-2/brick-test.webp",
             target_lang="en",
             kind="word",
@@ -1422,7 +1422,7 @@ def test_get_brick_image_no_image_returns_404(client: TestClient):
         brick = Brick(
             native_text="Không ảnh",
             target_text="No image test brick",
-            target_audio_path="learner-audios/learner-2/brick.wav",
+            target_audio_path="brick-audios/learner-2/brick.wav",
             image_path=None,
             target_lang="en",
             kind="word",
