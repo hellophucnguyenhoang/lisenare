@@ -8,7 +8,7 @@ Users learn English by listening and repeating small real-world sentences they a
 
 Instead of fixed lessons, learners:
 - Add sentences they personally want to speak
-- Retrieval them through an automated repetition scheduler
+- Retrieve them through an automated repetition scheduler
 - Keep track of their learning progress
 
 The system automatically determines when each sentence should be reviewed to help long-term retention.
